@@ -1,0 +1,22 @@
+# dependencies
+/node_modules
+
+# testing
+/coverage
+/playwright-report
+/test-results
+
+# production
+/build
+/dist
+/top-test
+
+# OS
+.DS_Store
+
+# Editors
+.idea
+
+# Logs
+npm-debug.log*
+npm-error.log*

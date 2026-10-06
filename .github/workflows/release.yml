@@ -1,0 +1,27 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The git tag for the version to use for index.html
+        required: true
+run-name: Release ${{ github.event.inputs.version }}
+env:
+  BUCKET: models-resources
+  PREFIX: codap-plugin-starter-project
+  SRC_FILE: index-top.html
+  DEST_FILE: index.html
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::612297603577:role/codap-plugin-starter-project
+          aws-region: us-east-1
+      - run: >
+          aws s3 cp
+          s3://${{ env.BUCKET }}/${{ env.PREFIX }}/version/${{ github.event.inputs.version }}/${{ env.SRC_FILE }}
+          s3://${{ env.BUCKET }}/${{ env.PREFIX }}/${{ env.DEST_FILE }}
