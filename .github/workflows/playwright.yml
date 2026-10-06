@@ -35,11 +35,11 @@ jobs:
     - uses: aws-actions/configure-aws-credentials@v6
       if: always()
       with:
-        role-to-assume: arn:aws:iam::612297603577:role/codap-plugin-starter-project
+        role-to-assume: arn:aws:iam::612297603577:role/t-sne-graph-codap-plugin
         aws-region: us-east-1
     - name: Upload Playwright Report
       if: always()
-      run: aws s3 sync ./playwright-report s3://models-resources/codap-plugin-starter-project/playwright-report/${{ steps.s3-deploy-path.outputs.deployPath }} --delete --cache-control "no-cache, max-age=0"
+      run: aws s3 sync ./playwright-report s3://models-resources/t-sne-graph-codap-plugin/playwright-report/${{ steps.s3-deploy-path.outputs.deployPath }} --delete --cache-control "no-cache, max-age=0"
 
     # This report summary action only works when it is run during a pull_request event. It uses
     # the info from the event to figure out what PR to add/update the comment on. At some point
@@ -50,4 +50,4 @@ jobs:
       if: always()
       with:
         report-file: test-results/results.json
-        report-url: https://models-resources.concord.org/codap-plugin-starter-project/playwright-report/${{ steps.s3-deploy-path.outputs.deployPath }}/
+        report-url: https://models-resources.concord.org/t-sne-graph-codap-plugin/playwright-report/${{ steps.s3-deploy-path.outputs.deployPath }}/

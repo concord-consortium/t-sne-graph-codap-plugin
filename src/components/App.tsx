@@ -12,7 +12,7 @@ import {
 } from "@concord-consortium/codap-plugin-api";
 import "./App.css";
 
-const kPluginName = "Sample Plugin";
+const kPluginName = "t-SNE Graph";
 const kVersion = "0.0.1";
 const kInitialDimensions = {
   width: 380,
@@ -103,7 +103,7 @@ export const App = () => {
 
   return (
     <div className="App">
-      CODAP Starter Plugin
+      t-SNE Graph
       <div className="buttons">
         <button onClick={handleCreateData}>
           Create some data

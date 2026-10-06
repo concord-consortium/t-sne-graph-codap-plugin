@@ -19,12 +19,12 @@ const coverageReporter: ReporterDescription = [
        the exclude filter, so it does not get any of the codap3 files.
        The paths returned by the v8 coverage have two issues which at least make them
        break the html report. They have an extra prefix of the project name so they
-       look like `codap-plugin-starter-project/codap-plugin-starter-project/src`. They
+       look like `t-sne-graph-codap-plugin/t-sne-graph-codap-plugin/src`. They
        have a suffix like `?[random string]` like `App.tsx?c341`. */
     rewritePath: ({absolutePath}) => {
       // It isn't clear if this is before or after the exclude rule
       return (absolutePath as string)
-        .replace("codap-plugin-starter-project/", "")
+        .replace("t-sne-graph-codap-plugin/", "")
         .replace(/\?[0-9a-z]+$/,"");
     },
     /* Directory in which to write coverage reports */

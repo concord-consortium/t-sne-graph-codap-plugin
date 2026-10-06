@@ -1,7 +1,7 @@
 {
-  "name": "codap-plugin-starter-project",
+  "name": "t-sne-graph-codap-plugin",
   "version": "0.0.1",
-  "description": "Concord Consortium Starter CODAP Plugin",
+  "description": "Concord Consortium t-SNE Graph CODAP Plugin",
   "main": "index.js",
   "engines": {
     "node": ">=22"
@@ -62,14 +62,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/concord-consortium/starter-projects.git"
+    "url": "git+https://github.com/concord-consortium/t-sne-graph-codap-plugin.git"
   },
   "author": "Concord Consortium",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/concord-consortium/starter-projects/issues"
+    "url": "https://github.com/concord-consortium/t-sne-graph-codap-plugin/issues"
   },
-  "homepage": "https://github.com/concord-consortium/starter-projects#readme",
+  "homepage": "https://github.com/concord-consortium/t-sne-graph-codap-plugin#readme",
   "devDependencies": {
     "@bgotink/playwright-coverage": "^0.3.2",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.4.1",

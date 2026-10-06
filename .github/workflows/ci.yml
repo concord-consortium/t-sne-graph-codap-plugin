@@ -41,15 +41,15 @@ jobs:
         run: npm ci
       - uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::612297603577:role/codap-plugin-starter-project
+          role-to-assume: arn:aws:iam::612297603577:role/t-sne-graph-codap-plugin
           aws-region: us-east-1
       - uses: concord-consortium/s3-deploy-action@v1
         id: s3-deploy
         with:
           bucket: models-resources
-          prefix: codap-plugin-starter-project
+          prefix: t-sne-graph-codap-plugin
           githubToken: ${{ secrets.GITHUB_TOKEN }}
-          deployRunUrl: https://codap3.concord.org/branch/main/?di=https://models-resources.concord.org/codap-plugin-starter-project/__deployPath__/index.html
+          deployRunUrl: https://codap3.concord.org/branch/main/?di=https://models-resources.concord.org/t-sne-graph-codap-plugin/__deployPath__/index.html
           # Parameters to GHActions have to be strings, so a regular yaml array cannot
           # be used. Instead the `|` turns the following lines into a string
           topBranches: |

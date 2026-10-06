@@ -8,7 +8,7 @@ on:
 run-name: Release ${{ github.event.inputs.version }}
 env:
   BUCKET: models-resources
-  PREFIX: codap-plugin-starter-project
+  PREFIX: t-sne-graph-codap-plugin
   SRC_FILE: index-top.html
   DEST_FILE: index.html
 jobs:
@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::612297603577:role/codap-plugin-starter-project
+          role-to-assume: arn:aws:iam::612297603577:role/t-sne-graph-codap-plugin
           aws-region: us-east-1
       - run: >
           aws s3 cp
