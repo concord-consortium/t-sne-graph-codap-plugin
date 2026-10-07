@@ -131,6 +131,18 @@ describe("Dropdown", () => {
     expect(button()).toHaveTextContent("Select");
   });
 
+  it("doesn't reopen by itself after being disabled while open", async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<Dropdown label="Data Table" options={kOptions} onChange={jest.fn()} />);
+    await user.click(button());
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+
+    rerender(<Dropdown label="Data Table" options={kOptions} isDisabled onChange={jest.fn()} />);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    rerender(<Dropdown label="Data Table" options={kOptions} onChange={jest.fn()} />);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
   it("opens once it is enabled", async () => {
     const user = userEvent.setup();
     const { rerender } = render(<Dropdown label="Data Table" options={kOptions} isDisabled onChange={jest.fn()} />);

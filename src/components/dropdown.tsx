@@ -25,6 +25,10 @@ export const Dropdown = (props: IProps) => {
   const { label, options, value, onChange, placeholder = "Select", isDisabled, className } = props;
   const [isOpen, setIsOpen] = useState(false);
 
+  // If the dropdown is disabled while its list is open, forget that it was open, so the list
+  // doesn't reopen by itself when the dropdown is enabled again
+  if (isDisabled && isOpen) setIsOpen(false);
+
   // Once a value is chosen, a leading "Select" item lets the user unselect it
   const items = value === undefined ? options : [{ id: kClearKey, label: "Select" }, ...options];
 
