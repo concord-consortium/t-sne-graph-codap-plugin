@@ -1,0 +1,222 @@
+{
+  "key": "DOC_QKv8lMEfAHyl",
+  "type": "CODAP",
+  "version": "3.1.1",
+  "build": "2999",
+  "createdAt": 0,
+  "properties": {},
+  "content": {
+    "rowMap": {
+      "TROWR2zbVn7snpvO": {
+        "id": "TROWR2zbVn7snpvO",
+        "type": "free",
+        "tiles": {
+          "TABL883254190364935": {
+            "tileId": "TABL883254190364935",
+            "x": 5,
+            "y": 5,
+            "width": 245,
+            "height": 234,
+            "zIndex": 1
+          }
+        },
+        "maxZIndex": 1
+      }
+    },
+    "rowOrder": [
+      "TROWR2zbVn7snpvO"
+    ],
+    "tileMap": {
+      "TABL883254190364935": {
+        "id": "TABL883254190364935",
+        "name": "",
+        "content": {
+          "type": "CaseTable",
+          "columnWidths": {},
+          "rowHeights": {},
+          "horizontalScrollOffset": 0
+        }
+      }
+    },
+    "sharedModelMap": {
+      "SHARoEzuFmiF0Xj2": {
+        "sharedModel": {
+          "type": "GlobalValueManager",
+          "id": "SHARoEzuFmiF0Xj2",
+          "globals": {}
+        },
+        "tiles": []
+      },
+      "SHARlXpR_kH5npSF": {
+        "sharedModel": {
+          "type": "SharedDataSet",
+          "id": "SHARlXpR_kH5npSF",
+          "providerId": "",
+          "dataSet": {
+            "id": "DATA988295294908053",
+            "name": "Phrases",
+            "_title": "Phrases",
+            "collections": [
+              {
+                "id": "COLL774932758296635",
+                "name": "Labels",
+                "attributes": [
+                  "ATTR218942874181276"
+                ],
+                "_groupKeyCaseIds": [
+                  [
+                    "\rSimilar\r",
+                    "CASE654730345684358"
+                  ],
+                  [
+                    "\rOpposite\r",
+                    "CASE834207631294439"
+                  ],
+                  [
+                    "\rSideways\r",
+                    "CASE443623588538220"
+                  ]
+                ]
+              },
+              {
+                "id": "COLL194642752659057",
+                "name": "Phrases",
+                "attributes": [
+                  "ATTR27718083178128",
+                  "ATTR966821311224067"
+                ],
+                "_groupKeyCaseIds": [
+                  [
+                    "ITEM482576225767427",
+                    "CASE561477693524835"
+                  ],
+                  [
+                    "ITEM870739417920052",
+                    "CASE623456614232618"
+                  ],
+                  [
+                    "ITEM477865554162046",
+                    "CASE430206667126216"
+                  ],
+                  [
+                    "ITEM875766270881368",
+                    "CASE551004423283779"
+                  ],
+                  [
+                    "ITEM220984437806671",
+                    "CASE761623720381996"
+                  ],
+                  [
+                    "ITEM784338921421185",
+                    "CASE452394793312609"
+                  ],
+                  [
+                    "ITEM499624503357024",
+                    "CASE651243108354833"
+                  ],
+                  [
+                    "ITEM849689634074874",
+                    "CASE892984436958993"
+                  ],
+                  [
+                    "ITEM130274558441634",
+                    "CASE18264140484923"
+                  ]
+                ]
+              }
+            ],
+            "attributesMap": {
+              "ATTR218942874181276": {
+                "id": "ATTR218942874181276",
+                "name": "label",
+                "clientKey": "",
+                "values": [
+                  "Similar",
+                  "Similar",
+                  "Similar",
+                  "Opposite",
+                  "Opposite",
+                  "Opposite",
+                  "Sideways",
+                  "Sideways",
+                  "Sideways"
+                ]
+              },
+              "ATTR27718083178128": {
+                "id": "ATTR27718083178128",
+                "name": "phrase",
+                "clientKey": "",
+                "values": [
+                  "the cat sat on the mat",
+                  "a cat rested on a rug",
+                  "the kitten lay on the carpet",
+                  "the dog ran from the house",
+                  "a dog sprinted outside",
+                  "the puppy fled the yard",
+                  "the bird sang in the tree",
+                  "a bird chirped on a branch",
+                  "the sparrow called at dawn"
+                ]
+              },
+              "ATTR966821311224067": {
+                "id": "ATTR966821311224067",
+                "name": "notes",
+                "clientKey": "",
+                "values": [
+                  "note Similar 1",
+                  "note Similar 2",
+                  "note Similar 3",
+                  "note Opposite 1",
+                  "note Opposite 2",
+                  "note Opposite 3",
+                  "note Sideways 1",
+                  "note Sideways 2",
+                  "note Sideways 3"
+                ]
+              }
+            },
+            "_itemIds": [
+              "ITEM482576225767427",
+              "ITEM870739417920052",
+              "ITEM477865554162046",
+              "ITEM875766270881368",
+              "ITEM220984437806671",
+              "ITEM784338921421185",
+              "ITEM499624503357024",
+              "ITEM849689634074874",
+              "ITEM130274558441634"
+            ],
+            "snapSelection": [],
+            "setAsideItemIds": []
+          }
+        },
+        "provider": "TABL883254190364935",
+        "tiles": [
+          "TABL883254190364935"
+        ]
+      },
+      "SHAR2AVf7BprMlGz": {
+        "sharedModel": {
+          "type": "SharedCaseMetadata",
+          "id": "SHAR2AVf7BprMlGz",
+          "data": "DATA988295294908053",
+          "description": "",
+          "source": "",
+          "importDate": "",
+          "collections": {},
+          "attributes": {
+            "ATTR218942874181276": {},
+            "ATTR27718083178128": {},
+            "ATTR966821311224067": {}
+          },
+          "caseTableTileId": "TABL883254190364935",
+          "lastShownTableOrCardTileId": "TABL883254190364935"
+        },
+        "provider": "TABL883254190364935",
+        "tiles": [
+          "TABL883254190364935"
+        ]
+      }
+    }
+  }
+}
