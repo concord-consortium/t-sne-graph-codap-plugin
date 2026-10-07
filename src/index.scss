@@ -1,3 +1,5 @@
+@use "./styles/mixins" as *;
+
 html, body {
   margin: 0;
   padding: 0;
@@ -6,4 +8,9 @@ html, body {
 body {
   font-family: 'Lato', sans-serif;
   user-select: none;
+}
+
+// For elements that only need to be hidden on screen; use the mixin when a rule also sets other styles
+.visually-hidden {
+  @include visually-hidden;
 }

@@ -1,0 +1,17 @@
+@use "../styles/variables" as *;
+
+// Each row is aligned right, so the labels sit beside buttons of different widths
+.data-source-selector {
+  align-items: flex-end;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.data-table-dropdown .dropdown-button {
+  width: $dropdown-width-wide;
+}
