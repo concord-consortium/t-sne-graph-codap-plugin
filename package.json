@@ -71,6 +71,7 @@
   },
   "homepage": "https://github.com/concord-consortium/t-sne-graph-codap-plugin#readme",
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@bgotink/playwright-coverage": "^0.3.2",
     "@eslint-community/eslint-plugin-eslint-comments": "^4.4.1",
     "@eslint/js": "^9.22.0",

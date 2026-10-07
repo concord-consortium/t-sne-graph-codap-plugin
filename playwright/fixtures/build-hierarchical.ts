@@ -169,7 +169,7 @@ const main = async () => {
   });
   if (!harnessTile) throw new Error("The saved document has no harness tile");
   fs.writeFileSync(kFixturePath, `${JSON.stringify(doc, null, 2)}\n`);
-  console.log("Saved", kFixturePath);
+  process.stdout.write(`Saved ${kFixturePath}\n`);
 
   // 2. Reload the saved file and check it. CODAP ignores `di` when `url` loads a document,
   // so the check serves the fixture with the harness tile added back.
@@ -186,7 +186,7 @@ const main = async () => {
     const actual = replies[i]?.success ? read(replies[i].values) : replies[i];
     const passed = JSON.stringify(actual) === JSON.stringify(expected);
     failed = failed || !passed;
-    console.log(passed ? "PASS" : "FAIL", resource, passed ? "" : JSON.stringify(actual));
+    process.stdout.write(`${passed ? "PASS" : "FAIL"} ${resource}${passed ? "" : ` ${JSON.stringify(actual)}`}\n`);
   });
   await browser.close();
   process.exit(failed ? 1 : 0);

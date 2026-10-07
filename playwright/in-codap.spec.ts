@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type FrameLocator, type Page } from "@playwright/test";
 import { test } from "./fixtures";
 
@@ -157,4 +158,32 @@ test("lists leaf columns for Phrase, all columns for Label, and clears a Phrase 
   await expect(dropdown(plugin, "Label Column")).toHaveText("label");
   expect(await optionsOf(plugin, "Phrase Column")).toEqual(["notes"]);
   expect(await optionsOf(plugin, "Label Column")).toEqual(["Select", "label", "phrase", "notes"]);
+});
+
+// Each WCAG 2 A/AA violation in the plugin, as its rule and the elements it flagged, so a failure is
+// readable. Only the plugin's frame is checked, not CODAP. axe's best-practice rules (a main
+// landmark, an h1) are left out: they suit whole pages, and the plugin is a tile inside CODAP, which
+// shows the title.
+const axeViolations = async (page: Page) => {
+  const { violations } = await new AxeBuilder({ page })
+    .include([".codap-web-view-iframe", "body"])
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  return violations.map(({ id, nodes }) => ({ id, elements: nodes.map(node => node.target.join(" ")) }));
+};
+
+test("has no accessibility violations", async ({ page }) => {
+  await page.goto(`${kCodapUrl}&di=${kPluginUrl}`);
+  const plugin = pluginFrame(page);
+  await expect(dropdown(plugin, "Data Table")).toBeVisible();
+
+  // Closed dropdowns, two of them disabled
+  expect(await axeViolations(page)).toEqual([]);
+
+  // An open list, with a value selected so it includes the "Select" clear item
+  await createTable(page);
+  await choose(plugin, "Data Table", "New Dataset");
+  await dropdown(plugin, "Data Table").click();
+  await expect(plugin.getByRole("listbox")).toBeVisible();
+  expect(await axeViolations(page)).toEqual([]);
 });
