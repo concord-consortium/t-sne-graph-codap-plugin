@@ -13,7 +13,6 @@ jest.mock("@concord-consortium/codap-plugin-api", () => ({
 }));
 
 const api = jest.mocked(codapApi);
-const kConfig = { name: "t-SNE Plot", version: "0.0.1", dimensions: { width: 680, height: 300 } };
 
 // A fake CODAP document: each table is a list of collections, parent first
 type FakeDocument = Record<string, { title?: string, collections: Record<string, string[]> }>;
@@ -78,15 +77,21 @@ describe("startCodapSync", () => {
     consoleError.mockRestore();
   });
 
-  it("connects with its own interactiveState handler", async () => {
-    await startCodapSync(store, kConfig);
-    expect(api.codapInterface.init).toHaveBeenCalledWith({ ...kConfig, customInteractiveStateHandler: true });
+  it("connects with the plugin name, tile size and its own interactiveState handler", async () => {
+    await startCodapSync(store);
+    expect(api.codapInterface.init).toHaveBeenCalledWith({
+      name: "t-SNE Plot",
+      version: "0.0.1",
+      // 300px of content below CODAP's 34px title bar
+      dimensions: { width: 680, height: 334 },
+      customInteractiveStateHandler: true
+    });
   });
 
   it("answers CODAP's state request with no value until restore finishes", async () => {
     const init = deferred<unknown>();
     api.codapInterface.init.mockReturnValue(init.promise);
-    const started = startCodapSync(store, kConfig);
+    const started = startCodapSync(store);
 
     expect(stateHandler()()).toEqual({ success: true });
 
@@ -103,7 +108,7 @@ describe("startCodapSync", () => {
       return ok([{ name: "Phrases", title: "My Phrases" }]);
     });
 
-    expect(await startCodapSync(store, kConfig)).toBe(true);
+    expect(await startCodapSync(store)).toBe(true);
     expect(tableWhenFetching).toBe("Phrases");
     expect(store.dataContextName).toBe("Phrases");
     expect(store.phraseAttributeName).toBe("phrase");
@@ -116,7 +121,7 @@ describe("startCodapSync", () => {
       .mockRejectedValueOnce(new Error("timeout"))
       .mockResolvedValueOnce(savedSelections);
 
-    expect(await startCodapSync(store, kConfig)).toBe(true);
+    expect(await startCodapSync(store)).toBe(true);
     expect(api.codapInterface.init).toHaveBeenCalledTimes(kMaxInitAttempts);
     expect(store.dataContextName).toBe("Phrases");
   });
@@ -124,7 +129,7 @@ describe("startCodapSync", () => {
   it("stops without fetching or saving when every init attempt fails", async () => {
     api.codapInterface.init.mockRejectedValue(new Error("timeout"));
 
-    expect(await startCodapSync(store, kConfig)).toBe(false);
+    expect(await startCodapSync(store)).toBe(false);
     expect(api.codapInterface.init).toHaveBeenCalledTimes(kMaxInitAttempts);
     expect(consoleError).toHaveBeenCalledWith("Unable to connect to CODAP:", "timeout");
     expect(api.getListOfDataContexts).not.toHaveBeenCalled();
@@ -133,7 +138,7 @@ describe("startCodapSync", () => {
   });
 
   it("lists the tables, using the name when a table has no title", async () => {
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
     expect(store.dataContexts).toEqual([
       { name: "Phrases", title: "My Phrases" },
       { name: "Other", title: "Other" }
@@ -144,7 +149,7 @@ describe("startCodapSync", () => {
     api.codapInterface.init.mockResolvedValue(savedSelections);
     delete codapDocument.Phrases;
 
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
     expect(store.dataContextName).toBeUndefined();
     expect(store.phraseAttributeName).toBeUndefined();
     expect(store.labelAttributeName).toBeUndefined();
@@ -153,7 +158,7 @@ describe("startCodapSync", () => {
 
   it("lists leaf columns for Phrase and all columns for Label", async () => {
     api.codapInterface.init.mockResolvedValue(savedSelections);
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
 
     expect(store.attributes).toEqual([
       { name: "group", title: "GROUP", collectionName: "Groups", isLeaf: false },
@@ -165,7 +170,7 @@ describe("startCodapSync", () => {
   });
 
   it("fetches the columns when a table is selected", async () => {
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
     store.setDataContext("Other");
     await flush();
     expect(store.attributes.map(attr => attr.name)).toEqual(["text"]);
@@ -177,14 +182,14 @@ describe("startCodapSync", () => {
     api.codapInterface.init.mockResolvedValue({ ...savedSelections, phraseAttributeName: "group",
       labelAttributeName: "label" });
 
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
     expect(store.dataContextName).toBe("Phrases");
     expect(store.phraseAttributeName).toBeUndefined();
     expect(store.labelAttributeName).toBeUndefined();
   });
 
   it("ignores a column response for a table that is no longer selected", async () => {
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
     const slow = deferred<IResult>();
     api.getCollectionList.mockImplementationOnce(() => slow.promise);
 
@@ -201,7 +206,7 @@ describe("startCodapSync", () => {
   });
 
   it("ignores a column list that arrives after a newer selection", async () => {
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
     const slow = deferred<IResult>();
     api.getAttributeList.mockImplementationOnce(() => slow.promise);
 
@@ -221,7 +226,7 @@ describe("startCodapSync", () => {
     const slow = deferred<IResult>();
     api.getCollectionList.mockImplementationOnce(() => slow.promise);
 
-    const started = startCodapSync(store, kConfig);
+    const started = startCodapSync(store);
     await flush();
     // A column is added while the first column fetch is still waiting
     codapDocument.Phrases.collections.Cases.push("notes");
@@ -237,7 +242,7 @@ describe("startCodapSync", () => {
 
   it("refetches columns on a column notice for the selected table, and clears a removed selection", async () => {
     api.codapInterface.init.mockResolvedValue(savedSelections);
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
 
     // Regrouping moves "phrase" up to the parent collection, so it can't be a phrase
     codapDocument.Phrases.collections = { Groups: ["group", "phrase"], Cases: ["label"] };
@@ -249,7 +254,7 @@ describe("startCodapSync", () => {
 
   it("ignores case and selection notices", async () => {
     api.codapInterface.init.mockResolvedValue(savedSelections);
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
     api.getCollectionList.mockClear();
 
     notify(tableListener("Phrases"), "selectCases");
@@ -260,7 +265,7 @@ describe("startCodapSync", () => {
 
   it("ignores column notices for a table that is not selected", async () => {
     api.codapInterface.init.mockResolvedValue(savedSelections);
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
     api.getCollectionList.mockClear();
 
     notify(tableListener("Other"), "createAttributes");
@@ -269,7 +274,7 @@ describe("startCodapSync", () => {
   });
 
   it("refreshes the table list when any table is renamed", async () => {
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
     codapDocument.Other.title = "Renamed";
     notify(tableListener("Other"), "updateDataContext");
     await flush();
@@ -278,7 +283,7 @@ describe("startCodapSync", () => {
 
   it("refreshes the table list when a table is added or removed, and watches each table once", async () => {
     api.codapInterface.init.mockResolvedValue(savedSelections);
-    await startCodapSync(store, kConfig);
+    await startCodapSync(store);
     const [documentListener] = api.addDataContextsListListener.mock.calls[0];
 
     codapDocument.Added = { collections: { Items: ["x"] } };

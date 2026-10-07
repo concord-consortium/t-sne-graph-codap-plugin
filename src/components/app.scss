@@ -1,0 +1,27 @@
+@use "../styles/variables" as *;
+
+// The tile content: the graph area flexes, the controls panel keeps its width
+.app {
+  display: flex;
+  height: 100vh;
+}
+
+.graph-area {
+  background-color: white;
+  flex: 1;
+  min-width: 0;
+}
+
+.controls-panel {
+  background-color: $panel-background;
+  border-left: 1px solid $separator-color;
+  box-sizing: border-box;
+  flex: none;
+  padding: $panel-padding;
+  width: $panel-width;
+}
+
+.controls-header {
+  border-bottom: 1px solid $separator-color;
+  padding: 0 $info-button-space 13px 0;
+}

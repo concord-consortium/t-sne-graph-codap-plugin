@@ -11,6 +11,17 @@ import {
 } from "@concord-consortium/codap-plugin-api";
 import { AttributeInfo, DataContextInfo, IPluginStore } from "./plugin-store";
 
+// CODAP v3 applies the dimensions to the whole tile, including its 34px title bar
+const kContentSize = { width: 680, height: 300 };
+const kTitleBarHeight = 34;
+
+// The plugin's name is the tile title
+export const kPluginConfig: IConfig = {
+  name: "t-SNE Plot",
+  version: "0.0.1",
+  dimensions: { width: kContentSize.width, height: kContentSize.height + kTitleBarHeight }
+};
+
 export const kMaxInitAttempts = 3;
 
 // Notices about cases and selection don't change the columns; selectCases arrives on every click
@@ -29,7 +40,7 @@ const errorMessage = (error: unknown) => error instanceof Error ? error.message 
  * Connects to CODAP, restores the saved selections, and keeps the table and column lists current.
  * Resolves to false if CODAP never answered the handshake, in which case nothing else is started.
  */
-export const startCodapSync = async (store: IPluginStore, config: IConfig): Promise<boolean> => {
+export const startCodapSync = async (store: IPluginStore, config = kPluginConfig): Promise<boolean> => {
   let isRestored = false;
 
   // CODAP saves whatever value this returns. Answering with no value until restore finishes keeps

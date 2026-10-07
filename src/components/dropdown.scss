@@ -68,7 +68,12 @@
 }
 
 .dropdown-arrow {
+  color: $dropdown-arrow-color;
   flex: none;
+
+  .dropdown-button[aria-disabled="true"] & {
+    color: dimmed($dropdown-arrow-color);
+  }
 
   .dropdown[data-open] & {
     transform: rotate(180deg);
