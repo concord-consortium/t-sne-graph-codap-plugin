@@ -117,7 +117,9 @@ export const App = () => {
         <div className="response-area">
           <label htmlFor={responseId}>Response:</label>
           <output id={responseId} className="response">
-            { codapResponse && `${JSON.stringify(codapResponse, null, "  ")}` }
+            { codapResponse && (typeof codapResponse === "string"
+                ? codapResponse
+                : JSON.stringify(codapResponse, null, "  ")) }
           </output>
         </div>
       </div>
