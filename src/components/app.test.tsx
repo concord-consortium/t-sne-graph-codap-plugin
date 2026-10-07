@@ -1,7 +1,7 @@
 import React from "react";
 import { render, waitFor } from "@testing-library/react";
 import * as codapApi from "@concord-consortium/codap-plugin-api";
-import { App } from "./App";
+import { App } from "./app";
 
 // Replace the CODAP Plugin API with mocks, so each test can choose whether a request succeeds or fails.
 jest.mock("@concord-consortium/codap-plugin-api", () => ({

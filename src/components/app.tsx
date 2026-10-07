@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { initializePlugin } from "@concord-consortium/codap-plugin-api";
-import "./App.css";
+import "./app.css";
 
 const kPluginName = "t-SNE Plot";
 const kVersion = "0.0.1";
