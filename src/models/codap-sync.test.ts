@@ -205,6 +205,33 @@ describe("startCodapSync", () => {
     expect(api.getAttributeList).not.toHaveBeenCalledWith("Phrases", "Cases");
   });
 
+  it("never offers the old table's columns for a new table, while loading or after a failure", async () => {
+    api.codapInterface.init.mockResolvedValue(savedSelections);
+    await startCodapSync(store);
+    expect(store.attributes).not.toEqual([]);
+    const slow = deferred<IResult>();
+    api.getCollectionList.mockImplementationOnce(() => slow.promise);
+
+    store.setDataContext("Other");
+    expect(store.attributes).toEqual([]);
+
+    slow.resolve({ success: false, values: { error: "not found" } });
+    await flush();
+    expect(store.attributes).toEqual([]);
+  });
+
+  it("keeps the column list when a refresh for the same table fails", async () => {
+    api.codapInterface.init.mockResolvedValue(savedSelections);
+    await startCodapSync(store);
+    const columns = store.attributes;
+    api.getCollectionList.mockResolvedValueOnce({ success: false, values: { error: "busy" } });
+
+    notify(tableListener("Phrases"), "createAttributes");
+    await flush();
+    expect(store.attributes).toEqual(columns);
+    expect(store.phraseAttributeName).toBe("phrase");
+  });
+
   it("ignores a column list that arrives after a newer selection", async () => {
     await startCodapSync(store);
     const slow = deferred<IResult>();

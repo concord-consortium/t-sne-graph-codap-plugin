@@ -156,8 +156,12 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
   // 2. Listen for tables being added or removed
   addDataContextsListListener(() => refreshDataContexts());
 
-  // Fetch the columns whenever the selected table changes
-  reaction(() => store.dataContextName, () => refreshAttributes());
+  // Fetch the columns whenever the selected table changes. The old table's columns are cleared first,
+  // so they are never offered for the new table, while loading or if the fetch fails.
+  reaction(() => store.dataContextName, () => {
+    store.setAttributes([]);
+    refreshAttributes();
+  });
 
   // 3. and 4. Fetch the tables, then the columns of the restored table
   await refreshDataContexts();
