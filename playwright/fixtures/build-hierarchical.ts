@@ -3,11 +3,13 @@
 // (Node 22.18 or later runs TypeScript files directly.)
 //
 // A small harness page, served by Playwright, acts as the plugin and sends the API requests.
-// The document is saved the way CODAP's own save does (prepareSnapshot, snapshot,
-// completeSnapshot), with the harness tile removed so the fixture holds only the table.
+// The document is saved with saveCodapDocument, with the harness tile removed so the fixture holds
+// only the table.
 import fs from "fs";
 import path from "path";
 import { chromium, type Frame, type Page } from "@playwright/test";
+// Node needs the extension to import a TypeScript file
+import { exposeCodapDocument, saveCodapDocument } from "../codap-document.ts";
 
 const kFixturePath = path.resolve("playwright/fixtures/hierarchical.codap");
 const kCodap = "https://codap3.concord.org/";
@@ -39,12 +41,6 @@ interface IDocument {
     rowMap: Record<string, IRow>;
     tileMap: Record<string, { content: { type: string } }>;
   };
-}
-// CODAP's document model, exposed as window.currentDocument when debugging
-interface ICodapDocument {
-  prepareSnapshot(): Promise<void>;
-  completeSnapshot(): void;
-  toJSON(): unknown;
 }
 // Values the harness page sets on its window
 interface IHarnessWindow {
@@ -127,8 +123,7 @@ const runHarness = async (page: Page, url: string): Promise<IReply[]> => {
 const main = async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext();
-  // Exposes window.currentDocument in CODAP
-  await context.addInitScript(() => globalThis.localStorage.setItem("debug", "document"));
+  await exposeCodapDocument(context);
   // What the two routes serve; changed between the build and the check
   const served = { steps: buildSteps, document: "" };
   await context.route(url => url.href.startsWith(kHarness) && url.pathname === "/",
@@ -142,15 +137,7 @@ const main = async () => {
   built.forEach((reply, i) => {
     if (!reply?.success) throw new Error(`${buildSteps[i].resource} failed: ${JSON.stringify(reply)}`);
   });
-  const doc = await page.evaluate(async () => {
-    const codapDocument = (globalThis as unknown as { currentDocument: ICodapDocument }).currentDocument;
-    await codapDocument.prepareSnapshot();
-    try {
-      return JSON.parse(JSON.stringify(codapDocument.toJSON()));
-    } finally {
-      codapDocument.completeSnapshot();
-    }
-  }) as IDocument;
+  const doc = await saveCodapDocument(page) as IDocument;
 
   // Remove the harness tile and move the table to the top left
   const { rowMap, tileMap } = doc.content;

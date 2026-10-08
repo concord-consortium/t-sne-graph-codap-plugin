@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type FrameLocator, type Page } from "@playwright/test";
+import { exposeCodapDocument, saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 
 const kPluginUrl = "https://localhost:8080";
@@ -35,23 +36,6 @@ const openDocument = async (page: Page, document: object) => {
   await page.goto(`${kCodapUrl}&url=${kDocumentUrl}`);
 };
 
-// Saves the document the way CODAP's own save does, which asks the plugin for its state.
-// window.currentDocument is only set when CODAP's `debug` setting includes "document".
-const saveDocument = (page: Page) => page.evaluate(async () => {
-  interface ICodapDocument {
-    prepareSnapshot(): Promise<void>;
-    completeSnapshot(): void;
-    toJSON(): unknown;
-  }
-  const codapDocument = (window as unknown as { currentDocument: ICodapDocument }).currentDocument;
-  await codapDocument.prepareSnapshot();
-  try {
-    return JSON.parse(JSON.stringify(codapDocument.toJSON()));
-  } finally {
-    codapDocument.completeSnapshot();
-  }
-});
-
 // Creates a new table in CODAP (one column, "Attribute Name")
 const createTable = async (page: Page) => {
   await page.getByTestId("tool-shelf-button-table").click();
@@ -68,7 +52,7 @@ const addColumn = async (page: Page, name: string) => {
 
 test.beforeEach(async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 800 });
-  await page.addInitScript(() => window.localStorage.setItem("debug", "document"));
+  await exposeCodapDocument(page);
 });
 
 test("lists a new table and its columns", async ({ page }) => {
@@ -104,7 +88,7 @@ test("restores the selections after the document is saved and reopened", async (
   await choose(plugin, "Phrase Column", "phrase");
   await choose(plugin, "Label Column", "Attribute Name");
 
-  const saved = await saveDocument(page);
+  const saved = await saveCodapDocument(page);
   await openDocument(page, saved);
 
   // Once the column lists have loaded from CODAP, the restored selections are still there.
