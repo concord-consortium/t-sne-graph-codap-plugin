@@ -2,7 +2,8 @@
   "compilerOptions": {
     "module": "NodeNext",
     "target": "es2022",
-    "lib": ["es2022"],
+    "lib": ["es2022", "DOM"],
+    "skipLibCheck": true,
     "types": ["node"]
   },
   "include": ["**/*.ts"]

@@ -49,6 +49,7 @@
     "lint:fix": "eslint --fix",
     "lint:style": "eslint . --ext .js,.jsx,.ts,.tsx --config eslint.style.config.mjs",
     "lint:style:fix": "eslint . --ext .js,.jsx,.ts,.tsx --config eslint.style.config.mjs --fix",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p playwright",
     "serve:top-test": "npx http-server top-test",
     "test": "jest",
     "test:all": "npm-run-all build test start",
