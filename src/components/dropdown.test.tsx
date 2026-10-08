@@ -92,6 +92,32 @@ describe("Dropdown", () => {
     expect(button()).toHaveTextContent("Select");
   });
 
+  describe("typing on the closed button", () => {
+    const options = [{ id: "apple", label: "apple" }, { id: "sentence", label: "sentence" },
+      { id: "tree", label: "tree" }];
+    const typeWithValue = async (value: string, text: string) => {
+      const user = userEvent.setup();
+      const onChange = jest.fn();
+      render(<Dropdown label="Data Table" options={options} value={value} onChange={onChange} />);
+      await user.tab();
+      await user.keyboard(text);
+      return onChange;
+    };
+
+    // The Select item comes first, so a search that wraps around would otherwise match it
+    it("skips the Select item", async () => {
+      const onChange = await typeWithValue("apple", "s");
+      expect(onChange).not.toHaveBeenCalledWith(undefined);
+      expect(onChange).toHaveBeenLastCalledWith("sentence");
+    });
+
+    it("never clears the value on the way to a match", async () => {
+      const onChange = await typeWithValue("tree", "sen");
+      expect(onChange).not.toHaveBeenCalledWith(undefined);
+      expect(onChange).toHaveBeenLastCalledWith("sentence");
+    });
+  });
+
   it("closes with Escape without changing the value", async () => {
     const user = userEvent.setup();
     const onChange = jest.fn();

@@ -55,7 +55,11 @@ export const Dropdown = (props: IProps) => {
       <Popover className="dropdown-popover" offset={2}>
         <ListBox className="dropdown-listbox" items={items}>
           {item => (
-            <ListBoxItem className="dropdown-item" id={item.id} textValue={item.label}
+            // Typing on the closed button selects the first item whose textValue starts with the typed
+            // letters. The "Select" item must never match, or typing "s" could clear the value.
+            // Also, its textValue can't be empty, or React Aria uses the item's text, "Select".
+            // A single space works as a stand-in, because React Aria never starts a search with a space.
+            <ListBoxItem className="dropdown-item" id={item.id} textValue={item.id === kClearKey ? " " : item.label}
               aria-label={item.id === kClearKey ? "Select, clear selection" : undefined}>
               {item.label}
             </ListBoxItem>
