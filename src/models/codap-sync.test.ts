@@ -1,5 +1,6 @@
 import * as codapApi from "@concord-consortium/codap-plugin-api";
 import { ClientHandler, IResult } from "@concord-consortium/codap-plugin-api";
+import { getSnapshot } from "mobx-state-tree";
 import { kMaxInitAttempts, startCodapSync } from "./codap-sync";
 import { IPluginStore, PluginStore } from "./plugin-store";
 
@@ -113,6 +114,24 @@ describe("startCodapSync", () => {
     expect(store.dataContextName).toBe("Phrases");
     expect(store.phraseAttributeName).toBe("phrase");
     expect(store.labelAttributeName).toBe("group");
+  });
+
+  it("gives back a saved state it can't restore, until the user changes a selection", async () => {
+    // A number where a name belongs makes applySnapshot throw. MST applies the fields in the model's
+    // order, so the table and phrase are applied before it throws at the label.
+    const unreadable = { dataContextName: "Phrases", phraseAttributeName: "phrase", labelAttributeName: 42 };
+    api.codapInterface.init.mockResolvedValue(unreadable);
+
+    await startCodapSync(store);
+    expect(consoleError).toHaveBeenCalledWith("Unable to restore saved state:", expect.any(String));
+    // Nothing from the bad state is left in the store
+    expect(getSnapshot(store)).toEqual(getSnapshot(PluginStore.create()));
+    // The startup fetches don't count as a user change
+    expect(stateHandler()()).toEqual({ success: true, values: unreadable });
+
+    // Once the user chooses a table, the store is what gets saved
+    store.setDataContext("Phrases");
+    expect(stateHandler()()).toEqual({ success: true, values: getSnapshot(store) });
   });
 
   it("retries init when it fails", async () => {

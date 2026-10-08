@@ -1,5 +1,5 @@
 import { reaction } from "mobx";
-import { applySnapshot, getSnapshot } from "mobx-state-tree";
+import { applySnapshot, getSnapshot, onSnapshot } from "mobx-state-tree";
 import {
   addDataContextChangeListener,
   addDataContextsListListener,
@@ -42,11 +42,14 @@ const errorMessage = (error: unknown) => error instanceof Error ? error.message 
  */
 export const startCodapSync = async (store: IPluginStore, config = kPluginConfig): Promise<boolean> => {
   let isRestored = false;
+  // A saved state that couldn't be restored, given back to CODAP unchanged until the user changes
+  // a selection, so a save doesn't replace it with the default store
+  let unreadableState: unknown;
 
   // CODAP saves whatever value this returns. Answering with no value until restore finishes keeps
   // the document's saved state instead of overwriting it with the default store.
   codapInterface.on("get", "interactiveState", () => (
-    isRestored ? { success: true, values: getSnapshot(store) } : { success: true }
+    isRestored ? { success: true, values: unreadableState ?? getSnapshot(store) } : { success: true }
   ));
 
   // 1. Connect, retrying a bounded number of times
@@ -69,6 +72,13 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
       applySnapshot(store, savedState);
     } catch (error) {
       console.error("Unable to restore saved state:", errorMessage(error));
+      // applySnapshot can apply part of a bad snapshot before it throws
+      applySnapshot(store, {});
+      unreadableState = savedState;
+      const stopWatching = onSnapshot(store, () => {
+        unreadableState = undefined;
+        stopWatching();
+      });
     }
   }
   isRestored = true;
