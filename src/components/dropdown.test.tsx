@@ -32,7 +32,7 @@ describe("Dropdown", () => {
     expect(button()).toHaveAttribute("aria-expanded", "false");
   });
 
-  it("opens a listbox without a Select item while nothing is selected", async () => {
+  it("opens a listbox without a 'Select' item while nothing is selected", async () => {
     const user = userEvent.setup();
     render(<ControlledDropdown />);
     await user.click(button());
@@ -51,7 +51,7 @@ describe("Dropdown", () => {
     expect(button()).toHaveTextContent("Another Data Table");
   });
 
-  it("adds a leading Select item once a value is chosen, which clears the value", async () => {
+  it("lists a 'Select' item first once a value is chosen, which clears the value", async () => {
     const user = userEvent.setup();
     const onChange = jest.fn();
     render(<ControlledDropdown initialValue="b" onChange={onChange} />);
@@ -82,7 +82,7 @@ describe("Dropdown", () => {
     // Focus returns to the button on the next animation frame
     await waitFor(() => expect(button()).toHaveFocus());
 
-    // Reopening focuses the selected item; the Select item above it clears the value
+    // Reopening focuses the selected item; the "Select" item above it clears the value
     await user.keyboard("{Enter}");
     expect(screen.getByRole("option", { name: "Another Data Table" })).toHaveFocus();
     await user.keyboard("{ArrowUp}{ArrowUp}");
@@ -104,8 +104,8 @@ describe("Dropdown", () => {
       return onChange;
     };
 
-    // The Select item comes first, so a search that wraps around would otherwise match it
-    it("skips the Select item", async () => {
+    // The "Select" item comes first, so a search that wraps around would otherwise match it
+    it("skips the 'Select' item", async () => {
       const onChange = await typeWithValue("apple", "s");
       expect(onChange).not.toHaveBeenCalledWith(undefined);
       expect(onChange).toHaveBeenLastCalledWith("sentence");
@@ -129,7 +129,7 @@ describe("Dropdown", () => {
     expect(button()).toHaveTextContent("A Data Table");
   });
 
-  it("uses Select for the clear item even when the placeholder differs", async () => {
+  it("labels the 'Select' item 'Select' even when the placeholder differs", async () => {
     const user = userEvent.setup();
     render(<ControlledDropdown initialValue="a" placeholder="Select (optional)" />);
     await user.click(button());

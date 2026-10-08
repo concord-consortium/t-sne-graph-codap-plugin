@@ -11,7 +11,7 @@ export interface AttributeInfo {
   name: string;
   title: string;
   collectionName: string;
-  // True for attributes of the last (child-most) collection, which has one case per row
+  // True for columns of the last (child-most) collection, which has one case per row
   isLeaf: boolean;
 }
 
@@ -28,11 +28,11 @@ export const PluginStore = types
     attributes: [] as AttributeInfo[]
   }))
   .views(self => ({
-    // Phrase Column lists only leaf attributes, so there is one phrase per point
+    // Phrase Column lists only leaf columns, so there is one phrase per point
     get phraseAttributes() {
       return self.attributes.filter(attr => attr.isLeaf);
     },
-    // Label Column lists attributes from all collections
+    // Label Column lists columns from all collections
     get labelAttributes() {
       return self.attributes;
     }

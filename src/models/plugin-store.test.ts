@@ -53,7 +53,7 @@ describe("PluginStore", () => {
     expect(store.dataContextName).toBeUndefined();
   });
 
-  it("lists only leaf attributes for Phrase Column and all attributes for Label Column", () => {
+  it("lists only leaf columns for Phrase Column and all columns for Label Column", () => {
     const store = PluginStore.create();
     store.setAttributes(kAttributes);
     expect(store.phraseAttributes.map(attr => attr.name)).toEqual(["phrase", "label"]);

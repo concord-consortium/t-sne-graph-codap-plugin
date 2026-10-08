@@ -34,7 +34,8 @@
   text-align: left;
   width: $dropdown-width;
 
-  // The state blocks are in cascade order: a later state wins when several apply
+  // When states combine: keyboard focus comes after hover, so its fill wins; the open state's
+  // selector is more specific, so its fill wins over both; keyboard focus still adds its border
   &[data-hovered] {
     background-color: $dropdown-fill-hover;
   }
@@ -46,8 +47,8 @@
     box-shadow: inset 0 0 0 2px $focus-color;
   }
 
-  // Disabled buttons stay focusable, so the dimming is applied to each color rather than with
-  // `opacity`, which would also dim the focus border
+  // Disabled buttons stay focusable (see dropdown.tsx), so the dimming is applied to each color
+  // rather than with `opacity`, which would also dim the focus border
   &[aria-disabled="true"] {
     background-color: dimmed($dropdown-fill);
     box-shadow: inset 0 0 0 1px dimmed($dropdown-border);

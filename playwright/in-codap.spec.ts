@@ -92,7 +92,7 @@ test("restores the selections after the document is saved and reopened", async (
   await openDocument(page, saved);
 
   // Once the column lists have loaded from CODAP, the restored selections are still there.
-  // A dropdown with a value lists the "Select" clear item first.
+  // A dropdown with a value lists the "Select" item first.
   const reopened = pluginFrame(page);
   await expect.poll(() => optionsOf(reopened, "Phrase Column")).toEqual(["Select", "Attribute Name", "phrase"]);
   await expect(dropdown(reopened, "Data Table")).toHaveText("New Dataset");
@@ -165,7 +165,7 @@ test("has no accessibility violations", async ({ page }) => {
   // Closed dropdowns, two of them disabled
   expect(await axeViolations(page)).toEqual([]);
 
-  // An open list, with a value selected so it includes the "Select" clear item
+  // An open list, with a value selected so it includes the "Select" item
   await createTable(page);
   await choose(plugin, "Data Table", "New Dataset");
   await dropdown(plugin, "Data Table").click();

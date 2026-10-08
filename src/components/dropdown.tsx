@@ -29,17 +29,18 @@ export const Dropdown = (props: IProps) => {
   // doesn't reopen by itself when the dropdown is enabled again
   if (isDisabled && isOpen) setIsOpen(false);
 
-  // Once a value is chosen, a leading "Select" item lets the user unselect it
+  // Once a value is chosen, the list starts with a "Select" item that clears it
   const items = value === undefined ? options : [{ id: kClearKey, label: "Select" }, ...options];
 
   const handleChange = (key: Key | null) => {
-    // A disabled dropdown stays focusable, so ignore typing on its button
+    // Typing on a disabled dropdown is ignored (see the aria-disabled note below)
     if (isDisabled) return;
     onChange(key === null || key === kClearKey ? undefined : String(key));
   };
 
-  // A disabled dropdown uses aria-disabled instead of isDisabled, which would take it out of the
-  // Tab order; it is kept closed here instead
+  // A disabled dropdown uses aria-disabled, not React Aria's isDisabled, so it stays in the Tab
+  // order and is announced as disabled. React Aria then treats it as enabled, so this component
+  // keeps its list closed and ignores typing on it.
   return (
     <Select className={className ? `dropdown ${className}` : "dropdown"} value={value ?? null}
       onChange={handleChange} placeholder={placeholder}

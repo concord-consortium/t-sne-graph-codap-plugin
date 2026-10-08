@@ -13,7 +13,8 @@ export const exposeCodapDocument = (target: Page | BrowserContext) =>
   target.addInitScript(() => globalThis.localStorage.setItem("debug", "document"));
 
 // Saves the open document the way CODAP's own save does: prepareSnapshot (which asks each plugin for
-// its state), then the snapshot, then completeSnapshot. Needs exposeCodapDocument first.
+// its state), then the MST snapshot (toJSON), then completeSnapshot. Needs exposeCodapDocument
+// first.
 export const saveCodapDocument = (page: Page): Promise<object> => page.evaluate(async () => {
   const codapDocument = (globalThis as unknown as { currentDocument: ICodapDocument }).currentDocument;
   await codapDocument.prepareSnapshot();

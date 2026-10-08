@@ -56,7 +56,7 @@ describe("DataSourceSelector", () => {
     expect(dropdownButton("Label Column")).not.toHaveAttribute("aria-disabled");
   });
 
-  it("lists leaf columns for Phrase and all columns for Label, and saves the choices", async () => {
+  it("lists leaf columns for Phrase and all columns for Label, and stores the choices", async () => {
     const user = userEvent.setup();
     const store = createStore();
     store.setDataContext("Phrases");
@@ -91,7 +91,7 @@ describe("DataSourceSelector", () => {
     expect(dropdownButton("Label Column")).toHaveTextContent("Select (optional)");
   });
 
-  it("clears a column with its Select item, and disables the columns when the table is cleared", async () => {
+  it("clears a column with the 'Select' item, and disables the columns when the table is cleared", async () => {
     const user = userEvent.setup();
     const store = createStore();
     store.setDataContext("Phrases");
@@ -107,7 +107,7 @@ describe("DataSourceSelector", () => {
     expect(dropdownButton("Phrase Column")).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("updates when the lists from CODAP change", () => {
+  it("shows a table's new title after it is renamed in CODAP", () => {
     const store = createStore();
     renderSelector(store);
     act(() => store.setDataContexts([{ name: "Phrases", title: "Renamed" }]));

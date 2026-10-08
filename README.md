@@ -14,7 +14,10 @@ S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. Se
 3. Run the development server `npm start`.
 4. Open [localhost:8080](http://localhost:8080) (or use port 8081 if you are already using 8080). You should see the plugin's layout: an empty graph area on the left and, on the right, the Data Table, Phrase Column and Label Column dropdowns.
 
-   Outside CODAP the Data Table list stays empty, and after about 8 seconds the console shows an error that starts with `Unable to connect to CODAP:`. This is expected: the plugin tries to connect three times, then stops. To use the plugin, open it in CODAP (see [Testing in CODAP](#testing-in-codap)).
+   Outside CODAP the Data Table list stays empty, and after several seconds the console shows an error that starts with `Unable to connect to CODAP:`. This is expected: the plugin tries to connect three times, then stops. To use the plugin, open it in CODAP (see [Testing in CODAP](#testing-in-codap)).
+
+### Known limitations
+- Changing a dropdown doesn't mark the CODAP document as changed, so on its own it doesn't trigger CODAP's autosave or its unsaved-changes warning. The selections are saved with the document's next save. CODAP v3 doesn't yet let a plugin mark the document as changed.
 
 ### Testing
 

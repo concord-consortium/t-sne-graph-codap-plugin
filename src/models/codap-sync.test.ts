@@ -274,7 +274,7 @@ describe("startCodapSync", () => {
     const slow = deferred<IResult>();
     api.getAttributeList.mockImplementationOnce(() => slow.promise);
 
-    store.setDataContext("Other");     // its attribute list is slow
+    store.setDataContext("Other");     // its column list is slow
     await flush();
     store.setDataContext(undefined);
     await flush();

@@ -38,7 +38,7 @@ const errorMessage = (error: unknown) => error instanceof Error ? error.message 
 
 /**
  * Connects to CODAP, restores the saved selections, and keeps the table and column lists current.
- * Resolves to false if CODAP never answered the handshake, in which case nothing else is started.
+ * Resolves to false if every init attempt fails, in which case nothing else is started.
  */
 export const startCodapSync = async (store: IPluginStore, config = kPluginConfig): Promise<boolean> => {
   let isRestored = false;
@@ -66,7 +66,7 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
     }
   }
 
-  // Restore before any fetch, so the fetches validate the saved selections
+  // 2. Restore before any fetch, so the fetches validate the saved selections
   if (savedState && typeof savedState === "object") {
     try {
       applySnapshot(store, savedState);
@@ -154,7 +154,8 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
       }));
       store.setDataContexts(dataContexts);
       dataContexts.forEach(dc => watchDataContext(dc.name));
-      // Clear the selected table if it is gone; the reaction below then clears the columns
+      // Clear the selected table if it is gone. That also clears its column selections, and the
+      // reaction below empties the column list.
       if (store.dataContextName && !dataContexts.some(dc => dc.name === store.dataContextName)) {
         store.setDataContext(undefined);
       }
@@ -163,17 +164,17 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
     }
   };
 
-  // 2. Listen for tables being added or removed
+  // 3. Listen for tables being added or removed
   addDataContextsListListener(() => refreshDataContexts());
 
-  // Fetch the columns whenever the selected table changes. The old table's columns are cleared first,
+  // 4. Fetch the columns whenever the selected table changes. The old table's columns are cleared first,
   // so they are never offered for the new table, while loading or if the fetch fails.
   reaction(() => store.dataContextName, () => {
     store.setAttributes([]);
     refreshAttributes();
   });
 
-  // 3. and 4. Fetch the tables, then the columns of the restored table
+  // 5. Fetch the tables, then the columns of the restored table
   await refreshDataContexts();
   await refreshAttributes();
   return true;
