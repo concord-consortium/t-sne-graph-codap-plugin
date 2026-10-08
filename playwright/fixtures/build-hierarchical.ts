@@ -126,7 +126,7 @@ const runHarness = async (page: Page, url: string): Promise<IReply[]> => {
 
 const main = async () => {
   const browser = await chromium.launch();
-  const context = await browser.newContext({ ignoreHTTPSErrors: true });
+  const context = await browser.newContext();
   // Exposes window.currentDocument in CODAP
   await context.addInitScript(() => globalThis.localStorage.setItem("debug", "document"));
   // What the two routes serve; changed between the build and the check
