@@ -232,6 +232,24 @@ describe("startCodapSync", () => {
     expect(store.phraseAttributeName).toBe("phrase");
   });
 
+  it("ignores a table list that arrives after a newer one", async () => {
+    const slow = deferred<IResult>();
+    api.getListOfDataContexts.mockImplementationOnce(() => slow.promise);
+
+    const started = startCodapSync(store);
+    await flush();
+    // A table is added while the startup fetch of the table list is still waiting
+    codapDocument.Added = { collections: { Items: ["x"] } };
+    const [documentListener] = api.addDataContextsListListener.mock.calls[0];
+    notify(documentListener, "dataContextCountChanged", "documentChangeNotice");
+    await flush();
+    expect(store.dataContexts.map(dc => dc.name)).toEqual(["Phrases", "Other", "Added"]);
+
+    slow.resolve(ok([{ name: "Phrases", title: "My Phrases" }]));
+    await started;
+    expect(store.dataContexts.map(dc => dc.name)).toEqual(["Phrases", "Other", "Added"]);
+  });
+
   it("ignores a column list that arrives after a newer selection", async () => {
     await startCodapSync(store);
     const slow = deferred<IResult>();

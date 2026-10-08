@@ -84,7 +84,8 @@ test("lists a new table and its columns", async ({ page }) => {
   await choose(plugin, "Data Table", "New Dataset");
   await expect(dropdown(plugin, "Phrase Column")).not.toHaveAttribute("aria-disabled");
   await expect(dropdown(plugin, "Label Column")).not.toHaveAttribute("aria-disabled");
-  expect(await optionsOf(plugin, "Phrase Column")).toEqual(["Attribute Name"]);
+  // Enabled as soon as the table is selected; the columns arrive after a fetch
+  await expect.poll(() => optionsOf(plugin, "Phrase Column")).toEqual(["Attribute Name"]);
 
   // A column added in CODAP appears in both column lists
   await addColumn(page, "phrase");
