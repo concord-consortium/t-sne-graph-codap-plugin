@@ -123,3 +123,55 @@
 .dropdown-listbox:has(.dropdown-item[data-focus-visible]) .dropdown-item[data-selected]:not([data-focus-visible]) {
   background-color: white;
 }
+
+// Forced-colors mode (e.g. Windows High Contrast) removes box-shadows and replaces colors with
+// system colors, which would hide the borders, the focus rings and the highlighted items above
+@media (forced-colors: active) {
+  .dropdown-button {
+    border: 1px solid ButtonText;
+
+    &[aria-disabled="true"] {
+      border-color: GrayText;
+      color: GrayText;
+
+      .dropdown-arrow {
+        color: GrayText;
+      }
+    }
+  }
+
+  .dropdown-button[data-focus-visible] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .dropdown-popover {
+    border: 1px solid CanvasText;
+  }
+
+  // The items choose their own system colors in every state, so the browser's adjustment (which
+  // would put a page-colored backplate behind HighlightText) is turned off
+  .dropdown-item {
+    background-color: Canvas;
+    color: CanvasText;
+    forced-color-adjust: none;
+
+    &[data-hovered],
+    &[data-selected],
+    &[data-focus-visible] {
+      background-color: Highlight;
+      color: HighlightText;
+    }
+    &[data-focus-visible] {
+      outline: 2px solid HighlightText;
+      outline-offset: -2px;
+    }
+  }
+
+  // As in normal mode, hovering or focusing another item removes the selected one's highlight
+  .dropdown-listbox:has(.dropdown-item[data-hovered]) .dropdown-item[data-selected]:not([data-hovered]),
+  .dropdown-listbox:has(.dropdown-item[data-focus-visible]) .dropdown-item[data-selected]:not([data-focus-visible]) {
+    background-color: Canvas;
+    color: CanvasText;
+  }
+}

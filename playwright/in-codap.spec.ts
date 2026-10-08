@@ -187,3 +187,30 @@ test("has no accessibility violations", async ({ page }) => {
   await expect(plugin.getByRole("listbox")).toBeVisible();
   expect(await axeViolations(page)).toEqual([]);
 });
+
+// Forced-colors mode (e.g. Windows High Contrast) drops box-shadows, which the dropdowns use for
+// their border and focus ring in normal mode
+test("keeps borders and keyboard focus visible in forced-colors mode", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto(`${kCodapUrl}&di=${kPluginUrl}`);
+  const plugin = pluginFrame(page);
+  await createTable(page);
+  await choose(plugin, "Data Table", "New Dataset");
+
+  const dataTable = dropdown(plugin, "Data Table");
+  const style = (property: string) => dataTable.evaluate((el, p) => getComputedStyle(el).getPropertyValue(p), property);
+  expect(await style("border-top-style")).toBe("solid");
+  expect(await style("border-top-width")).toBe("1px");
+
+  // Keyboard focus on the button (Tab to the next dropdown and back, so React Aria sees keyboard
+  // use and shows the focus ring), then on an item in its list
+  await dataTable.focus();
+  await dataTable.press("Tab");
+  await dropdown(plugin, "Phrase Column").press("Shift+Tab");
+  await expect(dataTable).toHaveAttribute("data-focus-visible");
+  expect(await style("outline-style")).toBe("solid");
+  await dataTable.press("Enter");
+  const focusedItem = plugin.locator(".dropdown-item[data-focus-visible]");
+  await expect(focusedItem).toBeVisible();
+  expect(await focusedItem.evaluate(el => getComputedStyle(el).outlineStyle)).toBe("solid");
+});
