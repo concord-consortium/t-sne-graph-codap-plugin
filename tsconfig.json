@@ -12,6 +12,7 @@
     "experimentalDecorators": true,
     "importHelpers": true,
     "strict": true,
+    "skipLibCheck": true,
     "types": [],
     "jsx": "react",
     "lib": ["dom", "dom.iterable", "es2018"]

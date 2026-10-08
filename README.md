@@ -12,9 +12,12 @@ S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. Se
 1. Clone this repository and `cd` into the new folder.
 2. Install the dependencies `npm install`.
 3. Run the development server `npm start`.
-4. Open [localhost:8080](http://localhost:8080) (or use port 8081 if you are already using 8080). You should see a basic plugin with a heading of "t-SNE Graph".
+4. Open [localhost:8080](http://localhost:8080) (or use port 8081 if you are already using 8080). You should see the plugin's layout: an empty graph area on the left and, on the right, the Data Table, Phrase Column and Label Column dropdowns.
 
-   It's ok if you see an error like `Unable to connect to CODAP: handleResponse: CODAP request timed out: [{"action":"update","resource":"interactiveFrame","values":{"name":"t-SNE Graph","version":"0.0.1","dimensions":{"width":380,"height":680}}},{"action":"get","resource":"interactiveFrame"}]`. This just means that the plugin is running outside of CODAP, so is not receiving responses to API requests, which is expected. For the same reason, the buttons will show an error like `sendRequest on closed CODAP connection` in the Response area.
+   Outside CODAP the Data Table list stays empty, and after several seconds the console shows an error that starts with `Unable to connect to CODAP:`. This is expected: the plugin tries to connect three times, then stops. To use the plugin, open it in CODAP (see [Testing in CODAP](#testing-in-codap)).
+
+### Known limitations
+- Changing a dropdown doesn't mark the CODAP document as changed, so on its own it doesn't trigger CODAP's autosave or its unsaved-changes warning. The selections are saved with the document's next save. CODAP v3 doesn't yet let a plugin mark the document as changed.
 
 ### Testing
 
@@ -45,6 +48,12 @@ npx playwright show-report
 ##### Run showing the browser
 ```
 npm run test:playwright:open
+```
+
+##### Test fixtures
+`playwright/fixtures/hierarchical.codap` is a CODAP v3 document with a two-level table, used by the end-to-end tests. To rebuild it, and check it in CODAP, run (Node 22.18 or later):
+```
+node playwright/fixtures/build-hierarchical.ts
 ```
 
 #### Testing in CODAP

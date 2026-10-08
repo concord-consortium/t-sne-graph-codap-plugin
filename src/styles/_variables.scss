@@ -1,0 +1,29 @@
+// Shared design tokens from the Zeplin spec
+
+$font-family: "Roboto", sans-serif;
+$text-color: #222222;
+$focus-color: #0957d0;
+$disabled-opacity: 0.35;
+$separator-color: #d1d1d1;
+
+// Controls panel (right side of the tile)
+$panel-width: 380px;
+$panel-padding: 12px;
+$panel-background: #f7f7f7;
+// Space to the right of the dropdowns for an info button
+$info-button-space: 36px;
+
+// Dropdown button
+$dropdown-height: 24px;
+$dropdown-width: 205px;
+$dropdown-width-wide: 244px;
+$dropdown-radius: 4px;
+$dropdown-fill: #d3f4ff;
+$dropdown-fill-hover: #bbefff;
+$dropdown-fill-open: #a5e3f6;
+$dropdown-border: #006c8e;
+$dropdown-arrow-color: #006c8e;
+
+// Dropdown list
+$dropdown-item-height: 30px;
+$dropdown-item-highlight: #e9e9e9;

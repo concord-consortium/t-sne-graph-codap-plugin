@@ -18,6 +18,10 @@ jobs:
         run: npm ci
       - name: Build
         run: npm run build
+      # The build and Jest type-check the app and unit tests; this also covers the playwright/ files,
+      # which Playwright runs without type-checking
+      - name: Type Check
+        run: npm run typecheck
       - name: Run Tests
         run: npm run test:coverage -- --runInBand
       - name: Upload coverage to Codecov

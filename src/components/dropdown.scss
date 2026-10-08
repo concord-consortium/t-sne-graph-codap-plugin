@@ -1,0 +1,178 @@
+@use "sass:color";
+@use "../styles/variables" as *;
+
+@function dimmed($color) {
+  @return color.change($color, $alpha: $disabled-opacity);
+}
+
+.dropdown {
+  align-items: center;
+  color: $text-color;
+  display: flex;
+  font-family: $font-family;
+  font-size: 14px;
+  gap: 8px;
+}
+
+// Borders are drawn with an inset box-shadow, so the 2px focus border doesn't shift the content
+.dropdown-button {
+  align-items: center;
+  background-color: $dropdown-fill;
+  border: none;
+  border-radius: $dropdown-radius;
+  box-shadow: inset 0 0 0 1px $dropdown-border;
+  box-sizing: border-box;
+  color: $text-color;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  font-weight: 500;
+  gap: 8px;
+  height: $dropdown-height;
+  outline: none;
+  padding: 0 8px 0 10px;
+  text-align: left;
+  width: $dropdown-width;
+
+  // When states combine: keyboard focus comes after hover, so its fill wins; the open state's
+  // selector is more specific, so its fill wins over both; keyboard focus still adds its border
+  &[data-hovered] {
+    background-color: $dropdown-fill-hover;
+  }
+  .dropdown[data-open] & {
+    background-color: $dropdown-fill-open;
+  }
+  &[data-focus-visible] {
+    background-color: $dropdown-fill-hover;
+    box-shadow: inset 0 0 0 2px $focus-color;
+  }
+
+  // Disabled buttons stay focusable (see dropdown.tsx), so the dimming is applied to each color
+  // rather than with `opacity`, which would also dim the focus border
+  &[aria-disabled="true"] {
+    background-color: dimmed($dropdown-fill);
+    box-shadow: inset 0 0 0 1px dimmed($dropdown-border);
+    color: dimmed($text-color);
+    cursor: default;
+
+    &[data-focus-visible] {
+      box-shadow: inset 0 0 0 2px $focus-color;
+    }
+  }
+}
+
+.dropdown-value {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-arrow {
+  color: $dropdown-arrow-color;
+  flex: none;
+
+  .dropdown-button[aria-disabled="true"] & {
+    color: dimmed($dropdown-arrow-color);
+  }
+
+  .dropdown[data-open] & {
+    transform: rotate(180deg);
+  }
+}
+
+.dropdown-popover {
+  background-color: white;
+  border-radius: $dropdown-radius;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  overflow: auto;
+  width: var(--trigger-width);
+}
+
+.dropdown-listbox {
+  outline: none;
+}
+
+.dropdown-item {
+  box-sizing: border-box;
+  color: $text-color;
+  cursor: pointer;
+  font-family: $font-family;
+  font-size: 14px;
+  height: $dropdown-item-height;
+  outline: none;
+  overflow: hidden;
+  padding: 7px 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  &[data-hovered],
+  &[data-selected],
+  &[data-focus-visible] {
+    background-color: $dropdown-item-highlight;
+  }
+  &[data-focus-visible] {
+    box-shadow: inset 0 0 0 2px $focus-color;
+  }
+  &[data-disabled] {
+    color: dimmed($text-color);
+  }
+}
+
+// Hovering (or keyboard focusing) another item removes the highlight from the selected one
+.dropdown-listbox:has(.dropdown-item[data-hovered]) .dropdown-item[data-selected]:not([data-hovered]),
+.dropdown-listbox:has(.dropdown-item[data-focus-visible]) .dropdown-item[data-selected]:not([data-focus-visible]) {
+  background-color: white;
+}
+
+// Forced-colors mode (e.g. Windows High Contrast) removes box-shadows and replaces colors with
+// system colors, which would hide the borders, the focus rings and the highlighted items above
+@media (forced-colors: active) {
+  .dropdown-button {
+    border: 1px solid ButtonText;
+
+    &[aria-disabled="true"] {
+      border-color: GrayText;
+      color: GrayText;
+
+      .dropdown-arrow {
+        color: GrayText;
+      }
+    }
+  }
+
+  .dropdown-button[data-focus-visible] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .dropdown-popover {
+    border: 1px solid CanvasText;
+  }
+
+  // The items choose their own system colors in every state, so the browser's adjustment (which
+  // would put a page-colored backplate behind HighlightText) is turned off
+  .dropdown-item {
+    background-color: Canvas;
+    color: CanvasText;
+    forced-color-adjust: none;
+
+    &[data-hovered],
+    &[data-selected],
+    &[data-focus-visible] {
+      background-color: Highlight;
+      color: HighlightText;
+    }
+    &[data-focus-visible] {
+      outline: 2px solid HighlightText;
+      outline-offset: -2px;
+    }
+  }
+
+  // As in normal mode, hovering or focusing another item removes the selected one's highlight
+  .dropdown-listbox:has(.dropdown-item[data-hovered]) .dropdown-item[data-selected]:not([data-hovered]),
+  .dropdown-listbox:has(.dropdown-item[data-focus-visible]) .dropdown-item[data-selected]:not([data-focus-visible]) {
+    background-color: Canvas;
+    color: CanvasText;
+  }
+}
