@@ -1,0 +1,401 @@
+{
+  "key": "DOC_iWpBN9OEGd2U",
+  "type": "CODAP",
+  "version": "3.1.1",
+  "build": "2999",
+  "createdAt": 0,
+  "properties": {},
+  "content": {
+    "rowMap": {
+      "TROWbdN6GnN2qwYF": {
+        "id": "TROWbdN6GnN2qwYF",
+        "type": "free",
+        "tiles": {
+          "TABL224184155515946": {
+            "tileId": "TABL224184155515946",
+            "x": 5,
+            "y": 5,
+            "width": 185,
+            "height": 234,
+            "zIndex": 1
+          }
+        },
+        "maxZIndex": 1
+      }
+    },
+    "rowOrder": [
+      "TROWbdN6GnN2qwYF"
+    ],
+    "tileMap": {
+      "TABL224184155515946": {
+        "id": "TABL224184155515946",
+        "name": "",
+        "content": {
+          "type": "CaseTable",
+          "columnWidths": {},
+          "rowHeights": {},
+          "horizontalScrollOffset": 0
+        }
+      }
+    },
+    "sharedModelMap": {
+      "SHARa0TL4nq5TMgU": {
+        "sharedModel": {
+          "type": "GlobalValueManager",
+          "id": "SHARa0TL4nq5TMgU",
+          "globals": {}
+        },
+        "tiles": []
+      },
+      "SHARp1GflLmG80S7": {
+        "sharedModel": {
+          "type": "SharedDataSet",
+          "id": "SHARp1GflLmG80S7",
+          "providerId": "",
+          "dataSet": {
+            "id": "DATA119976682853535",
+            "name": "Phrases",
+            "_title": "Phrases",
+            "collections": [
+              {
+                "id": "COLL636452314601900",
+                "name": "Phrases",
+                "attributes": [
+                  "ATTR181349569718510",
+                  "ATTR636683697863721"
+                ],
+                "_groupKeyCaseIds": [
+                  [
+                    "ITEM275205731648564",
+                    "CASE516701710512010"
+                  ],
+                  [
+                    "ITEM817885957461871",
+                    "CASE679602391784235"
+                  ],
+                  [
+                    "ITEM155134062366135",
+                    "CASE321634327234946"
+                  ],
+                  [
+                    "ITEM43651194003582",
+                    "CASE574087423639856"
+                  ],
+                  [
+                    "ITEM995104773143700",
+                    "CASE973059204685550"
+                  ],
+                  [
+                    "ITEM78396166254274",
+                    "CASE867188935301859"
+                  ],
+                  [
+                    "ITEM140341148864059",
+                    "CASE301315671784198"
+                  ],
+                  [
+                    "ITEM773428728856512",
+                    "CASE154893512441017"
+                  ],
+                  [
+                    "ITEM635077891375752",
+                    "CASE866232254863842"
+                  ],
+                  [
+                    "ITEM85428414043960",
+                    "CASE657385762412916"
+                  ],
+                  [
+                    "ITEM793723088931505",
+                    "CASE480929108217394"
+                  ],
+                  [
+                    "ITEM626725922282132",
+                    "CASE246885026558412"
+                  ],
+                  [
+                    "ITEM868892667302042",
+                    "CASE889622427180575"
+                  ],
+                  [
+                    "ITEM432926595891932",
+                    "CASE480181038983563"
+                  ],
+                  [
+                    "ITEM470534737641832",
+                    "CASE635633350598594"
+                  ],
+                  [
+                    "ITEM468742962968942",
+                    "CASE4978419764130"
+                  ],
+                  [
+                    "ITEM544860552245313",
+                    "CASE993659935567614"
+                  ],
+                  [
+                    "ITEM36082842476065",
+                    "CASE833620039625808"
+                  ],
+                  [
+                    "ITEM850288905954506",
+                    "CASE896478843925951"
+                  ],
+                  [
+                    "ITEM756997684720674",
+                    "CASE949958281577545"
+                  ],
+                  [
+                    "ITEM460814233776400",
+                    "CASE327810599324308"
+                  ],
+                  [
+                    "ITEM803975689349373",
+                    "CASE623547941577803"
+                  ],
+                  [
+                    "ITEM620615314973160",
+                    "CASE68734094651497"
+                  ],
+                  [
+                    "ITEM799341022968016",
+                    "CASE76019730724623"
+                  ],
+                  [
+                    "ITEM874957102831332",
+                    "CASE501449739195995"
+                  ],
+                  [
+                    "ITEM461763061864255",
+                    "CASE593197065834334"
+                  ],
+                  [
+                    "ITEM319023868531673",
+                    "CASE499570704951023"
+                  ],
+                  [
+                    "ITEM412864853282622",
+                    "CASE140431260287197"
+                  ],
+                  [
+                    "ITEM393529955904566",
+                    "CASE434065941260638"
+                  ],
+                  [
+                    "ITEM131369072812554",
+                    "CASE388300913419481"
+                  ],
+                  [
+                    "ITEM583664014939874",
+                    "CASE842992869807733"
+                  ],
+                  [
+                    "ITEM541635288393036",
+                    "CASE192065102268937"
+                  ],
+                  [
+                    "ITEM228300951590140",
+                    "CASE132358913558373"
+                  ],
+                  [
+                    "ITEM162063871140454",
+                    "CASE969676810269821"
+                  ],
+                  [
+                    "ITEM705393640957199",
+                    "CASE742817154632657"
+                  ],
+                  [
+                    "ITEM459864296823579",
+                    "CASE535112428652007"
+                  ],
+                  [
+                    "ITEM623779723933364",
+                    "CASE689626749266375"
+                  ],
+                  [
+                    "ITEM722945659345471",
+                    "CASE636227540336037"
+                  ],
+                  [
+                    "ITEM910528545467925",
+                    "CASE530836172822117"
+                  ],
+                  [
+                    "ITEM527441421319384",
+                    "CASE408552903284411"
+                  ]
+                ]
+              }
+            ],
+            "attributesMap": {
+              "ATTR181349569718510": {
+                "id": "ATTR181349569718510",
+                "name": "phrase",
+                "clientKey": "",
+                "values": [
+                  "Everyone around the world shares this",
+                  "Nobody anywhere feels this way",
+                  "Some of the other kids at school",
+                  "All people everywhere feel the same",
+                  "No person exists on their own",
+                  "A few of my closest friends",
+                  "Every single person on the planet",
+                  "Not a single soul is left out",
+                  "Those stuck in their old ways",
+                  "People in every country agree",
+                  "No one stands completely alone",
+                  "Like a lot of my friends",
+                  "The whole world joins together",
+                  "Nobody else is around",
+                  "Some people on my street",
+                  "All of us, no matter where we live",
+                  "No strangers live here",
+                  "A handful of kids in my class",
+                  "Every voice across the globe",
+                  "Not one person is a stranger",
+                  "Several of my cousins",
+                  "People I have never met",
+                  "Each person in every nation",
+                  "No one is ever truly isolated",
+                  "Only the ones who sit near me",
+                  "Humans everywhere share one home",
+                  "Nobody walks this road alone",
+                  "Some neighbors down the block",
+                  "All the people of the earth",
+                  "None of us are by ourselves",
+                  "Just a couple of my teammates",
+                  "Everybody in the whole wide world",
+                  "No people are left behind",
+                  "Kids who ride my bus",
+                  "Every family in every town",
+                  "Not anyone outside our circle",
+                  "A few people I know",
+                  "People from all places come together",
+                  "No one lives in isolation",
+                  "Some friends from camp"
+                ]
+              },
+              "ATTR636683697863721": {
+                "id": "ATTR636683697863721",
+                "name": "label",
+                "clientKey": "",
+                "values": [
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "",
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "Similar",
+                  "Opposite",
+                  "Sideways",
+                  "Similar",
+                  "Opposite",
+                  "Sideways"
+                ]
+              }
+            },
+            "_itemIds": [
+              "ITEM275205731648564",
+              "ITEM817885957461871",
+              "ITEM155134062366135",
+              "ITEM43651194003582",
+              "ITEM995104773143700",
+              "ITEM78396166254274",
+              "ITEM140341148864059",
+              "ITEM773428728856512",
+              "ITEM635077891375752",
+              "ITEM85428414043960",
+              "ITEM793723088931505",
+              "ITEM626725922282132",
+              "ITEM868892667302042",
+              "ITEM432926595891932",
+              "ITEM470534737641832",
+              "ITEM468742962968942",
+              "ITEM544860552245313",
+              "ITEM36082842476065",
+              "ITEM850288905954506",
+              "ITEM756997684720674",
+              "ITEM460814233776400",
+              "ITEM803975689349373",
+              "ITEM620615314973160",
+              "ITEM799341022968016",
+              "ITEM874957102831332",
+              "ITEM461763061864255",
+              "ITEM319023868531673",
+              "ITEM412864853282622",
+              "ITEM393529955904566",
+              "ITEM131369072812554",
+              "ITEM583664014939874",
+              "ITEM541635288393036",
+              "ITEM228300951590140",
+              "ITEM162063871140454",
+              "ITEM705393640957199",
+              "ITEM459864296823579",
+              "ITEM623779723933364",
+              "ITEM722945659345471",
+              "ITEM910528545467925",
+              "ITEM527441421319384"
+            ],
+            "snapSelection": [],
+            "setAsideItemIds": []
+          }
+        },
+        "provider": "TABL224184155515946",
+        "tiles": [
+          "TABL224184155515946"
+        ]
+      },
+      "SHARZarb3c7noYsd": {
+        "sharedModel": {
+          "type": "SharedCaseMetadata",
+          "id": "SHARZarb3c7noYsd",
+          "data": "DATA119976682853535",
+          "description": "",
+          "source": "",
+          "importDate": "",
+          "collections": {},
+          "attributes": {
+            "ATTR181349569718510": {},
+            "ATTR636683697863721": {}
+          },
+          "caseTableTileId": "TABL224184155515946",
+          "lastShownTableOrCardTileId": "TABL224184155515946"
+        },
+        "provider": "TABL224184155515946",
+        "tiles": [
+          "TABL224184155515946"
+        ]
+      }
+    }
+  }
+}
