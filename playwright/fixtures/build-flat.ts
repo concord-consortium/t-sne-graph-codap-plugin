@@ -1,8 +1,6 @@
-// Builds flat.codap (one collection, 40 phrases: 13 each Similar, Opposite and Sideways, and one
-// with no label) through the CODAP v3 plugin API, then reloads it and checks it. It gives a
-// realistic picture and a timing check for the plot.
-// Usage, from the project directory: node playwright/fixtures/build-flat.ts
-// (Node 22.18 or later runs TypeScript files directly.)
+// Builds and checks flat.codap: one collection of 40 phrases, 13 each Similar, Opposite and
+// Sideways, and one unlabeled.
+// Usage, from the project directory (Node 22.18 or later): node playwright/fixtures/build-flat.ts
 // Node needs the extension to import a TypeScript file
 import { buildFixture, type ICheck, type IRequest, names, same } from "./fixture-builder.ts";
 
@@ -29,7 +27,7 @@ const phrases: Record<string, string[]> = {
   ],
   "": ["People I have never met"]
 };
-// Labels and phrases interleaved, as a class's table would be, rather than grouped by label
+// Interleaved, as a class's table would be
 const items: Record<string, string>[] = [];
 for (let i = 0; i < 13; i++) {
   ["Similar", "Opposite", "Sideways"].forEach(label => items.push({ phrase: phrases[label][i], label }));

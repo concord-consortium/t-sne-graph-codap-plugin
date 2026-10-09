@@ -7,11 +7,8 @@ import "./key.scss";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-/**
- * The Key (CODAP-1571 plan §4.5): one button per label, Unlabeled first, each with its color dot.
- * Pressing one selects all of that label's points in CODAP; with Shift, adds them to the selection.
- * With no rows, only the heading shows, as in the spec's default state.
- */
+/** Pressing an entry selects its label's points in CODAP; Shift adds them. With no rows, only the
+ * heading shows. */
 export const Key = observer(() => {
   const store = useStore();
   const headingId = useId();
@@ -33,7 +30,7 @@ export const Key = observer(() => {
               >
                 <span className="key-dot" data-testid="key-dot" aria-hidden="true"
                   style={{ backgroundColor: entry.color }} />
-                {/* A label too long for the column is cut short; the title shows all of it */}
+                {/* Long labels are cut short; the title shows the whole */}
                 <span className="key-label" title={entry.label}>{entry.label}</span>
               </Button>
             </li>

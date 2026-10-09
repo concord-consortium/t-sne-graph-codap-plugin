@@ -25,7 +25,7 @@ export const kPluginConfig: IConfig = {
 
 export const kMaxInitAttempts = 3;
 
-// Notices that change cases but not columns
+// Change cases but not columns
 const kCaseOperations = new Set(["createCases", "updateCases", "deleteCases", "moveCases", "dependentCases"]);
 
 interface INamedItem {
@@ -33,7 +33,7 @@ interface INamedItem {
   title?: string;
 }
 
-// A case in an allCases reply. Ids are numbers; a leaf case has no children.
+// IDs are numbers
 interface IAllCasesItem {
   case: {
     id: number | string;
@@ -45,8 +45,7 @@ interface IAllCasesItem {
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 /**
- * Connects to CODAP, restores the saved selections, and keeps the table and column lists and the
- * selected table's cases current.
+ * Connects to CODAP, restores the saved selections, and keeps the tables, columns and cases current.
  * Resolves to false if every init attempt fails, in which case nothing else is started.
  */
 export const startCodapSync = async (store: IPluginStore, config = kPluginConfig): Promise<boolean> => {
@@ -136,9 +135,8 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
     }
   };
 
-  // Fetches every case of the selected table and stores one record per leaf case, holding its own
-  // values and those of its parent cases. Collections are listed parent first, so each parent's
-  // values are known before its children are read.
+  // One record per leaf case, with its parents' values merged in. Collections are listed parent
+  // first, so parents are read before their children.
   const refreshCases = async () => {
     const request = ++casesRequest;
     const dataContextName = store.dataContextName;
@@ -154,7 +152,6 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
         sendMessage("get", `dataContext[${dataContextName}].collection[${collection.name}].allCases`)));
       if (request !== casesRequest || caseResults.some(result => !result.success)) return;
 
-      // Each case's values merged with its parents', by case ID
       const valuesById = new Map<string, Record<string, unknown>>();
       let leafCases: CaseInfo[] = [];
       caseResults.forEach(result => {
@@ -166,7 +163,7 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
           return { caseId, values: merged };
         });
       });
-      // The last collection's cases are the leaves
+      // The last collection holds the leaves
       store.setCases(leafCases);
     } catch (error) {
       console.error("Unable to get the cases of", dataContextName, errorMessage(error));
@@ -186,13 +183,12 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
         refreshDataContexts();
         return;
       }
-      // Only the selected table matters here; selection-sync handles selectCases
+      // selection-sync handles selectCases
       if (name !== store.dataContextName || operation === "selectCases") return;
       if (kCaseOperations.has(operation)) {
         refreshCases();
       } else {
-        // Other changes, such as a renamed column or a new formula, can change the columns and the
-        // values read from the cases
+        // E.g. a renamed column or a new formula can change the values read from the cases
         refreshAttributes();
         refreshCases();
       }
@@ -225,7 +221,6 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
 
   // 4. Fetch the columns and cases whenever the selected table changes. The old table's columns are
   // cleared first, so they are never offered for the new table, while loading or if the fetch fails.
-  // (setDataContext has already dropped the old table's cases.)
   reaction(() => store.dataContextName, () => {
     store.setAttributes([]);
     refreshAttributes();

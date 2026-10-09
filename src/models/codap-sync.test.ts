@@ -16,8 +16,7 @@ jest.mock("@concord-consortium/codap-plugin-api", () => ({
 
 const api = jest.mocked(codapApi);
 
-// A fake CODAP document: each table is a list of collections, parent first, with their columns and
-// cases. Case IDs are numbers, as CODAP sends them.
+// Collections are listed parent first; case IDs are numbers, as CODAP sends them
 interface IFakeCase {
   id: number;
   parent?: number;
@@ -46,7 +45,7 @@ const kPhrases: FakeDocument = {
   Other: { collections: { Items: ["text"] }, cases: { Items: [{ id: 200, values: { text: "hello" } }] } }
 };
 
-// What the store should hold for the Phrases table: each leaf case with its parent's values
+// Leaf cases with their parent's values merged in
 const kPhrasesCases = [
   { caseId: "100", values: { group: "Similar", phrase: "the cat sat", label: "a" } },
   { caseId: "101", values: { group: "Similar", phrase: "a cat rested", label: "b" } },
@@ -77,7 +76,6 @@ const fakeCodap = () => {
   });
 };
 
-// The allCases requests made so far
 const allCasesRequests = () => api.sendMessage.mock.calls.filter(([, resource]) => kAllCases.test(resource));
 
 // Wait for pending promises to settle
@@ -511,7 +509,7 @@ describe("startCodapSync", () => {
       const slow = deferred<IResult>();
       api.sendMessage.mockImplementationOnce(() => slow.promise);
 
-      store.setDataContext("Phrases");   // its first allCases reply is slow
+      store.setDataContext("Phrases");   // slow allCases reply
       await flush();
       store.setDataContext("Other");
       await flush();
@@ -526,7 +524,7 @@ describe("startCodapSync", () => {
       api.codapInterface.init.mockResolvedValue(savedSelections);
       await startCodapSync(store);
       const slow = deferred<IResult>();
-      // The Groups reply of the first refetch is slow
+      // The first refetch's Groups reply is slow
       api.sendMessage.mockImplementationOnce(() => slow.promise);
 
       notify(tableListener("Phrases"), "updateCases");

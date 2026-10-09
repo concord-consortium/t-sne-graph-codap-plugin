@@ -2,7 +2,7 @@ import { kGraphPadding, normalizeLayout, toPixels } from "./layout";
 
 describe("normalizeLayout", () => {
   it("fits the longer side to [0, 1] and centers the shorter side", () => {
-    // 40 wide, 10 tall: x fills [0, 1]; y spans 0.25 and is centered
+    // 40 wide, 10 tall: y spans 0.25, centered
     expect(normalizeLayout([[-20, 0], [20, 10], [0, 5]])).toEqual([
       { x: 0, y: 0.375 }, { x: 1, y: 0.625 }, { x: 0.5, y: 0.5 }
     ]);
@@ -10,7 +10,7 @@ describe("normalizeLayout", () => {
 
   it("keeps the layout's shape", () => {
     const [a, b, c] = normalizeLayout([[0, 0], [3, 0], [0, 4]]);
-    // Distances 3, 4 and 5 keep their ratios
+    // A 3-4-5 triangle keeps its ratios
     expect(Math.hypot(b.x - a.x, b.y - a.y) / Math.hypot(c.x - a.x, c.y - a.y)).toBeCloseTo(3 / 4, 12);
     expect(Math.hypot(c.x - b.x, c.y - b.y) / Math.hypot(c.x - a.x, c.y - a.y)).toBeCloseTo(5 / 4, 12);
   });

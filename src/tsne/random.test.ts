@@ -40,7 +40,7 @@ describe("gaussian", () => {
   });
 
   it("keeps its saved value apart from other generators", () => {
-    // Taking values from a second generator between calls must not change the first one's sequence
+    // Another generator's draws must not shift this one's sequence
     const alone = take(gaussian(mulberry32(9)), 4);
     const first = gaussian(mulberry32(9));
     const other = gaussian(mulberry32(10));

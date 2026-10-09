@@ -200,9 +200,9 @@ test("keeps borders and keyboard focus visible in forced-colors mode", async ({ 
   expect(await focusedItem.evaluate(el => getComputedStyle(el).outlineStyle)).toBe("solid");
 });
 
-// ---- The plot and the Key (CODAP-1571) ----
+// ---- The plot and the Key ----
 
-// The hierarchical fixture's phrases, by label, in table order
+// The hierarchical fixture's phrases by label, in table order
 const kFixturePhrases: Record<string, string[]> = {
   Similar: ["the cat sat on the mat", "a cat rested on a rug", "the kitten lay on the carpet"],
   Opposite: ["the dog ran from the house", "a dog sprinted outside", "the puppy fled the yard"],
@@ -215,17 +215,15 @@ const point = (plugin: FrameLocator, phrase: string) => plugin.getByRole("button
 const keyEntries = (plugin: FrameLocator) =>
   plugin.getByRole("region", { name: "Key" }).getByRole("button").evaluateAll(buttons =>
     buttons.map(button => button.getAttribute("aria-label")));
-// Each point's position, by phrase
 const positions = (plugin: FrameLocator) => plugin.locator(".graph-plot .point").evaluateAll(points =>
   Object.fromEntries(points.map(p => [p.getAttribute("aria-label"), p.getAttribute("transform")])));
 const dotFill = (plugin: FrameLocator, phrase: string) =>
   point(plugin, phrase).locator(".dot").evaluate(dot => getComputedStyle(dot).fill);
-// The phrases whose points are shown selected
 const pressedPhrases = (plugin: FrameLocator) =>
   plugin.locator(".graph-plot .point[aria-pressed=true]").evaluateAll(points =>
     points.map(p => p.getAttribute("aria-label")));
-// The fixture labels and phrases whose rows CODAP's table shows selected. A row's text is its index,
-// then its values: a parent row is just its label; a leaf row starts with its phrase, then its notes.
+// A row's text is its index, then its values: a parent row is just its label; a leaf row starts
+// with its phrase.
 const selectedInTable = async (page: Page) => {
   const rows = (await page.locator(".codap-case-table [role=row][aria-selected=true]").allTextContents())
     .map(row => row.replace(/^\d+/, ""));
@@ -236,7 +234,6 @@ const selectedInTable = async (page: Page) => {
 };
 const tableCell = (page: Page, text: string) =>
   page.locator(".codap-case-table [role=gridcell]", { hasText: text }).first();
-// Edits a cell in CODAP's table the way a user does
 const editCell = async (page: Page, text: string, newText: string) => {
   await tableCell(page, text).dblclick();
   await page.keyboard.press("ControlOrMeta+a");
@@ -244,8 +241,7 @@ const editCell = async (page: Page, text: string, newText: string) => {
   await page.keyboard.press("Enter");
 };
 
-// Opens the hierarchical fixture and chooses its table and columns. With reduced motion the plot
-// shows only the final layout, so once points are visible the layout is done.
+// With reduced motion only the final layout shows, so visible points mean the layout is done.
 const openPlot = async (page: Page, labelColumn?: string) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openDocument(page, documentWithPlugin("hierarchical.codap"));
@@ -259,7 +255,7 @@ const openPlot = async (page: Page, labelColumn?: string) => {
   return plugin;
 };
 
-// A place in the plot at least 20px from every point, for clicking empty space
+// At least 20px from every point
 const emptySpot = async (plugin: FrameLocator) => {
   const centers = await plugin.locator(".graph-plot .point").evaluateAll(points => points.map(p => {
     const [, x, y] = /translate\(([\d.]+) ([\d.]+)\)/.exec(p.getAttribute("transform") ?? "") ?? [];
@@ -283,7 +279,7 @@ test("plots the phrases, then colors them by label without moving them", async (
   await choose(plugin, "Label Column", "label");
   await expect.poll(() => keyEntries(plugin))
     .toEqual(["Similar, 3 points", "Opposite, 3 points", "Sideways, 3 points"]);
-  // The spec colors, in order of first appearance, on the points and the Key dots
+  // Spec colors, in order of first appearance
   expect(await dotFill(plugin, "the cat sat on the mat")).toBe("rgb(81, 105, 255)");
   expect(await dotFill(plugin, "a dog sprinted outside")).toBe("rgb(178, 28, 0)");
   expect(await dotFill(plugin, "the sparrow called at dawn")).toBe("rgb(238, 102, 0)");
@@ -303,7 +299,6 @@ test("shows the same plot and Key after the document is saved and reopened", asy
   await openDocument(page, saved);
   const reopened = pluginFrame(page);
   await expect(reopened.locator(".graph-plot .point")).toHaveCount(9);
-  // The same seed and data give the same layout
   expect(await positions(reopened)).toEqual(before);
   expect(await keyEntries(reopened)).toEqual(key);
 });
@@ -311,7 +306,7 @@ test("shows the same plot and Key after the document is saved and reopened", asy
 test("lays out again after a phrase edit, and only recolors after a label edit", async ({ page }) => {
   const plugin = await openPlot(page, "label");
   const before = await positions(plugin);
-  // Record the fewest points the plot shows from here on
+  // Track the fewest points shown from here on
   const pluginPage = page.frames().find(frame => frame.url().startsWith(kPluginUrl))!;
   await pluginPage.evaluate(() => {
     const record = globalThis as unknown as { fewestPoints: number };
@@ -323,12 +318,12 @@ test("lays out again after a phrase edit, and only recolors after a label edit",
   const fewestPoints = () =>
     pluginPage.evaluate(() => (globalThis as unknown as { fewestPoints: number }).fewestPoints);
 
-  // An edit that changes which words the phrases share. (Swapping one word found nowhere else for
-  // another, such as "mat" for "hat", gives the same TF-IDF numbers and so the same layout.)
+  // The edit must change which words the phrases share: swapping one unique word for another
+  // gives the same TF-IDF numbers, so the same layout.
   await editCell(page, "the cat sat on the mat", "the dog sat outside the house");
   await expect(point(plugin, "the dog sat outside the house")).toBeVisible();
   await expect(point(plugin, "the cat sat on the mat")).toHaveCount(0);
-  // The old points went away before the new layout appeared
+  // The old points cleared before the new layout appeared
   expect(await fewestPoints()).toBe(0);
   const { "the dog sat outside the house": _edited, ...after } = await positions(plugin);
   const { "the cat sat on the mat": _old, ...unedited } = before;
@@ -397,13 +392,13 @@ test("lays out a 40-phrase table quickly", async ({ page }) => {
   const started = Date.now();
   await choose(plugin, "Phrase Column", "phrase");
   await expect(plugin.locator(".graph-plot .point")).toHaveCount(40);
-  // The plan's target is a final layout within about 3 seconds, fetching the cases included
+  // Target: final layout within ~3 s, fetch included
   expect(Date.now() - started).toBeLessThan(3000);
 
   await choose(plugin, "Label Column", "label");
   await expect.poll(() => keyEntries(plugin))
     .toEqual(["Unlabeled, 1 point", "Similar, 13 points", "Opposite, 13 points", "Sideways, 13 points"]);
-  // Kept with the test results for a look at a realistic picture
+  // For a look at a realistic picture
   const tile = page.locator(".codap-component").filter({ has: page.locator(".codap-web-view-iframe") });
   await test.info().attach("40-phrase plot", { body: await tile.screenshot(), contentType: "image/png" });
 });
@@ -415,8 +410,8 @@ test("has no accessibility violations with a plot, a Key and a selection", async
   expect(await axeViolations(page)).toEqual([]);
 });
 
-// Forced-colors mode replaces background colors and drops box-shadows, which the Key uses for its
-// dots, their rings and the focus border; the graph's SVG colors are left alone
+// Forced colors replace backgrounds and drop box-shadows, which the Key's dots, rings and focus
+// border use. SVG colors are left alone.
 test("keeps the plot's and the Key's colors, rings and focus visible in forced-colors mode", async ({ page }) => {
   await page.emulateMedia({ forcedColors: "active" });
   const plugin = await openPlot(page, "label");
@@ -432,14 +427,13 @@ test("keeps the plot's and the Key's colors, rings and focus visible in forced-c
   expect(await point(plugin, "the cat sat on the mat").locator(".selection-ring")
     .evaluate(ring => getComputedStyle(ring).stroke)).toBe("rgb(0, 108, 142)");
 
-  // Keyboard focus on the next entry
   await similar.press("Tab");
   await expect(plugin.locator(".key-entry[data-focus-visible]")).toHaveCount(1);
   expect(await style(".key-entry[data-focus-visible]", "outline-style")).toBe("solid");
 });
 
-// Drags a column header onto the drop zone at the left of the table, which makes it a new parent
-// collection: the table is grouped by that column, and its rows reordered
+// Dropping a column header on the table's left drop zone makes it a parent collection, which
+// groups and reorders the rows.
 const groupByColumn = async (page: Page, column: string) => {
   const source = page.locator(`.codap-case-table [data-testid="codap-attribute-button ${column}"]`);
   const from = await source.boundingBox();
@@ -468,7 +462,7 @@ test("keeps the plot in place when the table is regrouped", async ({ page }) => 
   const firstPoint = () => plugin.locator(".graph-plot .point").first().getAttribute("aria-label");
   expect(await firstPoint()).toBe("Everyone around the world shares this");
 
-  // Grouping by label puts all the Similar rows first. The phrases are the same, so the layout is too.
+  // Grouping puts the Similar rows first; same phrases, so same layout
   await groupByColumn(page, "label");
   await expect(page.locator(".codap-case-table .collection-table")).toHaveCount(2);
   await expect.poll(firstPoint).toBe("Everyone around the world shares this");

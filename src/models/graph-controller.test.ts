@@ -4,10 +4,10 @@ import { createTsneWorker } from "../tsne/create-tsne-worker";
 import { startGraphController } from "./graph-controller";
 import { CaseInfo, IPluginStore, PluginStore } from "./plugin-store";
 
-// The real module uses import.meta, which Jest can't compile; the factory keeps it from loading
+// The factory keeps the real module, which uses import.meta, from loading
 jest.mock("../tsne/create-tsne-worker", () => ({ createTsneWorker: jest.fn() }));
 
-// A stand-in for the t-SNE worker: records requests, and lets a test send replies
+// Records requests; tests send its replies
 class FakeWorker {
   onmessage: ((event: MessageEvent<TsneResponse>) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
@@ -40,7 +40,7 @@ const kCases: CaseInfo[] = [
   { caseId: "3", values: { phrase: "the bird sang", label: "Similar" } },
   { caseId: "4", values: { phrase: "a fish swam", label: "Other" } }
 ];
-// The layout's fixed order, by phrase: "a dog ran", "a fish swam", "the bird sang", "the cat sat"
+// Sorted by phrase: "a dog ran", "a fish swam", "the bird sang", "the cat sat"
 const kLayoutCaseIds = ["2", "4", "3", "1"];
 const kLayoutPhrases = ["a dog ran", "a fish swam", "the bird sang", "the cat sat"];
 const kPositions = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }];
@@ -58,7 +58,6 @@ describe("startGraphController", () => {
   let stop: () => void;
   let consoleError: jest.SpyInstance;
 
-  // A store with a table, a Phrase and Label Column, a seed, and cases
   const readyStore = () => {
     const ready = PluginStore.create({ dataContextName: "Phrases", tsneSeed: 42 });
     ready.setPhraseAttribute("phrase");
@@ -277,7 +276,6 @@ describe("startGraphController", () => {
   });
 
   it("reports an error when the worker can't be created, and tries again on the next change", () => {
-    // For example, a security policy that blocks workers
     mockedCreateWorker.mockImplementationOnce(() => { throw new Error("Workers are blocked"); });
     stop = startGraphController(store);
     expect(store.computeStatus).toBe("error");
@@ -295,7 +293,7 @@ describe("startGraphController", () => {
     store.setPhraseAttribute(undefined);
     expect(store.points).toEqual([]);
     expect(store.computeStatus).toBe("idle");
-    // It was still working, so it is stopped
+    // Still busy, so stopped
     expect(worker.terminated).toBe(true);
   });
 

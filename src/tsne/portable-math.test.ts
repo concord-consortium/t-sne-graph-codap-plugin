@@ -1,8 +1,7 @@
 import { exp, log } from "./portable-math";
 import { mulberry32 } from "./random";
 
-// The distance between two floats of the same sign in units in the last place: the number of
-// floats between them, from their bits. Exact when they are close, which is all these tests need.
+// Floats between a and b (same sign), counted from their bits; exact when they are close
 const view = new DataView(new ArrayBuffer(8));
 const ulps = (a: number, b: number) => {
   if (a === b) return 0;
@@ -14,7 +13,6 @@ const ulps = (a: number, b: number) => {
   return Math.abs((aHigh - bHigh) * 2 ** 32 + (aLow - bLow));
 };
 
-// Inputs spread over many magnitudes, with both signs where they make sense
 const random = mulberry32(2024);
 const spread = (count: number, minPower: number, maxPower: number) =>
   Array.from({ length: count }, () => 10 ** (minPower + random() * (maxPower - minPower)));
@@ -40,8 +38,7 @@ describe("exp", () => {
   });
 
   it("gives fdlibm's own result, which can differ from Math.exp in the last place", () => {
-    // fdlibm (and Java's StrictMath.exp, which is defined as fdlibm's result) gives this for
-    // exp(1), one unit in the last place above Math.E
+    // fdlibm's (and Java StrictMath's) exp(1), 1 ulp above Math.E
     expect(exp(1)).toBe(2.7182818284590455);
   });
 });

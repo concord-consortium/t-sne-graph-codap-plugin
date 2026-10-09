@@ -1,6 +1,6 @@
 import { fitTfidf, tokenize, vectorize } from "./tfidf";
 
-// An array matcher that accepts the same length with each value close to the expected one
+// Same length, each value within `digits` of the expected one
 const closeTo = (expected: number[], digits = 12) => expected.map(value => expect.closeTo(value, digits));
 
 const rowLength = (row: number[]) => Math.sqrt(row.reduce((sum, value) => sum + value * value, 0));
@@ -33,9 +33,8 @@ describe("tokenize", () => {
 });
 
 describe("fitTfidf", () => {
-  // Worked by hand. Tokens: [the, cat, sat], [the, dog, sat], [dog] ("a" is dropped).
-  // n = 3. Document frequency: cat 1, dog 2, sat 2, the 2.
-  // idf(cat) = ln(4 / 2) + 1; idf(dog) = idf(sat) = idf(the) = ln(4 / 3) + 1.
+  // By hand: tokens [the, cat, sat], [the, dog, sat], [dog] ("a" drops out); df is 1 for cat,
+  // 2 for the rest.
   const rare = Math.log(4 / 2) + 1;
   const common = Math.log(4 / 3) + 1;
 
@@ -44,17 +43,15 @@ describe("fitTfidf", () => {
     expect(Array.from(vocabulary.entries())).toEqual([["cat", 0], ["dog", 1], ["sat", 2], ["the", 3]]);
     expect(idf).toEqual(closeTo([rare, common, common, common]));
 
-    // Row 1: cat, sat, the once each, divided by the row's length
     const length1 = Math.sqrt(rare ** 2 + 2 * common ** 2);
     expect(matrix[0]).toEqual(closeTo([rare / length1, 0, common / length1, common / length1]));
-    // Row 2: dog, sat, the once each; all three share one idf, so each is 1 / √3
+    // One shared idf, so each is 1 / √3
     expect(matrix[1]).toEqual(closeTo([0, 1 / Math.sqrt(3), 1 / Math.sqrt(3), 1 / Math.sqrt(3)]));
-    // Row 3: dog only
     expect(matrix[2]).toEqual(closeTo([0, 1, 0, 0]));
   });
 
   it("counts a repeated word in a phrase", () => {
-    // n = 2. idf(cat) = ln(3 / 2) + 1, idf(dog) = ln(3 / 2) + 1, idf(the) = ln(3 / 3) + 1 = 1
+    // n = 2, so idf(the) = ln(3 / 3) + 1 = 1
     const { matrix } = fitTfidf(["the the cat", "the dog"]);
     const catIdf = Math.log(3 / 2) + 1;
     const length = Math.sqrt(catIdf ** 2 + 2 ** 2);
@@ -72,7 +69,7 @@ describe("fitTfidf", () => {
   });
 
   it("sorts the vocabulary by code point, as Python does", () => {
-    // U+F900 sorts before U+10428 by code point, but after it by UTF-16 unit (U+D801 U+DC28)
+    // By code point U+F900 comes first; by UTF-16 unit U+10428 (U+D801 U+DC28) would
     const { vocabulary } = fitTfidf(["\u{10428}a", "\uF900a"]);
     expect(Array.from(vocabulary.keys())).toEqual(["\uF900a", "\u{10428}a"]);
   });
@@ -82,10 +79,8 @@ describe("fitTfidf", () => {
   });
 
   describe("matches scikit-learn", () => {
-    // Expected values made once with scikit-learn 1.9.1 (Python 3.14), rounded to 12 places:
-    //   from sklearn.feature_extraction.text import TfidfVectorizer
-    //   v = TfidfVectorizer()
-    //   m = v.fit_transform(phrases).toarray()
+    // From scikit-learn 1.9.1, rounded to 12 places:
+    //   v = TfidfVectorizer(); m = v.fit_transform(phrases).toarray()
     //   v.get_feature_names_out(), v.idf_, m, v.transform(["the mat and the zebra"]).toarray()
     const phrases = [
       "The cat sat on the mat.",
@@ -97,8 +92,8 @@ describe("fitTfidf", () => {
       "café", "cat", "dog", "don", "from", "house", "mat", "nap", "on", "owners", "ran", "rested", "rug",
       "sat", "the"
     ];
-    const a = 1.916290731874155;   // idf of a term in one phrase
-    const b = 1.5108256237659907;  // idf of a term in two phrases
+    const a = 1.916290731874155;   // idf, term in one phrase
+    const b = 1.5108256237659907;  // idf, term in two phrases
     const kIdf = [a, b, a, a, a, a, a, a, b, a, a, a, a, a, b];
     const kMatrix = [
       [0, 0.329376383994, 0, 0, 0, 0, 0.417772178348, 0, 0.329376383994, 0, 0, 0, 0, 0.417772178348,

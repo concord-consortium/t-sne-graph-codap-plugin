@@ -52,8 +52,7 @@ describe("computeLayout", () => {
   });
 
   it("never calls Math.exp or Math.log, which differ in the last bit between engines", () => {
-    // t-SNE grows a last-bit difference into a different layout within 50 steps, so a saved seed
-    // would give a different picture in another browser. The pipeline uses portable-math.ts.
+    // Their last-bit differences between engines grow into different layouts
     const mathExp = jest.spyOn(Math, "exp");
     const mathLog = jest.spyOn(Math, "log");
     run({ progressInterval: 0 });
@@ -64,8 +63,7 @@ describe("computeLayout", () => {
   });
 
   it("gives exactly this layout for these phrases and seed, to the last bit", () => {
-    // Recorded in Node, and the same in Chromium, Firefox and WebKit (CODAP-1571 plan §8). If this
-    // fails after a change, a saved document would reopen with a different picture.
+    // The same in Chromium, Firefox and WebKit. If this changes, saved documents reopen differently.
     const kExpected = [
       [0.6594446699256002, 0.5206976031892093], [0.8355309844620429, 0.40660784320865145],
       [0.7029595963086366, 0.660742507011833], [0.43070083602575204, 0.20615942346039517],

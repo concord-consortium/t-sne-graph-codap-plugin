@@ -1,17 +1,11 @@
-// Seeded random numbers, so the same data and seed always give the same t-SNE picture.
 import { log } from "./portable-math";
 
 export type RandomFn = () => number;
 
-// A new seed for mulberry32: a whole number in [0, 2^32)
 export const randomSeed = () => Math.floor(Math.random() * 2 ** 32);
 
-// mulberry32 is defined by 32-bit integer operations
 /* eslint-disable no-bitwise */
-/**
- * Returns a mulberry32 generator: numbers in [0, 1), the same sequence for the same seed.
- * Only the low 32 bits of the seed are used.
- */
+/** Uses only the seed's low 32 bits. */
 export const mulberry32 = (seed: number): RandomFn => {
   let state = seed | 0;
   return () => {
@@ -23,11 +17,7 @@ export const mulberry32 = (seed: number): RandomFn => {
 };
 /* eslint-enable no-bitwise */
 
-/**
- * Returns a generator of normally distributed numbers (mean 0, standard deviation 1) drawn from
- * `random`. Uses the polar method, as tsnejs does: each pair of uniform numbers gives two results,
- * and the second is kept for the next call.
- */
+/** Standard normal values by the polar method, as in tsnejs: each pair of draws gives two. */
 export const gaussian = (random: RandomFn): RandomFn => {
   let saved: number | undefined;
   return () => {

@@ -28,8 +28,7 @@
   padding: 0 $info-button-space 13px 0;
 }
 
-// Below the separator: the Key on the left, a 1px divider, and the right column for CODAP-1572.
-// It fills the rest of the panel; a long Key scrolls.
+// The Key, a divider, and a right column for Test Phrases (CODAP-1572). A long Key scrolls.
 .lower-panel {
   display: flex;
   flex: 1;

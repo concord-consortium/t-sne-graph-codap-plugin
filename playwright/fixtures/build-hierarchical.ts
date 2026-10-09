@@ -1,5 +1,4 @@
-// Builds hierarchical.codap (Labels > Phrases, 9 phrases in 3 labels) through the CODAP v3 plugin
-// API, then reloads it and checks it.
+// Builds and checks hierarchical.codap: Labels > Phrases, 9 phrases in 3 labels.
 // Usage, from the project directory: node playwright/fixtures/build-hierarchical.ts
 // (Node 22.18 or later runs TypeScript files directly.)
 // Node needs the extension to import a TypeScript file

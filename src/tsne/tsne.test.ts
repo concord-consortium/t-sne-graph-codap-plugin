@@ -1,8 +1,7 @@
 import { gaussian, mulberry32 } from "./random";
 import { clampPerplexity, kTsneSettings, Tsne } from "./tsne";
 
-// Three clusters of 10 points each in 8 dimensions: centers 10 apart on different axes, with a
-// little noise
+// 3 clusters of 10 points in 8 dimensions, 10 apart, with a little noise
 const kClusterSize = 10;
 const makeClusters = () => {
   const noise = gaussian(mulberry32(1234));
@@ -64,7 +63,6 @@ describe("Tsne", () => {
       const points = layout.slice(cluster * kClusterSize, (cluster + 1) * kClusterSize);
       return [0, 1].map(d => points.reduce((sum, point) => sum + point[d], 0) / points.length);
     });
-    // Every point is nearer its own cluster's center than any other center
     layout.forEach((point, i) => {
       const own = Math.floor(i / kClusterSize);
       const distances = centers.map(center => distance(point, center));

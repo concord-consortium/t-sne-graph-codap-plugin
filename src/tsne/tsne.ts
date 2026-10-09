@@ -20,23 +20,16 @@
  *   DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
- * Changes from the original: random numbers come from an injected generator instead of
- * Math.random; exp and log come from portable-math.ts instead of Math.exp and Math.log, which can
- * differ in the last bit between engines (and t-SNE grows that into a different layout); the Q
- * matrices are allocated once instead of on every step; initDataDist and debugGrad are left out.
- * The arithmetic and its order are unchanged, so with the same random numbers and the same exp and
- * log the results are identical.
+ * Changes from the original: an injected random generator; exp and log from portable-math.ts; Q
+ * matrices allocated once; initDataDist and debugGrad left out. Same arithmetic in the same order.
  */
 import { exp, log } from "./portable-math";
 import { gaussian, RandomFn } from "./random";
 
-// The settings the plugin uses (doc/plans/README.md §4 step 3)
+// The original scikit-learn page's settings
 export const kTsneSettings = { perplexity: 40, epsilon: 100, steps: 1000 };
 
-/**
- * Lowers the perplexity for small data sets: at most (n - 1) / 3, rounded down. Below 4 points
- * this is 0, which means there are too few points to lay out.
- */
+/** At most (n - 1) / 3; 0 below 4 points. */
 export const clampPerplexity = (perplexity: number, n: number) => Math.min(perplexity, Math.floor((n - 1) / 3));
 
 export interface ITsneOptions {
@@ -44,12 +37,11 @@ export interface ITsneOptions {
   perplexity: number;
   // Learning rate
   epsilon: number;
-  // Number of output dimensions
   dim?: number;
   random: RandomFn;
 }
 
-// Squared Euclidean distance between every pair of rows, as an n × n array
+// Squared distances, n × n
 const pairwiseDistances = (X: number[][]) => {
   const n = X.length;
   const distances = new Float64Array(n * n);
@@ -67,8 +59,8 @@ const pairwiseDistances = (X: number[][]) => {
   return distances;
 };
 
-// For each point, finds by binary search the Gaussian precision that gives the target perplexity,
-// then returns the symmetric joint probabilities (p_{i|j} + p_{j|i}) / (2n)
+// Binary-searches each point's Gaussian precision for the target perplexity, then returns the
+// symmetric joint probabilities (p_{i|j} + p_{j|i}) / 2n.
 const distancesToP = (D: Float64Array, n: number, perplexity: number, tolerance: number) => {
   const targetEntropy = log(perplexity);
   const P = new Float64Array(n * n);
@@ -92,11 +84,11 @@ const distancesToP = (D: Float64Array, n: number, perplexity: number, tolerance:
         if (p > 1e-7) entropy -= p * log(p);
       }
       if (entropy > targetEntropy) {
-        // Too spread out: raise the precision
+        // Too spread out
         betaMin = beta;
         beta = betaMax === Infinity ? beta * 2 : (beta + betaMax) / 2;
       } else {
-        // Too peaked: lower the precision
+        // Too peaked
         betaMax = beta;
         beta = betaMin === -Infinity ? beta / 2 : (beta + betaMin) / 2;
       }
@@ -141,9 +133,7 @@ export class Tsne {
     this.randn = gaussian(random);
   }
 
-  /**
-   * Takes one row per point and sets up a new random layout. Every row must have the same length.
-   */
+  /** One row per point, all the same length. Starts a new random layout. */
   initData(X: number[][]) {
     if (X.length === 0) throw new Error("t-SNE needs at least one point");
     if (X[0].length === 0) throw new Error("t-SNE needs at least one value per point");
@@ -157,33 +147,28 @@ export class Tsne {
     this.iter = 0;
   }
 
-  // The current layout: one row of `dim` coordinates per point. The arrays change on each step.
+  // Mutated by each step
   get solution(): readonly (readonly number[])[] {
     return this.Y;
   }
 
-  // Number of steps taken since initData
   get iteration() {
     return this.iter;
   }
 
-  /**
-   * Moves the layout one step of gradient descent and returns the cost before the step.
-   */
+  /** One gradient-descent step. Returns the cost before it. */
   step() {
     this.iter += 1;
     const { n, dim, Y } = this;
     const { cost, grad } = this.costGrad();
 
     const mean = new Array<number>(dim).fill(0);
-    // Momentum is low at first, then higher
     const momentum = this.iter < 250 ? 0.5 : 0.8;
     for (let i = 0; i < n; i++) {
       for (let d = 0; d < dim; d++) {
         const g = grad[i][d];
         const previousStep = this.ystep[i][d];
-        // The step goes against the gradient. Shrink the gain when this step reverses the last
-        // one (gradient and last step have the same sign); grow it when it keeps going.
+        // Shrink the gain when the step reverses direction (gradient and last step share a sign)
         const gain = Math.max(
           sign(g) === sign(previousStep) ? this.gains[i][d] * 0.8 : this.gains[i][d] + 0.2, 0.01);
         this.gains[i][d] = gain;
@@ -193,7 +178,6 @@ export class Tsne {
         mean[d] += Y[i][d];
       }
     }
-    // Keep the layout centered on 0
     for (let i = 0; i < n; i++) {
       for (let d = 0; d < dim; d++) {
         Y[i][d] -= mean[d] / n;
@@ -204,11 +188,10 @@ export class Tsne {
 
   private costGrad() {
     const { n, dim, P, Qu, Q, Y } = this;
-    // Early exaggeration: P counts four times as much for the first 100 steps, to avoid poor local
-    // minimums
+    // Early exaggeration avoids poor local minima
     const pMultiplier = this.iter < 100 ? 4 : 1;
 
-    // Student t-distribution similarities in the layout, then normalized to sum to 1
+    // Student-t similarities, normalized to sum to 1
     let qSum = 0;
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
@@ -232,7 +215,7 @@ export class Tsne {
     for (let i = 0; i < n; i++) {
       const gSum = new Array<number>(dim).fill(0);
       for (let j = 0; j < n; j++) {
-        // The part of the KL divergence that changes with the layout
+        // Only the part of the KL divergence that depends on the layout
         cost += -P[i * n + j] * log(Q[i * n + j]);
         const premultiplier = 4 * (pMultiplier * P[i * n + j] - Q[i * n + j]) * Qu[i * n + j];
         for (let d = 0; d < dim; d++) {

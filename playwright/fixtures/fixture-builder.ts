@@ -1,9 +1,6 @@
-// Builds a fixture document through the CODAP v3 plugin API, then reloads it and checks it. Used by
-// the build-*.ts scripts in this folder, which supply the data.
-//
-// A small harness page, served by Playwright, acts as the plugin and sends the API requests.
-// The document is saved with saveCodapDocument, with the harness tile removed so the fixture holds
-// only the table.
+// Shared by the build-*.ts scripts: builds a fixture through the CODAP v3 plugin API, saves it,
+// then reopens and checks it. A harness page served by Playwright acts as the plugin; its tile is
+// removed before saving.
 import fs from "fs";
 import path from "path";
 import { chromium, type Frame, type Page } from "@playwright/test";
@@ -23,7 +20,7 @@ interface IReply {
   success: boolean;
   values?: unknown;
 }
-// Each check is a request, how to read the reply's values, and what they should be
+// A request, how to read its reply, and the expected result
 export interface ICheck {
   resource: string;
   read: (values: unknown) => unknown;
@@ -51,9 +48,7 @@ interface IHarnessWindow {
   results?: IReply[];
 }
 
-// Reads the `name` of each value in a list reply
 export const names = (values: unknown) => (values as { name: string }[]).map(value => value.name);
-// Reads a reply's values as they are
 export const same = (values: unknown) => values;
 
 // The harness sends `steps` in order and stores each reply in window.results
@@ -87,11 +82,7 @@ const runHarness = async (page: Page, url: string): Promise<IReply[]> => {
   return await handle.jsonValue() as IReply[];
 };
 
-/**
- * Runs `buildSteps` (after sizing the harness tile) in a new CODAP document, saves it to `file` in
- * this folder without the harness tile, then reopens it and runs `checks`. Exits with 1 if any
- * step or check fails.
- */
+/** Exits with 1 if any step or check fails. */
 export const buildFixture = async (file: string, buildSteps: IRequest[], checks: ICheck[]) => {
   const fixturePath = path.resolve("playwright/fixtures", file);
   const fixtureUrl = `${kHarness}${file}`;

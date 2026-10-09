@@ -20,7 +20,7 @@ export const App = ({ store }: IProps) => (
         <div className="controls-header">
           <DataSourceSelector />
         </div>
-        {/* Two columns with a divider: the Key, and room for Test Phrases (CODAP-1572) */}
+        {/* The Key, and an empty right column for Test Phrases (CODAP-1572) */}
         <div className="lower-panel">
           <div className="lower-panel-left">
             <Key />

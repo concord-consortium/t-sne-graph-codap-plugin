@@ -8,7 +8,7 @@ const kAttributes: AttributeInfo[] = [
   { name: "label", title: "Label", collectionName: "Phrases", isLeaf: true }
 ];
 
-// Leaf cases with their own values and their parent's ("group")
+// "group" comes from the parent case
 const kCases: CaseInfo[] = [
   { caseId: "1", values: { group: "A", phrase: "the cat sat", label: "Similar", notes: "first" } },
   { caseId: "2", values: { group: "B", phrase: "a dog ran", label: "Opposite", notes: "" } },

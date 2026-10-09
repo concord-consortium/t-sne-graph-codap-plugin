@@ -1,16 +1,12 @@
-// exp and log that give the same result, to the last bit, in every JavaScript engine.
-//
-// Math.exp and Math.log may differ in the last bit from one engine to another, and t-SNE grows such
-// a difference until the whole layout changes (CODAP-1571 plan §8). These are ports of fdlibm's
-// e_exp.c and e_log.c (Sun Microsystems, 1993, freely usable with its notice), which use only
-// +, -, * and / (rounded the same way everywhere, by IEEE 754) and exact reads and writes of a
-// number's bits. Each result is within one unit in the last place of the true value.
+// exp and log that match to the last bit in every engine. Math.exp and Math.log can differ in the
+// last bit between engines, and t-SNE grows that into a different layout. Ports of fdlibm's
+// e_exp.c and e_log.c, using only + - * / (exactly rounded under IEEE 754) and exact bit access;
+// within one unit in the last place.
 //
 // fdlibm notice: Copyright (C) 1993 by Sun Microsystems, Inc. All rights reserved. Developed at
 // SunSoft, a Sun Microsystems, Inc. business. Permission to use, copy, modify, and distribute this
 // software is freely granted, provided that this notice is preserved.
 
-// Reads and writes the high and low 32 bits of a 64-bit float, independent of the machine's byte order
 const view = new DataView(new ArrayBuffer(8));
 const highWord = (x: number) => {
   view.setFloat64(0, x);
@@ -25,7 +21,7 @@ const withHighWord = (x: number, high: number) => {
   view.setInt32(0, high);
   return view.getFloat64(0);
 };
-// 2^k as a float, for -1022 <= k <= 1023
+// For -1022 <= k <= 1023
 const powerOfTwo = (k: number) => {
   view.setUint32(0, (k + 1023) * 0x100000);
   view.setUint32(4, 0);
@@ -46,14 +42,12 @@ const kP5 = 4.13813679705723846039e-08;
 
 /* eslint-disable no-bitwise -- the algorithms work on the bits of the number */
 
-/**
- * e^x, the same in every engine (fdlibm e_exp.c).
- */
+/** Port of fdlibm e_exp.c. */
 export const exp = (x: number): number => {
   const signBit = highWord(x) >>> 31;
   const hx = highWord(x) & 0x7fffffff;
 
-  // |x| >= 709.78, or not a number
+  // |x| >= 709.78, or not finite
   if (hx >= 0x40862e42) {
     if (hx >= 0x7ff00000) {
       if (((hx & 0xfffff) | lowWord(x)) !== 0) return x + x;   // NaN
@@ -63,7 +57,7 @@ export const exp = (x: number): number => {
     if (x < kExpUnderflow) return 0;
   }
 
-  // Reduce x to r = x - k ln2, with |r| <= 0.5 ln2, as hi - lo
+  // Reduce to r = x - k ln2, |r| <= 0.5 ln2, as hi - lo
   let hi = 0;
   let lo = 0;
   let k = 0;
@@ -83,7 +77,7 @@ export const exp = (x: number): number => {
     return 1 + x;
   }
 
-  // exp(r) by a rational approximation
+  // Rational approximation of exp(r)
   const t = x * x;
   const c = x - t * (kP1 + t * (kP2 + t * (kP3 + t * (kP4 + t * kP5))));
   if (k === 0) return 1 - ((x * c) / (c - 2) - x);
@@ -103,9 +97,7 @@ const kLg5 = 1.818357216161805012e-01;
 const kLg6 = 1.531383769920937332e-01;
 const kLg7 = 1.479819860511658591e-01;
 
-/**
- * The natural logarithm of x, the same in every engine (fdlibm e_log.c).
- */
+/** Port of fdlibm e_log.c. */
 export const log = (x: number): number => {
   let hx = highWord(x);
   const lx = lowWord(x);
@@ -121,7 +113,7 @@ export const log = (x: number): number => {
   }
   if (hx >= 0x7ff00000) return x + x;   // Infinity or NaN
 
-  // x = 2^k * (1 + f), with 1 + f in [sqrt(2)/2, sqrt(2))
+  // x = 2^k (1 + f), with 1 + f in [sqrt(2)/2, sqrt(2))
   k += (hx >> 20) - 1023;
   hx &= 0x000fffff;
   const i = (hx + 0x95f64) & 0x100000;
@@ -133,7 +125,7 @@ export const log = (x: number): number => {
   if ((0x000fffff & (2 + hx)) < 3) {
     // |f| < 2^-20
     if (f === 0) return k === 0 ? 0 : dk * kLn2Hi + dk * kLn2Lo;
-    // fdlibm writes this constant as 0.33333333333333333, which is the same double
+    // fdlibm's 0.33333333333333333; the same double
     const rf = f * f * (0.5 - 0.3333333333333333 * f);
     return k === 0 ? f - rf : dk * kLn2Hi - ((rf - dk * kLn2Lo) - f);
   }

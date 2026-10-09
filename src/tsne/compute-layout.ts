@@ -1,37 +1,30 @@
-// The t-SNE pipeline the worker runs: TF-IDF, then t-SNE, then positions in the unit square.
-// A plain function, so it can be tested without a worker (CODAP-1571 plan §4.2 steps 3–4).
+// Separate from the worker so it can be tested without one.
 import { IPosition, normalizeLayout } from "./layout";
 import { mulberry32 } from "./random";
 import { fitTfidf } from "./tfidf";
 import { clampPerplexity, kTsneSettings, Tsne } from "./tsne";
 
-// Fewer phrases than this give a meaningless layout (and a perplexity below 1)
+// Below this, the clamped perplexity drops under 1
 export const kMinPhrases = 4;
-// Steps between progress messages, so the points visibly settle
 export const kProgressInterval = 50;
 
 export interface ITsneRequest {
-  // Echoed in every response, so the sender can ignore responses to an older request
+  // Echoed back, so stale responses can be ignored
   requestId: number;
   phrases: string[];
   seed: number;
-  // Steps between progress messages; 0 for none (reduced motion)
+  // 0 for none (reduced motion)
   progressInterval: number;
 }
 
 export type TsneResponse =
-  // An intermediate layout, one position per phrase
   | { type: "progress", requestId: number, step: number, positions: IPosition[] }
-  // The final layout
   | { type: "done", requestId: number, positions: IPosition[] }
-  // Too few phrases, or no phrase has a word of two or more characters
+  // Also when no phrase has a word of 2+ characters
   | { type: "too-few", requestId: number }
   | { type: "error", requestId: number, message: string };
 
-/**
- * Lays out the phrases and reports through `post`: progress messages every `progressInterval`
- * steps, then one final message ("done", "too-few" or "error"). Runs to the end before returning.
- */
+/** Posts progress every `progressInterval` steps, then one final response. Synchronous. */
 export const computeLayout = (request: ITsneRequest, post: (response: TsneResponse) => void) => {
   const { requestId, phrases, seed, progressInterval } = request;
   try {

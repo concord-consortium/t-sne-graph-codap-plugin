@@ -1,5 +1,3 @@
-// Turns t-SNE coordinates into positions in the unit square, and those into pixels in the graph.
-
 export interface IPosition {
   x: number;
   y: number;
@@ -10,17 +8,14 @@ export interface ISize {
   height: number;
 }
 
-// Space between the graph's edge and the nearest point's center, so no 12px point is clipped
+// Keeps points at the edge from being clipped
 export const kGraphPadding = 12;
 
-/**
- * Scales and moves 2D t-SNE coordinates into [0, 1] × [0, 1]. Both axes use the same scale, so the
- * layout keeps its shape; the shorter side is centered. If every point is in the same place, they
- * all go to the center.
- */
+/** Fits the layout into the unit square with one scale for both axes, centering the shorter
+ * side. Coincident points go to the center. */
 export const normalizeLayout = (solution: readonly (readonly number[])[]): IPosition[] => {
   if (solution.length === 0) return [];
-  // A loop, not Math.min(...xs), which fails past the engine's limit on function arguments
+  // Not Math.min(...xs): spreading many points can exceed the engine's argument limit
   let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
   solution.forEach(([x, y]) => {
     minX = Math.min(minX, x);
@@ -30,19 +25,14 @@ export const normalizeLayout = (solution: readonly (readonly number[])[]): IPosi
   });
   const range = Math.max(maxX - minX, maxY - minY);
   if (range === 0) return solution.map(() => ({ x: 0.5, y: 0.5 }));
-  // Offsets that center the shorter side
   const offsetX = (1 - (maxX - minX) / range) / 2;
   const offsetY = (1 - (maxY - minY) / range) / 2;
   return solution.map(([x, y]) => ({ x: offsetX + (x - minX) / range, y: offsetY + (y - minY) / range }));
 };
 
-/**
- * Maps a position in the unit square to pixels in a graph of the given size, inside the padding.
- * Each axis fills its own side, so a graph that is not square stretches the layout. y = 1 is at
- * the top.
- */
+/** Each axis fills its side, so a non-square graph stretches the layout. y = 1 is at the top. */
 export const toPixels = ({ x, y }: IPosition, { width, height }: ISize, padding = kGraphPadding): IPosition => {
-  // A graph smaller than twice the padding puts every point on its center line
+  // Too small for the padding: center the points
   const innerWidth = Math.max(0, width - 2 * padding);
   const innerHeight = Math.max(0, height - 2 * padding);
   return {

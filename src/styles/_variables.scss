@@ -6,8 +6,7 @@ $focus-color: #0957d0;
 $disabled-opacity: 0.35;
 $separator-color: #d1d1d1;
 
-// Points and Key dots have a 1px white outline; selected ones add a 2px ring of this color and a
-// 1px white edge outside it
+// Selected dots add a 2px ring and a 1px white edge outside the outline
 $dot-outline-color: white;
 $selection-ring-color: #006c8e;
 
@@ -33,7 +32,7 @@ $dropdown-arrow-color: #006c8e;
 $dropdown-item-height: 30px;
 $dropdown-item-highlight: #e9e9e9;
 
-// Key (lower panel, left column). Rows are 29px apart: 24px entries with 5px between them.
+// Key rows are 29px apart: 24px entries, 5px gaps
 $key-column-width: 133px;
 $key-entry-height: 24px;
 $key-entry-gap: 5px;

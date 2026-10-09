@@ -1,6 +1,5 @@
 import { groupLabels, kLabelColors, kUnlabeled, kUnlabeledColor, labelColor, normalizeLabel } from "./labels";
 
-// WCAG contrast ratio of a "#rrggbb" color against white
 const contrastWithWhite = (hex: string) => {
   const linear = (channel: number) => {
     const c = channel / 255;
@@ -52,7 +51,7 @@ describe("labelColor", () => {
 
   it("keeps every color at 3:1 contrast or more on white", () => {
     expect(contrastWithWhite(kUnlabeledColor)).toBeGreaterThanOrEqual(3);
-    // Covers every hue; at 38% lightness, label index 96 (#9a9b27) was 2.96:1
+    // 1000 labels cover every hue
     const tooLight = Array.from({ length: 1000 }, (_value, i) => labelColor(i))
       .filter(color => contrastWithWhite(color) < 3);
     expect(tooLight).toEqual([]);

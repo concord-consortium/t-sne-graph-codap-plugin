@@ -6,11 +6,9 @@ import { clearCodapSelection, selectInCodap } from "../models/selection-sync";
 import { ISize, toPixels } from "../tsne/layout";
 import "./graph.scss";
 
-// Grid lines divide the graph into this many cells each way
 const kGridCells = 8;
-// Radii in pixels: the 12px point and its 24px click target. Outside the point, as in the spec's
-// box-shadow (0 0 0 1px #fff, 0 0 0 3px #006c8e, 0 0 0 4px #fff): a 1px white outline on every
-// point, then when selected a 2px ring and a 1px white edge, then the 2px keyboard focus ring.
+// Outside the dot, per the spec's box-shadow: a 1px white outline; when selected, a 2px ring and
+// a 1px white edge; then the focus ring.
 const kPointRadius = 6;
 const kHitRadius = 12;
 const kOutlineRadius = kPointRadius + 0.5;
@@ -23,7 +21,6 @@ export const kErrorMessage = "Something went wrong while making the plot.";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
-// The size of an element, kept current with a ResizeObserver
 const useElementSize = (ref: React.RefObject<HTMLElement | null>) => {
   const [size, setSize] = useState<ISize>({ width: 0, height: 0 });
   useLayoutEffect(() => {
@@ -41,11 +38,7 @@ const useElementSize = (ref: React.RefObject<HTMLElement | null>) => {
   return size;
 };
 
-/**
- * The t-SNE scatter plot (CODAP-1571 plan §4.4): an 8 × 8 grid, one dot per point in its label's
- * color, and the selection mirrored from CODAP. The plot is one Tab stop; the arrow keys move
- * between points.
- */
+/** One Tab stop; the arrow keys move between points. */
 export const Graph = observer(() => {
   const store = useStore();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,15 +46,12 @@ export const Graph = observer(() => {
   const pointRefs = useRef(new Map<string, SVGGElement>());
   const size = useElementSize(containerRef);
 
-  // The point the arrow keys move from. Kept while the graph is empty during a recompute, so
-  // focus can come back to the same case.
+  // Remembered while a recompute empties the graph, so focus can return to the same case
   const [activeCaseId, setActiveCaseId] = useState<string>();
-  // True while keyboard focus is in the plot
   const focusWithin = useRef(false);
 
   const { computeStatus } = store;
-  // The points in the table's row order, for drawing and for the arrow keys. The layout uses its own
-  // fixed order (graph-controller.ts), so it doesn't change when the table is sorted.
+  // Table order for drawing and the arrow keys; the layout uses its own fixed order
   const points = useMemo(() => {
     const byCaseId = new Map(store.points.map(point => [point.caseId, point]));
     const ordered: Point[] = [];
@@ -75,15 +65,14 @@ export const Graph = observer(() => {
   const phrases = useMemo(() => new Map(store.rows.map(row => [row.caseId, row.phrase])), [store.rows]);
   const activeExists = activeCaseId !== undefined && caseIds.includes(activeCaseId);
 
-  // After a recompute, the remembered point moves to the first point if its case is gone
+  // If the remembered case is gone, use the first point
   useEffect(() => {
     if (activeCaseId !== undefined && caseIds.length > 0 && !caseIds.includes(activeCaseId)) {
       setActiveCaseId(caseIds[0]);
     }
   }, [activeCaseId, caseIds]);
 
-  // Keep keyboard focus in the plot when its points change: on the active point if it is shown,
-  // otherwise on the plot itself
+  // Keep focus in the plot as points change: on the active point if shown, else on the plot
   useLayoutEffect(() => {
     if (!focusWithin.current) return;
     const target = activeExists ? pointRefs.current.get(activeCaseId) : svgRef.current;
@@ -116,7 +105,7 @@ export const Graph = observer(() => {
         break;
       case "Enter":
       case " ":
-        // Only a focused point is selected; on the plot itself these keys do nothing
+        // These keys on the plot itself select nothing
         if (event.target === svgRef.current || !activeExists) return;
         selectInCodap(store, [activeCaseId], event.shiftKey);
         break;
@@ -126,12 +115,12 @@ export const Graph = observer(() => {
       default:
         return;
     }
-    // The arrow keys and Space would otherwise scroll
+    // Arrows and Space would scroll
     event.preventDefault();
   };
 
   const handleBackgroundClick = (event: MouseEvent<SVGSVGElement>) => {
-    // Shift-click extends the selection; on empty space there is nothing to add
+    // A Shift-click on empty space adds nothing
     if (!event.shiftKey) clearCodapSelection(store);
   };
 
@@ -146,7 +135,7 @@ export const Graph = observer(() => {
     ? `t-SNE plot of ${plural(points.length, "phrase")} in ${plural(store.labelEntries.length, "label")}`
     : "t-SNE plot";
   const message = computeStatus === "too-few" ? kTooFewMessage : computeStatus === "error" ? kErrorMessage : "";
-  // Lines at the cell edges inside the plot, on half pixels so each is one sharp pixel wide
+  // Interior lines, on half pixels so they render as one sharp pixel
   const gridLines = Array.from({ length: kGridCells - 1 }, (_value, i) => i + 1);
   const gridX = (i: number) => Math.round(i * size.width / kGridCells) + 0.5;
   const gridY = (i: number) => Math.round(i * size.height / kGridCells) + 0.5;
@@ -160,14 +149,14 @@ export const Graph = observer(() => {
         height={size.height}
         role="group"
         aria-label={label}
-        // One Tab stop: the plot until a point has been focused, then that point. An empty plot
-        // is not in the Tab order, but can take focus when its points go away.
+        // One Tab stop: the plot until a point is focused. An empty plot leaves the Tab order but
+        // can still take focus.
         tabIndex={hasPoints && !activeExists ? 0 : -1}
         onKeyDown={handleKeyDown}
         onClick={handleBackgroundClick}
         onFocus={() => { focusWithin.current = true; }}
         onBlur={event => {
-          // A point removed while focused moves focus nowhere; that doesn't count as leaving
+          // A focused point that is removed blurs with no relatedTarget; that isn't leaving
           const leaving = event.relatedTarget
             ? !svgRef.current?.contains(event.relatedTarget as Node)
             : (event.target as Element).isConnected;

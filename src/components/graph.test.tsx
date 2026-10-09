@@ -44,7 +44,7 @@ describe("Graph", () => {
   beforeEach(() => {
     jest.mocked(selectInCodap).mockReset();
     jest.mocked(clearCodapSelection).mockReset();
-    // jsdom has no layout; the plot reads its size from here until a ResizeObserver reports one
+    // jsdom has no layout
     jest.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
       { width: 300, height: 300, x: 0, y: 0, top: 0, left: 0, right: 300, bottom: 300, toJSON: () => undefined });
     store = graphStore();
@@ -76,7 +76,6 @@ describe("Graph", () => {
       expect(dots.map(dot => dot.getAttribute("r"))).toEqual(["6", "6", "6", "6"]);
       expect(dots.map(dot => dot.getAttribute("fill")))
         .toEqual([kLabelColors[0], kLabelColors[1], kLabelColors[0], kUnlabeledColor]);
-      // Each point has a 24px click target
       expect(within(point("the cat sat")).getByTestId("hit-area")).toHaveAttribute("r", "12");
     });
 
@@ -91,7 +90,7 @@ describe("Graph", () => {
       renderGraph(store);
       expect(point("a dog ran")).toHaveAttribute("aria-pressed", "true");
       expect(point("the cat sat")).toHaveAttribute("aria-pressed", "false");
-      // The 2px ring covers 7 to 9px from the center, and the 1px edge 9 to 10px
+      // The ring covers 7–9px from the center; the edge 9–10px
       expect(within(point("a dog ran")).getByTestId("selection-ring")).toHaveAttribute("r", "8");
       expect(within(point("a dog ran")).getByTestId("selection-edge")).toHaveAttribute("r", "9.5");
       expect(within(point("the cat sat")).queryByTestId("selection-ring")).toBeNull();
@@ -252,7 +251,7 @@ describe("Graph", () => {
     await user.tab();
     await user.keyboard("{ArrowRight}");
     expect(point("the cat sat")).toHaveFocus();
-    // The table is sorted: the order follows it, and the points stay where they are
+    // Sorting the table changes the order, not the positions
     act(() => store.setCases(kCases.slice().reverse()));
     expect(pointNames()).toEqual(kPhrases.slice().reverse());
     expect(point("the cat sat")).toHaveAttribute("transform", "translate(12 288)");

@@ -1,8 +1,8 @@
 @use "sass:color";
 @use "../styles/variables" as *;
 
-// As in the spec's CSS: a 1px white outline on every dot; selected adds a 2px ring and a 1px
-// white edge; hover previews the ring at half strength
+// The spec's CSS: a 1px white outline; selected adds a 2px ring and a 1px white edge; hover
+// previews the ring at half strength
 $outline: 0 0 0 1px $dot-outline-color;
 $selected-rings: $outline, 0 0 0 3px $selection-ring-color, 0 0 0 4px $dot-outline-color;
 $hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.5);
@@ -27,14 +27,14 @@ $hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.
   margin: 0;
   padding: 0;
 
-  // Each item is exactly as tall as its entry, with no line-box space below the button
+  // No line-box space below the button
   > li {
     display: flex;
   }
 }
 
-// The entry fits its content, so the hover and focus boxes hug the dot and the text. Its 2px
-// keyboard focus border is an inset box-shadow, as on the dropdowns, so it doesn't shift the content.
+// Sized to its content, so the hover and focus boxes hug it. The focus border is an inset
+// box-shadow, so the content doesn't shift.
 .key-entry {
   align-items: center;
   background: none;
@@ -51,7 +51,7 @@ $hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.
   outline: none;
   padding: 0 6px;
 
-  // When states combine: pressed comes after hover, so its fill wins; keyboard focus adds its border
+  // Pressed overrides hover; focus adds its border
   &[data-hovered] {
     background-color: $key-entry-fill-hover;
   }
@@ -71,7 +71,7 @@ $hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.
   height: $key-dot-size;
   width: $key-dot-size;
 
-  // Hover and press come first, so a selected entry keeps its full ring while hovered
+  // Before the selected rule, so a selected entry keeps its full ring on hover
   .key-entry[data-hovered] & {
     box-shadow: $hover-rings;
   }
@@ -87,11 +87,9 @@ $hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.
   white-space: nowrap;
 }
 
-// Forced-colors mode (e.g. Windows High Contrast) removes box-shadows and replaces colors with
-// system colors, which would hide the dots, their rings and the focus border
+// Forced colors drop box-shadows and replace colors, hiding the dots, rings and focus border
 @media (forced-colors: active) {
-  // The dot's color identifies its label, as the points' colors do in the graph's SVG, which the
-  // browser leaves alone; this keeps the dot's color, outline and selection ring
+  // The dot's color identifies its label
   .key-dot {
     forced-color-adjust: none;
   }

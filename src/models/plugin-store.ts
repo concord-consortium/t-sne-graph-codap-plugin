@@ -18,22 +18,20 @@ export interface AttributeInfo {
   isLeaf: boolean;
 }
 
-// A leaf case of the selected table, as fetched from CODAP: its own values and those of its
-// parent cases, by attribute name
+// A leaf case with its parents' values merged in, by attribute name
 export interface CaseInfo {
   caseId: string;
   values: Record<string, unknown>;
 }
 
-// One phrase to plot: a leaf case of the selected table
 export interface Row {
   caseId: string;
   phrase: string;
-  // undefined when no Label Column is chosen
+  // undefined without a Label Column
   label?: string;
 }
 
-// A row's place in the layout, in the unit square
+// In the unit square
 export interface Point extends IPosition {
   caseId: string;
 }
@@ -41,27 +39,25 @@ export interface Point extends IPosition {
 export type ComputeStatus = "idle" | "computing" | "done" | "too-few" | "error";
 
 export interface LabelEntry extends ILabelEntry {
-  // True when every row with this label is selected
+  // All of the label's rows are selected
   isSelected: boolean;
 }
 
-// The snapshot format. Change it, with a preProcessSnapshot migration, only after the plugin is
-// released and only for changes that old snapshots can't load into; a new optional field needs
-// neither (doc/plans/README.md §3.4).
+// Bump, with a preProcessSnapshot migration, only after release and only for changes old
+// snapshots can't load into.
 export const kStoreVersion = 1;
 
-// A CODAP value as text: labels are text even in a numeric column
+// Labels are text even in numeric columns
 const toText = (value: unknown) => value == null ? "" : String(value);
 
-// Inputs are saved in the CODAP document; lists fetched from CODAP and the graph data are volatile
-// and never saved
+// Inputs are saved in the CODAP document; data fetched or computed is volatile and never saved
 export const PluginStore = types
   .model("PluginStore", {
     version: types.optional(types.number, kStoreVersion),
     dataContextName: types.maybe(types.string),
     phraseAttributeName: types.maybe(types.string),
     labelAttributeName: types.maybe(types.string),
-    // Seeds the t-SNE layout, so a saved document shows the same picture when reopened
+    // Same seed, same picture when the document is reopened
     tsneSeed: types.maybe(types.number)
   })
   .volatile(() => ({
@@ -70,7 +66,7 @@ export const PluginStore = types
     cases: [] as CaseInfo[],
     points: [] as Point[],
     computeStatus: "idle" as ComputeStatus,
-    // CODAP's selected case IDs, as strings. Replaced, never changed in place, so views update.
+    // Replaced, not mutated, so views update
     selectedCaseIds: new Set<string>()
   }))
   .views(self => ({
@@ -82,8 +78,7 @@ export const PluginStore = types
     get labelAttributes() {
       return self.attributes;
     },
-    // The phrases to plot, read from the cases by the chosen column names, so choosing a different
-    // Phrase or Label Column needs no new fetch. Rows with a blank phrase are skipped.
+    // Derived, so a column change needs no fetch. Blank phrases are skipped.
     get rows(): Row[] {
       const { phraseAttributeName: phraseName, labelAttributeName: labelName } = self;
       if (!phraseName) return [];
@@ -108,14 +103,12 @@ export const PluginStore = types
     }
   }))
   .views(self => ({
-    // The Key's entries, in order, each marked selected when all its rows are selected
     get labelEntries(): LabelEntry[] {
       const { entries, rowKeys } = self.labelGroups;
       const unselectedKeys = new Set(
         rowKeys.filter((_key, i) => !self.isSelected(self.rows[i].caseId)));
       return entries.map(entry => ({ ...entry, isSelected: !unselectedKeys.has(entry.key) }));
     },
-    // The case IDs of the rows with each label, by label key; selecting a Key entry selects these
     get caseIdsByLabelKey() {
       const { rowKeys } = self.labelGroups;
       const caseIds = new Map<string, string[]>();
@@ -141,28 +134,27 @@ export const PluginStore = types
       self.points = [];
       self.computeStatus = "idle";
     };
-    // Creates the seed if the document has none; an existing seed is kept for good
+    // An existing seed is never replaced
     const ensureTsneSeed = () => {
       if (self.tsneSeed === undefined) self.tsneSeed = randomSeed();
     };
 
     return {
       ensureTsneSeed,
-      // Choosing a different table resets both column selections and drops the graph data
+      // Choosing a different table resets both column selections and the graph data
       setDataContext(name: string | undefined) {
         if (name === self.dataContextName) return;
         self.dataContextName = name;
         self.phraseAttributeName = undefined;
         self.labelAttributeName = undefined;
         clearLayout();
-        // The cases and selected case IDs belong to the old table
         self.cases = [];
         self.selectedCaseIds = new Set();
       },
       setPhraseAttribute(name: string | undefined) {
         self.phraseAttributeName = name;
         if (name === undefined) {
-          // The rows view is empty without a Phrase Column; the cases are kept for the same table
+          // Keep the cases: same table
           clearLayout();
         } else {
           ensureTsneSeed();

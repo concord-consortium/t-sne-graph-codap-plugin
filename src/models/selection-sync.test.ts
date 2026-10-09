@@ -12,14 +12,14 @@ jest.mock("@concord-consortium/codap-plugin-api", () => ({
 
 const api = jest.mocked(codapApi);
 
-// Leaf cases 100 and 101 have parent case 10; leaf case 102 has parent case 11
+// Leaf cases 100 and 101 have parent 10; leaf case 102 has parent 11
 const kCases: CaseInfo[] = [
   { caseId: "100", values: { group: "Similar", phrase: "the cat sat" } },
   { caseId: "101", values: { group: "Similar", phrase: "a cat rested" } },
   { caseId: "102", values: { group: "Opposite", phrase: "the dog ran" } }
 ];
 
-// CODAP's selection, as getSelectionList sends it: numeric IDs, parents and leaves mixed
+// As getSelectionList sends it: numeric IDs, parents and leaves mixed
 let codapSelection: { caseID: number, collectionName: string }[];
 const leaf = (caseID: number) => ({ caseID, collectionName: "Cases" });
 const parent = (caseID: number) => ({ caseID, collectionName: "Groups" });
@@ -32,7 +32,6 @@ const deferred = <T>() => {
   return { promise, resolve };
 };
 
-// The one selectCases listener selection-sync registers
 const selectListener = () => {
   const calls = api.codapInterface.on.mock.calls.filter(([, resource, operation]) =>
     resource === "*" && operation === "selectCases");
@@ -138,7 +137,7 @@ describe("selection-sync", () => {
       const slow = deferred<IResult>();
       api.getSelectionList.mockImplementationOnce(() => slow.promise);
 
-      store.setCases(kCases);   // its read is slow
+      store.setCases(kCases);   // slow read
       codapSelection = [leaf(102)];
       notifySelect("Phrases");
       await flush();
@@ -153,7 +152,7 @@ describe("selection-sync", () => {
       stop = startSelectionSync(store);
       const slow = deferred<IResult>();
       api.getSelectionList.mockImplementationOnce(() => slow.promise);
-      store.setCases(kCases);   // read for Phrases, slow
+      store.setCases(kCases);   // slow read for Phrases
 
       store.setDataContext("Other");
       await flush();

@@ -1,32 +1,26 @@
-// TF-IDF with the defaults of scikit-learn's TfidfVectorizer, which the original page used.
+// TF-IDF with scikit-learn TfidfVectorizer defaults.
 import { log } from "./portable-math";
 
 export interface ITfidfModel {
-  // Term → column index; terms are in sorted order, as in scikit-learn
+  // Terms sorted as in scikit-learn
   vocabulary: Map<string, number>;
-  // One value per column: log((1 + n) / (1 + df)) + 1
   idf: number[];
 }
 
 export interface ITfidfResult extends ITfidfModel {
-  // One L2-normalized row per phrase; a phrase with no known term is all zeros
+  // L2-normalized; all zeros for a phrase with no known term
   matrix: number[][];
 }
 
-// Runs of anything that is not a word character. A word character is a letter, a number or "_",
-// the Unicode meaning of Python's \w. JavaScript's \b only knows ASCII, so we split instead.
+// Python's Unicode \w. Split on it because JavaScript's \b is ASCII-only.
 const kNonWordChars = /[^\p{L}\p{N}_]+/u;
 
-/**
- * Lowercases the text and returns its words of two or more characters, in order, with repeats.
- * Equivalent to scikit-learn's default token pattern \b\w\w+\b.
- */
+/** Lowercased words of 2+ characters, like scikit-learn's \b\w\w+\b. */
 export const tokenize = (text: string): string[] =>
-  // Array.from counts characters outside the BMP as one, as Python does
+  // Counts characters above U+FFFF as one, as Python does
   text.toLowerCase().split(kNonWordChars).filter(token => Array.from(token).length >= 2);
 
-// Compares by code point, as Python does. JavaScript's default sort compares UTF-16 units, which
-// puts characters above U+FFFF before those in U+E000–U+FFFF.
+// Python sorts by code point; JavaScript's default sort uses UTF-16 units.
 const byCodePoint = (a: string, b: string) => {
   const aChars = Array.from(a);
   const bChars = Array.from(b);
@@ -53,12 +47,8 @@ const toRow = (model: ITfidfModel, counts: Map<string, number>) => {
   return length > 0 ? row.map(value => value / length) : row;
 };
 
-/**
- * Builds the vocabulary and IDF from the phrases and returns the TF-IDF matrix, one row per phrase.
- */
 export const fitTfidf = (phrases: string[]): ITfidfResult => {
   const counts = phrases.map(termCounts);
-  // Number of phrases each term appears in
   const documentFrequency = new Map<string, number>();
   counts.forEach(phraseCounts => phraseCounts.forEach((_count, term) =>
     documentFrequency.set(term, (documentFrequency.get(term) ?? 0) + 1)));
@@ -72,8 +62,5 @@ export const fitTfidf = (phrases: string[]): ITfidfResult => {
   return { ...model, matrix: counts.map(phraseCounts => toRow(model, phraseCounts)) };
 };
 
-/**
- * Returns the TF-IDF row of a new phrase, using the vocabulary and IDF of an existing model.
- * Words that are not in the vocabulary are ignored.
- */
+// Words not in the vocabulary are ignored.
 export const vectorize = (model: ITfidfModel, phrase: string): number[] => toRow(model, termCounts(phrase));
