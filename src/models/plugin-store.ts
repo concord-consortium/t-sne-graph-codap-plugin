@@ -70,7 +70,7 @@ export const PluginStore = types
     cases: [] as CaseInfo[],
     points: [] as Point[],
     computeStatus: "idle" as ComputeStatus,
-    // CODAP's selected case ids, as strings. Replaced, never changed in place, so views update.
+    // CODAP's selected case IDs, as strings. Replaced, never changed in place, so views update.
     selectedCaseIds: new Set<string>()
   }))
   .views(self => ({
@@ -145,7 +145,7 @@ export const PluginStore = types
         self.phraseAttributeName = undefined;
         self.labelAttributeName = undefined;
         clearLayout();
-        // The cases and selected case ids belong to the old table
+        // The cases and selected case IDs belong to the old table
         self.cases = [];
         self.selectedCaseIds = new Set();
       },

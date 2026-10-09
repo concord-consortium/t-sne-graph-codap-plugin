@@ -7,9 +7,10 @@ import {
   getAttributeList,
   getCollectionList,
   getListOfDataContexts,
-  IConfig
+  IConfig,
+  sendMessage
 } from "@concord-consortium/codap-plugin-api";
-import { AttributeInfo, DataContextInfo, IPluginStore } from "./plugin-store";
+import { AttributeInfo, CaseInfo, DataContextInfo, IPluginStore } from "./plugin-store";
 
 // CODAP v3 applies the dimensions to the whole tile, including its 34px title bar
 const kContentSize = { width: 680, height: 300 };
@@ -24,20 +25,28 @@ export const kPluginConfig: IConfig = {
 
 export const kMaxInitAttempts = 3;
 
-// Notices about cases and selection don't change the columns; selectCases arrives on every click
-const kCaseOperations = new Set([
-  "createCases", "updateCases", "deleteCases", "moveCases", "dependentCases", "selectCases"
-]);
+// Notices that change cases but not columns
+const kCaseOperations = new Set(["createCases", "updateCases", "deleteCases", "moveCases", "dependentCases"]);
 
 interface INamedItem {
   name: string;
   title?: string;
 }
 
+// A case in an allCases reply. Ids are numbers; a leaf case has no children.
+interface IAllCasesItem {
+  case: {
+    id: number | string;
+    parent?: number | string;
+    values: Record<string, unknown>;
+  };
+}
+
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 /**
- * Connects to CODAP, restores the saved selections, and keeps the table and column lists current.
+ * Connects to CODAP, restores the saved selections, and keeps the table and column lists and the
+ * selected table's cases current.
  * Resolves to false if every init attempt fails, in which case nothing else is started.
  */
 export const startCodapSync = async (store: IPluginStore, config = kPluginConfig): Promise<boolean> => {
@@ -86,6 +95,7 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
   // Each fetch takes a new request number; a response is applied only if no newer request was made
   let dataContextsRequest = 0;
   let attributesRequest = 0;
+  let casesRequest = 0;
 
   const refreshAttributes = async () => {
     const request = ++attributesRequest;
@@ -126,6 +136,43 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
     }
   };
 
+  // Fetches every case of the selected table and stores one record per leaf case, holding its own
+  // values and those of its parent cases. Collections are listed parent first, so each parent's
+  // values are known before its children are read.
+  const refreshCases = async () => {
+    const request = ++casesRequest;
+    const dataContextName = store.dataContextName;
+    if (!dataContextName) {
+      store.setCases([]);
+      return;
+    }
+    try {
+      const collectionsResult = await getCollectionList(dataContextName);
+      if (request !== casesRequest || !collectionsResult.success) return;
+      const collections: INamedItem[] = collectionsResult.values;
+      const caseResults = await Promise.all(collections.map(collection =>
+        sendMessage("get", `dataContext[${dataContextName}].collection[${collection.name}].allCases`)));
+      if (request !== casesRequest || caseResults.some(result => !result.success)) return;
+
+      // Each case's values merged with its parents', by case ID
+      const valuesById = new Map<string, Record<string, unknown>>();
+      let leafCases: CaseInfo[] = [];
+      caseResults.forEach(result => {
+        leafCases = (result.values.cases as IAllCasesItem[]).map(({ case: { id, parent, values } }) => {
+          const caseId = String(id);
+          const parentValues = parent == null ? undefined : valuesById.get(String(parent));
+          const merged = { ...parentValues, ...values };
+          valuesById.set(caseId, merged);
+          return { caseId, values: merged };
+        });
+      });
+      // The last collection's cases are the leaves
+      store.setCases(leafCases);
+    } catch (error) {
+      console.error("Unable to get the cases of", dataContextName, errorMessage(error));
+    }
+  };
+
   // Notices for a table arrive on its own channel. A listener can't be removed, so each table
   // gets one at most, and the handler checks the current selection when a notice arrives.
   const watchedDataContexts = new Set<string>();
@@ -137,8 +184,17 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
       // A rename changes the table's title, which the Data Table list shows
       if (operation === "updateDataContext") {
         refreshDataContexts();
-      } else if (name === store.dataContextName && !kCaseOperations.has(operation)) {
+        return;
+      }
+      // Only the selected table matters here; selection-sync handles selectCases
+      if (name !== store.dataContextName || operation === "selectCases") return;
+      if (kCaseOperations.has(operation)) {
+        refreshCases();
+      } else {
+        // Other changes, such as a renamed column or a new formula, can change the columns and the
+        // values read from the cases
         refreshAttributes();
+        refreshCases();
       }
     });
   };
@@ -167,15 +223,17 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
   // 3. Listen for tables being added or removed
   addDataContextsListListener(() => refreshDataContexts());
 
-  // 4. Fetch the columns whenever the selected table changes. The old table's columns are cleared first,
-  // so they are never offered for the new table, while loading or if the fetch fails.
+  // 4. Fetch the columns and cases whenever the selected table changes. The old table's columns are
+  // cleared first, so they are never offered for the new table, while loading or if the fetch fails.
+  // (setDataContext has already dropped the old table's cases.)
   reaction(() => store.dataContextName, () => {
     store.setAttributes([]);
     refreshAttributes();
+    refreshCases();
   });
 
-  // 5. Fetch the tables, then the columns of the restored table
+  // 5. Fetch the tables, then the columns and cases of the restored table
   await refreshDataContexts();
-  await refreshAttributes();
+  await Promise.all([refreshAttributes(), refreshCases()]);
   return true;
 };
