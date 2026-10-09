@@ -58,7 +58,15 @@ export const startGraphController = (store: IPluginStore) => {
       positions.map((position, i) => ({ caseId: caseIds[i], ...position }));
 
     if (!worker) {
-      const newWorker = createTsneWorker();
+      let newWorker: Worker;
+      try {
+        newWorker = createTsneWorker();
+      } catch (error) {
+        // For example, a security policy that blocks workers. The next change tries again.
+        console.error("Unable to start the t-SNE worker:", error instanceof Error ? error.message : String(error));
+        store.setComputeStatus("error");
+        return;
+      }
       newWorker.onerror = event => {
         // The worker failed, for example its script didn't load. A new one is made next time.
         console.error("The t-SNE worker failed:", event.message);

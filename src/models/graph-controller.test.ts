@@ -276,6 +276,19 @@ describe("startGraphController", () => {
     expect(store.computeStatus).toBe("computing");
   });
 
+  it("reports an error when the worker can't be created, and tries again on the next change", () => {
+    // For example, a security policy that blocks workers
+    mockedCreateWorker.mockImplementationOnce(() => { throw new Error("Workers are blocked"); });
+    stop = startGraphController(store);
+    expect(store.computeStatus).toBe("error");
+    expect(store.points).toEqual([]);
+    expect(consoleError).toHaveBeenCalledWith("Unable to start the t-SNE worker:", "Workers are blocked");
+
+    store.setCases(kCases.slice(1));
+    expect(workers).toHaveLength(1);
+    expect(store.computeStatus).toBe("computing");
+  });
+
   it("drops the points and goes idle when the Phrase Column is cleared", () => {
     stop = startGraphController(store);
     const worker = lastWorker();
