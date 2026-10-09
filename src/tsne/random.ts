@@ -1,4 +1,5 @@
 // Seeded random numbers, so the same data and seed always give the same t-SNE picture.
+import { log } from "./portable-math";
 
 export type RandomFn = () => number;
 
@@ -40,7 +41,7 @@ export const gaussian = (random: RandomFn): RandomFn => {
       const v = 2 * random() - 1;
       const r = u * u + v * v;
       if (r > 0 && r <= 1) {
-        const c = Math.sqrt(-2 * Math.log(r) / r);
+        const c = Math.sqrt(-2 * log(r) / r);
         saved = v * c;
         return u * c;
       }

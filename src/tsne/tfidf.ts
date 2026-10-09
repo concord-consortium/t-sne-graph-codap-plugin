@@ -1,4 +1,5 @@
 // TF-IDF with the defaults of scikit-learn's TfidfVectorizer, which the original page used.
+import { log } from "./portable-math";
 
 export interface ITfidfModel {
   // Term → column index; terms are in sorted order, as in scikit-learn
@@ -66,7 +67,7 @@ export const fitTfidf = (phrases: string[]): ITfidfResult => {
   const n = phrases.length;
   const model: ITfidfModel = {
     vocabulary: new Map(terms.map((term, column) => [term, column])),
-    idf: terms.map(term => Math.log((1 + n) / (1 + (documentFrequency.get(term) ?? 0))) + 1)
+    idf: terms.map(term => log((1 + n) / (1 + (documentFrequency.get(term) ?? 0))) + 1)
   };
   return { ...model, matrix: counts.map(phraseCounts => toRow(model, phraseCounts)) };
 };

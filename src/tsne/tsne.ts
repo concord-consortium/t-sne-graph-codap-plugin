@@ -21,10 +21,13 @@
  *   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * Changes from the original: random numbers come from an injected generator instead of
- * Math.random; the Q matrices are allocated once instead of on every step; initDataDist and
- * debugGrad are left out. The arithmetic and its order are unchanged, so with the same random
- * numbers the results are identical.
+ * Math.random; exp and log come from portable-math.ts instead of Math.exp and Math.log, which can
+ * differ in the last bit between engines (and t-SNE grows that into a different layout); the Q
+ * matrices are allocated once instead of on every step; initDataDist and debugGrad are left out.
+ * The arithmetic and its order are unchanged, so with the same random numbers and the same exp and
+ * log the results are identical.
  */
+import { exp, log } from "./portable-math";
 import { gaussian, RandomFn } from "./random";
 
 // The settings the plugin uses (doc/plans/README.md §4 step 3)
@@ -67,7 +70,7 @@ const pairwiseDistances = (X: number[][]) => {
 // For each point, finds by binary search the Gaussian precision that gives the target perplexity,
 // then returns the symmetric joint probabilities (p_{i|j} + p_{j|i}) / (2n)
 const distancesToP = (D: Float64Array, n: number, perplexity: number, tolerance: number) => {
-  const targetEntropy = Math.log(perplexity);
+  const targetEntropy = log(perplexity);
   const P = new Float64Array(n * n);
   const row = new Float64Array(n);
   const kMaxTries = 50;
@@ -78,7 +81,7 @@ const distancesToP = (D: Float64Array, n: number, perplexity: number, tolerance:
     for (let tries = 1; ; tries++) {
       let sum = 0;
       for (let j = 0; j < n; j++) {
-        const p = i === j ? 0 : Math.exp(-D[i * n + j] * beta);
+        const p = i === j ? 0 : exp(-D[i * n + j] * beta);
         row[j] = p;
         sum += p;
       }
@@ -86,7 +89,7 @@ const distancesToP = (D: Float64Array, n: number, perplexity: number, tolerance:
       for (let j = 0; j < n; j++) {
         const p = sum === 0 ? 0 : row[j] / sum;
         row[j] = p;
-        if (p > 1e-7) entropy -= p * Math.log(p);
+        if (p > 1e-7) entropy -= p * log(p);
       }
       if (entropy > targetEntropy) {
         // Too spread out: raise the precision
@@ -230,7 +233,7 @@ export class Tsne {
       const gSum = new Array<number>(dim).fill(0);
       for (let j = 0; j < n; j++) {
         // The part of the KL divergence that changes with the layout
-        cost += -P[i * n + j] * Math.log(Q[i * n + j]);
+        cost += -P[i * n + j] * log(Q[i * n + j]);
         const premultiplier = 4 * (pMultiplier * P[i * n + j] - Q[i * n + j]) * Qu[i * n + j];
         for (let d = 0; d < dim; d++) {
           gSum[d] += premultiplier * (Y[i][d] - Y[j][d]);

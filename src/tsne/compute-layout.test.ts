@@ -51,6 +51,30 @@ describe("computeLayout", () => {
     expect(finalPositions(run({ progressInterval: 0 }))).toEqual(finalPositions(run({})));
   });
 
+  it("never calls Math.exp or Math.log, which differ in the last bit between engines", () => {
+    // t-SNE grows a last-bit difference into a different layout within 50 steps, so a saved seed
+    // would give a different picture in another browser. The pipeline uses portable-math.ts.
+    const mathExp = jest.spyOn(Math, "exp");
+    const mathLog = jest.spyOn(Math, "log");
+    run({ progressInterval: 0 });
+    expect(mathExp).not.toHaveBeenCalled();
+    expect(mathLog).not.toHaveBeenCalled();
+    mathExp.mockRestore();
+    mathLog.mockRestore();
+  });
+
+  it("gives exactly this layout for these phrases and seed, to the last bit", () => {
+    // Recorded in Node, and the same in Chromium, Firefox and WebKit (CODAP-1571 plan §8). If this
+    // fails after a change, a saved document would reopen with a different picture.
+    const kExpected = [
+      [0.6594446699256002, 0.5206976031892093], [0.8355309844620429, 0.40660784320865145],
+      [0.7029595963086366, 0.660742507011833], [0.43070083602575204, 0.20615942346039517],
+      [0.4096139141741564, 0], [0.4042908327195728, 0.497904260620371], [0.3650569349467857, 0.7891626991309955],
+      [0.3447929418646023, 1], [0.16446901553795717, 0.4696658296835533]
+    ];
+    expect(finalPositions(run({ progressInterval: 0 }))?.map(({ x, y }) => [x, y])).toEqual(kExpected);
+  });
+
   it("gives a different layout for a different seed", () => {
     expect(finalPositions(run({ seed: 43 }))).not.toEqual(finalPositions(run({})));
   });
