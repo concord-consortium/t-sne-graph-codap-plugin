@@ -2,6 +2,9 @@
 
 export type RandomFn = () => number;
 
+// A new seed for mulberry32: a whole number in [0, 2^32)
+export const randomSeed = () => Math.floor(Math.random() * 2 ** 32);
+
 // mulberry32 is defined by 32-bit integer operations
 /* eslint-disable no-bitwise */
 /**

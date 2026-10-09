@@ -1,4 +1,4 @@
-import { gaussian, mulberry32 } from "./random";
+import { gaussian, mulberry32, randomSeed } from "./random";
 
 const take = (random: () => number, count: number) => Array.from({ length: count }, random);
 
@@ -47,5 +47,18 @@ describe("gaussian", () => {
     const interleaved = [first(), other(), first(), other(), first(), first()]
       .filter((_value, i) => ![1, 3].includes(i));
     expect(interleaved).toEqual(alone);
+  });
+});
+
+describe("randomSeed", () => {
+  it("gives a whole number in [0, 2^32)", () => {
+    const random = jest.spyOn(Math, "random");
+    random.mockReturnValue(0);
+    expect(randomSeed()).toBe(0);
+    random.mockReturnValue(0.9999999999);
+    expect(randomSeed()).toBe(2 ** 32 - 1);
+    random.mockReturnValue(0.5);
+    expect(randomSeed()).toBe(2 ** 31);
+    random.mockRestore();
   });
 });
