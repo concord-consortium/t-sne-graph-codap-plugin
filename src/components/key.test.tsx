@@ -77,12 +77,21 @@ describe("Key", () => {
     expect(entries().map(button => button.getAttribute("aria-label"))).toEqual(["Unlabeled, 4 points"]);
   });
 
-  it("is hidden while there are no rows", () => {
+  it("shows only its heading while there are no rows, as in the spec's default state", () => {
     store.setPhraseAttribute(undefined);
     renderKey(store);
-    expect(screen.queryByRole("heading", { name: "Key" })).toBeNull();
-    act(() => store.setPhraseAttribute("phrase"));
+    expect(screen.getByRole("region", { name: "Key" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Key" })).toBeInTheDocument();
+    expect(screen.queryByRole("list")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+    act(() => store.setPhraseAttribute("phrase"));
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+  });
+
+  it("shows its heading before any table is chosen", () => {
+    renderKey(PluginStore.create());
+    expect(screen.getByRole("heading", { name: "Key" })).toBeInTheDocument();
+    expect(screen.queryByRole("list")).toBeNull();
   });
 
   it("gives a long label a title with the whole text", () => {
