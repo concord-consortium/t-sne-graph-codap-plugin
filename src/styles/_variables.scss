@@ -6,6 +6,10 @@ $focus-color: #0957d0;
 $disabled-opacity: 0.35;
 $separator-color: #d1d1d1;
 
+// Selected dots add a 2px ring and a 1px white edge outside the outline
+$dot-outline-color: white;
+$selection-ring-color: #006c8e;
+
 // Controls panel (right side of the tile)
 $panel-width: 380px;
 $panel-padding: 12px;
@@ -27,3 +31,12 @@ $dropdown-arrow-color: #006c8e;
 // Dropdown list
 $dropdown-item-height: 30px;
 $dropdown-item-highlight: #e9e9e9;
+
+// Key rows are 29px apart: 24px entries, 5px gaps
+$key-column-width: 133px;
+$key-entry-height: 24px;
+$key-entry-gap: 5px;
+$key-entry-radius: 4px;
+$key-entry-fill-hover: #d3f4ff;
+$key-entry-fill-pressed: #bfefff;
+$key-dot-size: 12px;

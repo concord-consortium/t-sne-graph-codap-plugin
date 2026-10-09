@@ -10,19 +10,49 @@ jest.mock("@concord-consortium/codap-plugin-api", () => ({
   codapInterface: { init: jest.fn(), on: jest.fn() },
   getAttributeList: jest.fn(),
   getCollectionList: jest.fn(),
-  getListOfDataContexts: jest.fn()
+  getListOfDataContexts: jest.fn(),
+  sendMessage: jest.fn()
 }));
 
 const api = jest.mocked(codapApi);
 
-// A fake CODAP document: each table is a list of collections, parent first
-type FakeDocument = Record<string, { title?: string, collections: Record<string, string[]> }>;
+// Collections are listed parent first; case IDs are numbers, as CODAP sends them
+interface IFakeCase {
+  id: number;
+  parent?: number;
+  values: Record<string, unknown>;
+}
+type FakeDocument = Record<string, {
+  title?: string,
+  collections: Record<string, string[]>,
+  cases?: Record<string, IFakeCase[]>
+}>;
 let codapDocument: FakeDocument;
 
 const kPhrases: FakeDocument = {
-  Phrases: { title: "My Phrases", collections: { Groups: ["group"], Cases: ["phrase", "label"] } },
-  Other: { collections: { Items: ["text"] } }
+  Phrases: {
+    title: "My Phrases",
+    collections: { Groups: ["group"], Cases: ["phrase", "label"] },
+    cases: {
+      Groups: [{ id: 10, values: { group: "Similar" } }, { id: 11, values: { group: "Opposite" } }],
+      Cases: [
+        { id: 100, parent: 10, values: { phrase: "the cat sat", label: "a" } },
+        { id: 101, parent: 10, values: { phrase: "a cat rested", label: "b" } },
+        { id: 102, parent: 11, values: { phrase: "the dog ran", label: "" } }
+      ]
+    }
+  },
+  Other: { collections: { Items: ["text"] }, cases: { Items: [{ id: 200, values: { text: "hello" } }] } }
 };
+
+// Leaf cases with their parent's values merged in
+const kPhrasesCases = [
+  { caseId: "100", values: { group: "Similar", phrase: "the cat sat", label: "a" } },
+  { caseId: "101", values: { group: "Similar", phrase: "a cat rested", label: "b" } },
+  { caseId: "102", values: { group: "Opposite", phrase: "the dog ran", label: "" } }
+];
+
+const kAllCases = /^dataContext\[(.+)\]\.collection\[(.+)\]\.allCases$/;
 
 const ok = (values: unknown): IResult => ({ success: true, values });
 
@@ -33,7 +63,20 @@ const fakeCodap = () => {
     ok(Object.keys(codapDocument[dc].collections).map(name => ({ name, title: name, id: 2 }))));
   api.getAttributeList.mockImplementation(async (dc, coll) =>
     ok(codapDocument[dc].collections[coll].map(name => ({ name, title: name.toUpperCase(), id: 3 }))));
+  api.sendMessage.mockImplementation(async (action, resource) => {
+    const [, dc, coll] = resource.match(kAllCases) ?? [];
+    if (action !== "get" || !dc) return { success: false, values: { error: "unexpected request" } };
+    const cases = codapDocument[dc].cases?.[coll] ?? [];
+    return ok({
+      collection: { name: coll, id: 2 },
+      cases: cases.map(({ id, parent, values }, caseIndex) => ({
+        case: { id, ...(parent === undefined ? {} : { parent }), children: [], values }, caseIndex
+      }))
+    });
+  });
 };
+
+const allCasesRequests = () => api.sendMessage.mock.calls.filter(([, resource]) => kAllCases.test(resource));
 
 // Wait for pending promises to settle
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
@@ -316,15 +359,16 @@ describe("startCodapSync", () => {
     expect(store.labelAttributeName).toBe("group");
   });
 
-  it("ignores case and selection notices", async () => {
+  it("leaves selectCases notices to selection-sync: no columns or cases are fetched", async () => {
     api.codapInterface.init.mockResolvedValue(savedSelections);
     await startCodapSync(store);
     api.getCollectionList.mockClear();
+    api.sendMessage.mockClear();
 
     notify(tableListener("Phrases"), "selectCases");
-    notify(tableListener("Phrases"), "updateCases");
     await flush();
     expect(api.getCollectionList).not.toHaveBeenCalled();
+    expect(api.sendMessage).not.toHaveBeenCalled();
   });
 
   it("ignores column notices for a table that is not selected", async () => {
@@ -363,5 +407,168 @@ describe("startCodapSync", () => {
     await flush();
     expect(store.dataContextName).toBeUndefined();
     expect(store.attributes).toEqual([]);
+  });
+
+  describe("cases", () => {
+    it("fetches the restored table's cases: one record per leaf case, with its parent's values", async () => {
+      api.codapInterface.init.mockResolvedValue(savedSelections);
+      await startCodapSync(store);
+      expect(store.cases).toEqual(kPhrasesCases);
+      expect(allCasesRequests().map(([, resource]) => resource)).toEqual([
+        "dataContext[Phrases].collection[Groups].allCases",
+        "dataContext[Phrases].collection[Cases].allCases"
+      ]);
+    });
+
+    it("gives rows that read a parent-level label", async () => {
+      api.codapInterface.init.mockResolvedValue(savedSelections);
+      await startCodapSync(store);
+      expect(store.rows).toEqual([
+        { caseId: "100", phrase: "the cat sat", label: "Similar" },
+        { caseId: "101", phrase: "a cat rested", label: "Similar" },
+        { caseId: "102", phrase: "the dog ran", label: "Opposite" }
+      ]);
+    });
+
+    it("fetches the cases as soon as a table is selected, before any column is chosen", async () => {
+      await startCodapSync(store);
+      expect(store.cases).toEqual([]);
+      store.setDataContext("Other");
+      await flush();
+      expect(store.phraseAttributeName).toBeUndefined();
+      expect(store.cases).toEqual([{ caseId: "200", values: { text: "hello" } }]);
+    });
+
+    it("merges values down through every level of a deeper table", async () => {
+      codapDocument.Deep = {
+        collections: { Top: ["top"], Middle: ["middle"], Leaf: ["phrase"] },
+        cases: {
+          Top: [{ id: 1, values: { top: "T" } }],
+          Middle: [{ id: 2, parent: 1, values: { middle: "M" } }],
+          Leaf: [{ id: 3, parent: 2, values: { phrase: "deep" } }]
+        }
+      };
+      await startCodapSync(store);
+      store.setDataContext("Deep");
+      await flush();
+      expect(store.cases).toEqual([{ caseId: "3", values: { top: "T", middle: "M", phrase: "deep" } }]);
+    });
+
+    it("does not fetch when a different Phrase or Label Column is chosen", async () => {
+      api.codapInterface.init.mockResolvedValue(savedSelections);
+      await startCodapSync(store);
+      api.sendMessage.mockClear();
+
+      store.setLabelAttribute("label");
+      store.setPhraseAttribute("label");
+      await flush();
+      expect(api.sendMessage).not.toHaveBeenCalled();
+      expect(store.rows.map(row => row.phrase)).toEqual(["a", "b"]);
+    });
+
+    it.each(["createCases", "updateCases", "deleteCases", "moveCases", "dependentCases"])(
+      "refetches the cases, but not the columns, on %s", async operation => {
+        api.codapInterface.init.mockResolvedValue(savedSelections);
+        await startCodapSync(store);
+        api.getAttributeList.mockClear();
+
+        codapDocument.Phrases.cases!.Cases[0].values.phrase = "the cat sat on the mat";
+        notify(tableListener("Phrases"), operation);
+        await flush();
+        expect(store.rows[0].phrase).toBe("the cat sat on the mat");
+        expect(api.getAttributeList).not.toHaveBeenCalled();
+      });
+
+    it("refetches the columns and the cases on a column notice, such as a rename", async () => {
+      api.codapInterface.init.mockResolvedValue(savedSelections);
+      await startCodapSync(store);
+
+      codapDocument.Phrases.collections.Cases = ["text", "label"];
+      codapDocument.Phrases.cases!.Cases.forEach(c => {
+        const { phrase, ...rest } = c.values;
+        c.values = { ...rest, text: phrase };
+      });
+      notify(tableListener("Phrases"), "updateAttributes");
+      await flush();
+      expect(store.attributes.map(attr => attr.name)).toContain("text");
+      expect(store.cases[0].values).toEqual({ group: "Similar", text: "the cat sat", label: "a" });
+    });
+
+    it("ignores case notices for a table that is not selected", async () => {
+      api.codapInterface.init.mockResolvedValue(savedSelections);
+      await startCodapSync(store);
+      api.sendMessage.mockClear();
+
+      notify(tableListener("Other"), "updateCases");
+      await flush();
+      expect(api.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it("ignores a case response for a table that is no longer selected", async () => {
+      await startCodapSync(store);
+      const slow = deferred<IResult>();
+      api.sendMessage.mockImplementationOnce(() => slow.promise);
+
+      store.setDataContext("Phrases");   // slow allCases reply
+      await flush();
+      store.setDataContext("Other");
+      await flush();
+      expect(store.cases.map(c => c.caseId)).toEqual(["200"]);
+
+      slow.resolve(ok({ cases: [{ case: { id: 10, values: { group: "Similar" } } }] }));
+      await flush();
+      expect(store.cases.map(c => c.caseId)).toEqual(["200"]);
+    });
+
+    it("ignores a case response that arrives after a newer one for the same table", async () => {
+      api.codapInterface.init.mockResolvedValue(savedSelections);
+      await startCodapSync(store);
+      const slow = deferred<IResult>();
+      // The first refetch's Groups reply is slow
+      api.sendMessage.mockImplementationOnce(() => slow.promise);
+
+      notify(tableListener("Phrases"), "updateCases");
+      await flush();
+      codapDocument.Phrases.cases!.Cases.pop();
+      notify(tableListener("Phrases"), "deleteCases");
+      await flush();
+      expect(store.cases).toHaveLength(2);
+
+      slow.resolve(ok({ cases: [] }));
+      await flush();
+      expect(store.cases).toHaveLength(2);
+    });
+
+    it("keeps the cases when a refetch for the same table fails", async () => {
+      api.codapInterface.init.mockResolvedValue(savedSelections);
+      await startCodapSync(store);
+      api.sendMessage.mockResolvedValueOnce({ success: false, values: { error: "busy" } });
+
+      notify(tableListener("Phrases"), "updateCases");
+      await flush();
+      expect(store.cases).toEqual(kPhrasesCases);
+    });
+
+    it("logs an error and keeps the cases when a fetch throws", async () => {
+      api.codapInterface.init.mockResolvedValue(savedSelections);
+      await startCodapSync(store);
+      api.sendMessage.mockRejectedValueOnce(new Error("timeout"));
+
+      notify(tableListener("Phrases"), "updateCases");
+      await flush();
+      expect(consoleError).toHaveBeenCalledWith("Unable to get the cases of", "Phrases", "timeout");
+      expect(store.cases).toEqual(kPhrasesCases);
+    });
+
+    it("drops the cases when the selected table is removed", async () => {
+      api.codapInterface.init.mockResolvedValue(savedSelections);
+      await startCodapSync(store);
+      const [documentListener] = api.addDataContextsListListener.mock.calls[0];
+
+      delete codapDocument.Phrases;
+      notify(documentListener, "dataContextDeleted", "documentChangeNotice");
+      await flush();
+      expect(store.cases).toEqual([]);
+    });
   });
 });

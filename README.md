@@ -2,6 +2,12 @@
 
 The t-SNE Graph CODAP Plugin creates a graph that transforms large multidimensional data such as those found in AI language models into a 2d graph with ‘arbitrary’ axes that are easier for humans to read.
 
+## How the plot is made
+
+The plugin reads the chosen Phrase Column from a CODAP table and turns each phrase into numbers with TF-IDF: a count of each word, weighted by how rare the word is across the table, as scikit-learn's `TfidfVectorizer` does. It then runs t-SNE on those numbers in a Web Worker, which places phrases with similar words near each other on a 2D plot; the random seed is saved with the CODAP document, so the same table always gives the same picture.
+
+Each label in the Label Column gets a color in the order it first appears in the table: the four colors from the design spec, then four placeholder colors, then a generated color for each further label, so labels get different colors (up to 424 labels; past that, colors can repeat). Labels that differ only in capitalization or spacing count as one label, and rows with an empty label (or no Label Column) are grey "Unlabeled". Clicking a point or a Key label selects the matching cases in CODAP, and selecting cases in CODAP selects their points.
+
 ## Deployment
 
 S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. See [deploy-setup.md in starter-projects](https://github.com/concord-consortium/starter-projects/blob/main/doc/deploy-setup.md) for how the AWS side is set up, and [doc/deploy.md](doc/deploy.md) for how deploys work in this repo.
@@ -12,7 +18,7 @@ S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. Se
 1. Clone this repository and `cd` into the new folder.
 2. Install the dependencies `npm install`.
 3. Run the development server `npm start`.
-4. Open [localhost:8080](http://localhost:8080) (or use port 8081 if you are already using 8080). You should see the plugin's layout: an empty graph area on the left and, on the right, the Data Table, Phrase Column and Label Column dropdowns.
+4. Open [localhost:8080](http://localhost:8080) (or use port 8081 if you are already using 8080). You should see the plugin's layout: an empty grid on the left and, on the right, the Data Table, Phrase Column and Label Column dropdowns.
 
    Outside CODAP the Data Table list stays empty, and after several seconds the console shows an error that starts with `Unable to connect to CODAP:`. This is expected: the plugin tries to connect three times, then stops. To use the plugin, open it in CODAP (see [Testing in CODAP](#testing-in-codap)).
 
@@ -51,9 +57,14 @@ npm run test:playwright:open
 ```
 
 ##### Test fixtures
-`playwright/fixtures/hierarchical.codap` is a CODAP v3 document with a two-level table, used by the end-to-end tests. To rebuild it, and check it in CODAP, run (Node 22.18 or later):
+The end-to-end tests use two CODAP v3 documents in `playwright/fixtures/`:
+- `hierarchical.codap`: a two-level table (Labels > Phrases) with 9 phrases in 3 labels.
+- `flat.codap`: a one-level table with 40 phrases (13 each Similar, Opposite and Sideways, and one with no label), for a realistic plot and a timing check.
+
+Each is built through the CODAP plugin API, then reopened and checked, by its script (Node 22.18 or later); the shared steps are in `fixture-builder.ts`:
 ```
 node playwright/fixtures/build-hierarchical.ts
+node playwright/fixtures/build-flat.ts
 ```
 
 #### Testing in CODAP

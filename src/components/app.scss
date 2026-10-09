@@ -16,7 +16,9 @@
   background-color: $panel-background;
   border-left: 1px solid $separator-color;
   box-sizing: border-box;
+  display: flex;
   flex: none;
+  flex-direction: column;
   padding: $panel-padding;
   width: $panel-width;
 }
@@ -24,4 +26,23 @@
 .controls-header {
   border-bottom: 1px solid $separator-color;
   padding: 0 $info-button-space 13px 0;
+}
+
+// The Key, a divider, and a right column for Test Phrases (CODAP-1572). A long Key scrolls.
+.lower-panel {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding-top: $panel-padding;
+}
+
+.lower-panel-left {
+  flex: none;
+  overflow-y: auto;
+  width: $key-column-width;
+}
+
+.lower-panel-right {
+  border-left: 1px solid $separator-color;
+  flex: 1;
 }

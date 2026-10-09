@@ -1,0 +1,70 @@
+@use "../styles/variables" as *;
+@use "../styles/mixins" as *;
+
+.graph {
+  height: 100%;
+  position: relative;
+  width: 100%;
+}
+
+.graph-plot {
+  display: block;
+  // Points draw their own focus rings
+  outline: none;
+
+  .grid line {
+    stroke: $separator-color;
+    stroke-width: 1;
+  }
+
+  .point {
+    cursor: pointer;
+    outline: none;
+  }
+
+  // Transparent but painted, so it takes clicks
+  .hit-area {
+    fill: transparent;
+  }
+
+  .dot-outline,
+  .selection-edge {
+    fill: none;
+    stroke: $dot-outline-color;
+    stroke-width: 1;
+  }
+
+  .selection-ring {
+    fill: none;
+    stroke: $selection-ring-color;
+    stroke-width: 2;
+  }
+
+  .focus-ring {
+    fill: none;
+    pointer-events: none;
+    stroke: $focus-color;
+    stroke-width: 2;
+    visibility: hidden;
+  }
+
+  .point:focus-visible .focus-ring {
+    visibility: visible;
+  }
+}
+
+.graph-status {
+  color: $text-color;
+  font-size: 14px;
+  left: 50%;
+  margin: 0;
+  max-width: calc(100% - 24px);
+  position: absolute;
+  text-align: center;
+  top: 50%;
+  transform: translate(-50%, -50%);
+
+  &:empty {
+    @include visually-hidden;
+  }
+}

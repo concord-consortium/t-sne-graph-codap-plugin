@@ -2,7 +2,9 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./components/app";
 import { startCodapSync } from "./models/codap-sync";
+import { startGraphController } from "./models/graph-controller";
 import { PluginStore } from "./models/plugin-store";
+import { startSelectionSync } from "./models/selection-sync";
 
 import "./index.scss";
 
@@ -14,5 +16,7 @@ if (container) {
   root.render(<App store={store} />);
 }
 
-// Started here rather than in a React effect, so it runs exactly once
+// Started here rather than in a React effect, so they run exactly once
 startCodapSync(store);
+startGraphController(store);
+startSelectionSync(store);

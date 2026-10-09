@@ -55,6 +55,8 @@ module.exports = (env, argv) => {
     output: {
       path: path.resolve(__dirname, 'dist'),
       filename: 'assets/index.[contenthash].js',
+      // Names worker chunks, e.g. assets/tsne-worker.[contenthash].js
+      chunkFilename: 'assets/[name].[contenthash].js',
     },
     performance: { hints: false },
     module: {
