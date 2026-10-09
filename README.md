@@ -6,7 +6,7 @@ The t-SNE Graph CODAP Plugin creates a graph that transforms large multidimensio
 
 The plugin reads the chosen Phrase Column from a CODAP table and turns each phrase into numbers with TF-IDF: a count of each word, weighted by how rare the word is across the table, as scikit-learn's `TfidfVectorizer` does. It then runs t-SNE on those numbers in a Web Worker, which places phrases with similar words near each other on a 2D plot; the random seed is saved with the CODAP document, so the same table always gives the same picture.
 
-Each label in the Label Column gets a color in the order it first appears in the table: the four colors from the design spec, then four placeholder colors, then a generated color for each further label, so no two labels share one. Labels that differ only in capitalization or spacing count as one label, and rows with an empty label (or no Label Column) are grey "Unlabeled". Clicking a point or a Key label selects the matching cases in CODAP, and selecting cases in CODAP selects their points.
+Each label in the Label Column gets a color in the order it first appears in the table: the four colors from the design spec, then four placeholder colors, then a generated color for each further label, so labels get different colors (up to 424 labels; past that, colors can repeat). Labels that differ only in capitalization or spacing count as one label, and rows with an empty label (or no Label Column) are grey "Unlabeled". Clicking a point or a Key label selects the matching cases in CODAP, and selecting cases in CODAP selects their points.
 
 ## Deployment
 

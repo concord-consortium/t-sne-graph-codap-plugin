@@ -27,7 +27,8 @@ const hslToHex = (hue: number, saturation: number, lightness: number) => {
   return `#${toHex(channel(0))}${toHex(channel(8))}${toHex(channel(4))}`;
 };
 
-/** The fixed colors first, then a generated color for each further label. */
+/** The fixed colors, then generated ones. Distinct for the first 424 labels; past that, generated
+ * colors can repeat (678 possible). */
 export const labelColor = (index: number) => {
   if (index < kLabelColors.length) return kLabelColors[index];
   const hue = ((index - kLabelColors.length) * kGoldenAngle + kFirstGeneratedHue) % 360;

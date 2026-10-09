@@ -37,14 +37,14 @@ describe("labelColor", () => {
     expect(labelColor(8)).toBe(labelColor(8));
   });
 
-  it("never gives two labels the same color", () => {
-    const colors = Array.from({ length: 28 }, (_value, i) => labelColor(i));
+  it("gives the first 424 labels different colors", () => {
+    const colors = Array.from({ length: 424 }, (_value, i) => labelColor(i));
     expect(new Set(colors).size).toBe(colors.length);
   });
 
-  it("never generates a fixed, Unlabeled or test-phrase color", () => {
+  it("generates no fixed, Unlabeled or test-phrase color for the first 424 labels", () => {
     const reserved = [...kLabelColors, kUnlabeledColor, "#2e007f"];
-    for (let i = 8; i < 28; i++) {
+    for (let i = 8; i < 424; i++) {
       expect(reserved).not.toContain(labelColor(i));
     }
   });
