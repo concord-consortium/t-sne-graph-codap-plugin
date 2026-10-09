@@ -1,7 +1,17 @@
 import { compareStructural, reaction } from "mobx";
 import { ITsneRequest, kProgressInterval, TsneResponse } from "../tsne/compute-layout";
 import { createTsneWorker } from "../tsne/create-tsne-worker";
-import { IPluginStore } from "./plugin-store";
+import { IPluginStore, Row } from "./plugin-store";
+
+// Compares strings by UTF-16 code unit, which is the same in every browser and language setting
+// (unlike localeCompare)
+const compareText = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
+
+// The rows in a fixed order, by phrase and then case ID. t-SNE gives each row its starting position
+// by its place in the list, so laying out the table's order would give a new picture whenever the
+// table is only sorted or regrouped.
+const layoutOrder = (rows: readonly Row[]) =>
+  rows.slice().sort((a, b) => compareText(a.phrase, b.phrase) || compareText(a.caseId, b.caseId));
 
 // True when the user asks for less motion: then only the final layout is shown
 const prefersReducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -31,7 +41,7 @@ export const startGraphController = (store: IPluginStore) => {
     // A busy worker is still on an old request; stopping it is the only way to cancel
     if (busy) stopWorker();
 
-    const rows = store.rows;
+    const rows = layoutOrder(store.rows);
     if (rows.length === 0) {
       store.setComputeStatus("idle");
       return;
@@ -94,10 +104,11 @@ export const startGraphController = (store: IPluginStore) => {
     worker.postMessage(request);
   };
 
-  // The phrases, with their case IDs and in order, and the seed. Compared by value, so new rows
-  // with the same phrases (such as after a Label Column change) don't start a new layout.
+  // The phrases with their case IDs, in layout order, and the seed. Compared by value, so rows with
+  // the same phrases don't start a new layout: not after a Label Column change, and not when the
+  // table is only sorted or regrouped.
   const stopReaction = reaction(
-    () => ({ phrases: store.rows.map(row => [row.caseId, row.phrase]), seed: store.tsneSeed }),
+    () => ({ phrases: layoutOrder(store.rows).map(row => [row.caseId, row.phrase]), seed: store.tsneSeed }),
     compute,
     { equals: compareStructural, fireImmediately: true }
   );

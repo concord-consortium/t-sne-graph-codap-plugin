@@ -244,7 +244,23 @@ describe("Graph", () => {
       expect(point("the cat sat")).toHaveFocus();
     });
 
-    it("starts from the last point when Left or Up is pressed on the plot", async () => {
+    it("draws the points and moves between them in the table's row order, not the layout's", async () => {
+    const user = userEvent.setup();
+    store.setPoints(kPoints.slice().reverse());
+    renderGraph(store);
+    expect(pointNames()).toEqual(kPhrases);
+    await user.tab();
+    await user.keyboard("{ArrowRight}");
+    expect(point("the cat sat")).toHaveFocus();
+    // The table is sorted: the order follows it, and the points stay where they are
+    act(() => store.setCases(kCases.slice().reverse()));
+    expect(pointNames()).toEqual(kPhrases.slice().reverse());
+    expect(point("the cat sat")).toHaveAttribute("transform", "translate(12 288)");
+    await user.keyboard("{ArrowRight}");
+    expect(point("the cat sat")).toHaveFocus();
+  });
+
+  it("starts from the last point when Left or Up is pressed on the plot", async () => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.tab();

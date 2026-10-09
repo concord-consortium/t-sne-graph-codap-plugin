@@ -40,8 +40,11 @@ const kCases: CaseInfo[] = [
   { caseId: "3", values: { phrase: "the bird sang", label: "Similar" } },
   { caseId: "4", values: { phrase: "a fish swam", label: "Other" } }
 ];
+// The layout's fixed order, by phrase: "a dog ran", "a fish swam", "the bird sang", "the cat sat"
+const kLayoutCaseIds = ["2", "4", "3", "1"];
+const kLayoutPhrases = ["a dog ran", "a fish swam", "the bird sang", "the cat sat"];
 const kPositions = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }];
-const kPoints = kPositions.map((position, i) => ({ caseId: kCases[i].caseId, ...position }));
+const kPoints = kPositions.map((position, i) => ({ caseId: kLayoutCaseIds[i], ...position }));
 
 const setReducedMotion = (reduce: boolean | undefined) => {
   Object.defineProperty(window, "matchMedia", {
@@ -91,12 +94,12 @@ describe("startGraphController", () => {
     expect(store.computeStatus).toBe("idle");
   });
 
-  it("asks the worker to lay out the phrases, in row order, with the seed", () => {
+  it("asks the worker to lay out the phrases, sorted, with the seed", () => {
     stop = startGraphController(store);
     expect(workers).toHaveLength(1);
     expect(lastWorker().requests).toEqual([{
       requestId: expect.any(Number),
-      phrases: ["the cat sat", "a dog ran", "the bird sang", "a fish swam"],
+      phrases: kLayoutPhrases,
       seed: 42,
       progressInterval: kProgressInterval
     }]);
@@ -108,8 +111,8 @@ describe("startGraphController", () => {
     stop = startGraphController(store);
     const { requestId } = lastWorker().lastRequest;
     lastWorker().reply({ type: "progress", requestId, step: 50, positions: kPositions.slice().reverse() });
-    expect(store.points.map(point => point.caseId)).toEqual(["1", "2", "3", "4"]);
-    expect(store.points[0]).toEqual({ caseId: "1", x: 1, y: 1 });
+    expect(store.points.map(point => point.caseId)).toEqual(kLayoutCaseIds);
+    expect(store.points[0]).toEqual({ caseId: "2", x: 1, y: 1 });
     expect(store.computeStatus).toBe("computing");
 
     lastWorker().reply({ type: "done", requestId, positions: kPositions });
@@ -139,16 +142,52 @@ describe("startGraphController", () => {
     expect(store.computeStatus).toBe("computing");
     // The idle worker is reused
     expect(workers).toHaveLength(1);
-    expect(lastWorker().lastRequest.phrases[0]).toBe("the cat slept");
+    expect(lastWorker().lastRequest.phrases).toContain("the cat slept");
+    expect(lastWorker().lastRequest.phrases).not.toContain("the cat sat");
     expect(lastWorker().lastRequest.requestId).not.toBe(first.requestId);
   });
 
-  it("lays out again when rows are added, removed or reordered", () => {
+  it("lays out again when rows are added or removed", () => {
     stop = startGraphController(store);
     store.setCases(kCases.slice(1));
     expect(lastWorker().lastRequest.phrases).toHaveLength(3);
+    store.setCases(kCases);
+    expect(lastWorker().lastRequest.phrases).toEqual(kLayoutPhrases);
+  });
+
+  it("keeps the layout when the table is only sorted or regrouped", () => {
+    stop = startGraphController(store);
+    const { requestId } = lastWorker().lastRequest;
+    lastWorker().reply({ type: "done", requestId, positions: kPositions });
+
     store.setCases(kCases.slice().reverse());
-    expect(lastWorker().lastRequest.phrases[0]).toBe("a fish swam");
+    store.setCases([kCases[2], kCases[0], kCases[3], kCases[1]]);
+    expect(lastWorker().requests).toHaveLength(1);
+    expect(store.points).toEqual(kPoints);
+    expect(store.computeStatus).toBe("done");
+  });
+
+  it("lays out the same phrases in the same order whatever the table's order", () => {
+    stop = startGraphController(store);
+    const first = lastWorker().lastRequest;
+    stop();
+    store = readyStore();
+    store.setCases(kCases.slice().reverse());
+    stop = startGraphController(store);
+    expect(lastWorker().lastRequest.phrases).toEqual(first.phrases);
+  });
+
+  it("orders repeated phrases by case ID", () => {
+    store.setCases([
+      { caseId: "9", values: { phrase: "same words" } }, { caseId: "10", values: { phrase: "same words" } },
+      { caseId: "3", values: { phrase: "other words" } }, { caseId: "4", values: { phrase: "more words" } }
+    ]);
+    stop = startGraphController(store);
+    const { requestId } = lastWorker().lastRequest;
+    expect(lastWorker().lastRequest.phrases).toEqual(["more words", "other words", "same words", "same words"]);
+    lastWorker().reply({ type: "done", requestId, positions: kPositions });
+    // Case IDs compare as text: "10" before "9"
+    expect(store.points.map(point => point.caseId)).toEqual(["4", "3", "10", "9"]);
   });
 
   it("only recolors when the labels change: no new layout and the points stay", () => {

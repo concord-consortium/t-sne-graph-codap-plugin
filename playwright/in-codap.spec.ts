@@ -437,3 +437,42 @@ test("keeps the plot's and the Key's colors, rings and focus visible in forced-c
   await expect(plugin.locator(".key-entry[data-focus-visible]")).toHaveCount(1);
   expect(await style(".key-entry[data-focus-visible]", "outline-style")).toBe("solid");
 });
+
+// Drags a column header onto the drop zone at the left of the table, which makes it a new parent
+// collection: the table is grouped by that column, and its rows reordered
+const groupByColumn = async (page: Page, column: string) => {
+  const source = page.locator(`.codap-case-table [data-testid="codap-attribute-button ${column}"]`);
+  const from = await source.boundingBox();
+  if (!from) throw new Error(`The ${column} column is not visible`);
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  // Moving over the table first makes CODAP show its drop zones
+  await page.mouse.move(from.x + 10, from.y + 40, { steps: 10 });
+  const to = await page.locator(".codap-case-table .collection-table-spacer.parentMost").boundingBox();
+  if (!to) throw new Error("The table's new-collection drop zone is not visible");
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 20 });
+  await page.mouse.up();
+};
+
+test("keeps the plot in place when the table is regrouped", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openDocument(page, documentWithPlugin("flat.codap"));
+  const plugin = pluginFrame(page);
+  await expect.poll(() => optionsOf(plugin, "Data Table")).toEqual(["Phrases"]);
+  await choose(plugin, "Data Table", "Phrases");
+  await expect.poll(() => optionsOf(plugin, "Phrase Column")).toEqual(["phrase", "label"]);
+  await choose(plugin, "Phrase Column", "phrase");
+  await choose(plugin, "Label Column", "label");
+  await expect(plugin.locator(".graph-plot .point")).toHaveCount(40);
+  const before = await positions(plugin);
+  const firstPoint = () => plugin.locator(".graph-plot .point").first().getAttribute("aria-label");
+  expect(await firstPoint()).toBe("Everyone around the world shares this");
+
+  // Grouping by label puts all the Similar rows first. The phrases are the same, so the layout is too.
+  await groupByColumn(page, "label");
+  await expect(page.locator(".codap-case-table .collection-table")).toHaveCount(2);
+  await expect.poll(firstPoint).toBe("Everyone around the world shares this");
+  const secondPoint = plugin.locator(".graph-plot .point").nth(1);
+  await expect(secondPoint).toHaveAttribute("aria-label", "All people everywhere feel the same");
+  expect(await positions(plugin)).toEqual(before);
+});

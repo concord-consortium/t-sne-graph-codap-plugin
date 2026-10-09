@@ -1,5 +1,6 @@
 import React, { KeyboardEvent, MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { observer } from "mobx-react-lite";
+import { Point } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectInCodap } from "../models/selection-sync";
 import { ISize, toPixels } from "../tsne/layout";
@@ -58,7 +59,18 @@ export const Graph = observer(() => {
   // True while keyboard focus is in the plot
   const focusWithin = useRef(false);
 
-  const { points, computeStatus } = store;
+  const { computeStatus } = store;
+  // The points in the table's row order, for drawing and for the arrow keys. The layout uses its own
+  // fixed order (graph-controller.ts), so it doesn't change when the table is sorted.
+  const points = useMemo(() => {
+    const byCaseId = new Map(store.points.map(point => [point.caseId, point]));
+    const ordered: Point[] = [];
+    store.rows.forEach(row => {
+      const point = byCaseId.get(row.caseId);
+      if (point) ordered.push(point);
+    });
+    return ordered;
+  }, [store.points, store.rows]);
   const caseIds = useMemo(() => points.map(point => point.caseId), [points]);
   const phrases = useMemo(() => new Map(store.rows.map(row => [row.caseId, row.phrase])), [store.rows]);
   const activeExists = activeCaseId !== undefined && caseIds.includes(activeCaseId);
