@@ -299,7 +299,14 @@ describe("PluginStore graph data", () => {
     expect(kCaseIds.map(caseId => store.colorForCase(caseId))).toEqual(kCaseIds.map(() => kUnlabeledColor));
   });
 
-  it("matches selection by case id", () => {
+  it("lists the case IDs of each label, Unlabeled under the empty key", () => {
+    const store = graphStore();
+    expect(Array.from(store.caseIdsByLabelKey.entries())).toEqual([
+      ["similar", ["1", "3"]], ["opposite", ["2"]], ["", ["4"]]
+    ]);
+  });
+
+  it("matches selection by case ID", () => {
     const store = graphStore();
     expect(store.isSelected("2")).toBe(true);
     expect(store.isSelected("1")).toBe(false);

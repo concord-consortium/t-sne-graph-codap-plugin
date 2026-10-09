@@ -115,6 +115,16 @@ export const PluginStore = types
         rowKeys.filter((_key, i) => !self.isSelected(self.rows[i].caseId)));
       return entries.map(entry => ({ ...entry, isSelected: !unselectedKeys.has(entry.key) }));
     },
+    // The case IDs of the rows with each label, by label key; selecting a Key entry selects these
+    get caseIdsByLabelKey() {
+      const { rowKeys } = self.labelGroups;
+      const caseIds = new Map<string, string[]>();
+      self.rows.forEach((row, i) => {
+        const ids = caseIds.get(rowKeys[i]);
+        if (ids) ids.push(row.caseId); else caseIds.set(rowKeys[i], [row.caseId]);
+      });
+      return caseIds;
+    },
     get colorByCaseId() {
       const { entries, rowKeys } = self.labelGroups;
       const colorByKey = new Map(entries.map(entry => [entry.key, entry.color]));
