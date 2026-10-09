@@ -6,6 +6,11 @@ $focus-color: #0957d0;
 $disabled-opacity: 0.35;
 $separator-color: #d1d1d1;
 
+// Points and Key dots have a 1px white outline; selected ones add a 2px ring of this color and a
+// 1px white edge outside it
+$dot-outline-color: white;
+$selection-ring-color: #006c8e;
+
 // Controls panel (right side of the tile)
 $panel-width: 380px;
 $panel-padding: 12px;
