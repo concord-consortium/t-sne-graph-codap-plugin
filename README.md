@@ -8,6 +8,8 @@ The plugin reads the chosen Phrase Column from a CODAP table and turns each phra
 
 Each label in the Label Column gets a color in the order it first appears in the table: the four colors from the design spec, then four placeholder colors, then a generated color for each further label, so labels get different colors (up to 424 labels; past that, colors can repeat). Labels that differ only in capitalization or spacing count as one label, and rows with an empty label (or no Label Column) are gray "Unlabeled". Clicking a point or a Key label selects the matching cases in CODAP, and selecting cases in CODAP selects their points.
 
+Students can add up to five phrases of their own in the Test Phrases fields. When a field loses focus, or on Return, the plugin turns the phrase into numbers with the same TF-IDF vocabulary as the table and finds the table phrase that is most like it. The phrase's symbol is drawn at least 18px from that phrase's dot, in a direction set by the saved seed, so it lands in the same place each time the document is opened; the rest of the plot doesn't change. A phrase that shares no words with the table gets no point, and its field says so to screen readers and in a tooltip. Test phrases are saved with the document but never added to the CODAP table, so selecting one selects only its point.
+
 ## Deployment
 
 S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. See [deploy-setup.md in starter-projects](https://github.com/concord-consortium/starter-projects/blob/main/doc/deploy-setup.md) for how the AWS side is set up, and [doc/deploy.md](doc/deploy.md) for how deploys work in this repo.
@@ -18,12 +20,14 @@ S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. Se
 1. Clone this repository and `cd` into the new folder.
 2. Install the dependencies `npm install`.
 3. Run the development server `npm start`.
-4. Open [localhost:8080](http://localhost:8080) (or use port 8081 if you are already using 8080). You should see the plugin's layout: an empty grid on the left and, on the right, the Data Table, Phrase Column and Label Column dropdowns.
+4. Open [localhost:8080](http://localhost:8080) (or use port 8081 if you are already using 8080). You should see the plugin's layout: an empty grid on the left and, on the right, the Data Table, Phrase Column and Label Column dropdowns, with the Key heading and the five Test Phrases fields (disabled) below them.
 
    Outside CODAP the Data Table list stays empty, and after several seconds the console shows an error that starts with `Unable to connect to CODAP:`. This is expected: the plugin tries to connect three times, then stops. To use the plugin, open it in CODAP (see [Testing in CODAP](#testing-in-codap)).
 
 ### Known limitations
-- Changing a dropdown doesn't mark the CODAP document as changed, so on its own it doesn't trigger CODAP's autosave or its unsaved-changes warning. The selections are saved with the document's next save. CODAP v3 doesn't yet let a plugin mark the document as changed.
+- A selected test phrase stays selected when the selection is cleared from another CODAP component, such as a graph. CODAP's selection notices don't say where a change came from, so the plugin can't tell that clear from its own. Clicking empty space in the plot, a Key label, a point or a table row clears it.
+- A test phrase's symbol is kept clear of its own nearest phrase's dot, but it can cover another dot nearby.
+- Changing a dropdown or a test phrase doesn't mark the CODAP document as changed, so on its own it doesn't trigger CODAP's autosave or its unsaved-changes warning. The change is saved with the document's next save. CODAP v3 doesn't yet let a plugin mark the document as changed.
 
 ### Testing
 
