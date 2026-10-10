@@ -1,4 +1,9 @@
-import { computeLayout, ITsneRequest, kProgressInterval, TsneResponse } from "./compute-layout";
+import {
+  answerPlaceRequest, computeLayout, createRequestHandler, IPlaceRequest, ITsneRequest, kProgressInterval,
+  TsneResponse, WorkerRequest, WorkerResponse
+} from "./compute-layout";
+import { applyTransform } from "./layout";
+import { placePhrase } from "./place-phrases";
 import { kTsneSettings } from "./tsne";
 
 const kPhrases = [
@@ -92,5 +97,122 @@ describe("computeLayout", () => {
     const responses = run({ phrases: undefined as unknown as string[] });
     expect(responses).toHaveLength(1);
     expect(responses[0]).toMatchObject({ type: "error", requestId: 7 });
+  });
+});
+
+describe("computeLayout's retained layout", () => {
+  const layoutRequest: ITsneRequest = { requestId: 7, phrases: kPhrases, seed: 42, progressInterval: 0 };
+
+  it("returns the model, rows, raw solution and transform of the finished layout", () => {
+    const responses: TsneResponse[] = [];
+    const layout = computeLayout(layoutRequest, response => responses.push(response));
+    if (!layout) throw new Error("expected a layout");
+    expect(layout.requestId).toBe(7);
+    expect(layout.seed).toBe(42);
+    expect(layout.matrix).toHaveLength(kPhrases.length);
+    expect(layout.model.vocabulary.get("cat")).toEqual(expect.any(Number));
+    expect(layout.solution).toHaveLength(kPhrases.length);
+    // The transform maps each raw point to the position that was posted
+    const positions = finalPositions(responses);
+    layout.solution.forEach((point, i) => expect(applyTransform(layout.transform, point)).toEqual(positions?.[i]));
+  });
+
+  it("returns nothing when there are too few phrases or an error", () => {
+    expect(computeLayout({ ...layoutRequest, phrases: kPhrases.slice(0, 3) }, () => undefined)).toBeUndefined();
+    expect(computeLayout({ ...layoutRequest, phrases: undefined as unknown as string[] }, () => undefined))
+      .toBeUndefined();
+  });
+});
+
+describe("answerPlaceRequest", () => {
+  const layout = computeLayout({ requestId: 7, phrases: kPhrases, seed: 42, progressInterval: 0 }, () => undefined);
+  const placeRequest = (request: Partial<IPlaceRequest>): IPlaceRequest =>
+    ({ type: "place", placementId: 1, layoutRequestId: 7, phrases: [null, null, null, null, null], ...request });
+
+  it("echoes both ids", () => {
+    expect(answerPlaceRequest(placeRequest({ placementId: 12 }), layout))
+      .toMatchObject({ type: "placed", placementId: 12, layoutRequestId: 7 });
+  });
+
+  it("answers each slot: a placement, empty or no-words", () => {
+    const { slots } = answerPlaceRequest(
+      placeRequest({ phrases: ["the cat sat on the mat", null, "zebra quilt", null, "a bird in a tree"] }), layout);
+    expect(slots).toHaveLength(5);
+    expect(slots[0]).toMatchObject({ neighborIndex: 0 });
+    expect(slots[1]).toBe("empty");
+    expect(slots[2]).toBe("no-words");
+    expect(slots[3]).toBe("empty");
+    expect(slots[4]).toMatchObject({ neighborIndex: expect.any(Number) });
+  });
+
+  it("places with the layout's seed and each phrase's slot", () => {
+    if (!layout) throw new Error("expected a layout");
+    const { slots } = answerPlaceRequest(placeRequest({ phrases: [null, null, "the dog ran", null, "the dog ran"] }),
+      layout);
+    expect(slots[2]).toEqual(placePhrase(layout, "the dog ran", 42, 2));
+    expect(slots[4]).toEqual(placePhrase(layout, "the dog ran", 42, 4));
+    expect(slots[2]).not.toEqual(slots[4]);
+  });
+
+  it("answers no-layout for a different layout's id, but still empty for empty slots", () => {
+    const { slots, layoutRequestId } = answerPlaceRequest(
+      placeRequest({ layoutRequestId: 6, phrases: ["the cat sat", null, null, null, null] }), layout);
+    expect(layoutRequestId).toBe(6);
+    expect(slots).toEqual(["no-layout", "empty", "empty", "empty", "empty"]);
+  });
+
+  it("answers no-layout when there is no layout", () => {
+    expect(answerPlaceRequest(placeRequest({ phrases: ["the cat sat", null, null, null, null] }), undefined).slots)
+      .toEqual(["no-layout", "empty", "empty", "empty", "empty"]);
+  });
+});
+
+describe("createRequestHandler", () => {
+  const send = (handle: ReturnType<typeof createRequestHandler>, request: WorkerRequest) => {
+    const responses: WorkerResponse[] = [];
+    handle(request, response => responses.push(response));
+    return responses;
+  };
+  const layoutRequest = (requestId: number, phrases = kPhrases): ITsneRequest =>
+    ({ requestId, phrases, seed: 42, progressInterval: 0 });
+  const place = (layoutRequestId: number, placementId = 1): IPlaceRequest =>
+    ({ type: "place", placementId, layoutRequestId, phrases: ["the cat sat", null, null, null, null] });
+
+  it("answers a layout request as computeLayout does", () => {
+    const handle = createRequestHandler();
+    expect(send(handle, layoutRequest(7))).toEqual(run({ progressInterval: 0 }));
+  });
+
+  it("places into the last finished layout", () => {
+    const handle = createRequestHandler();
+    send(handle, layoutRequest(7));
+    const [response] = send(handle, place(7, 3));
+    expect(response).toMatchObject({ type: "placed", placementId: 3, layoutRequestId: 7 });
+    expect(response.type === "placed" && response.slots[0]).toMatchObject({ neighborIndex: 0 });
+  });
+
+  it("answers no-layout before any layout", () => {
+    const handle = createRequestHandler();
+    expect(send(handle, place(7))).toEqual([
+      { type: "placed", placementId: 1, layoutRequestId: 7, slots: ["no-layout", "empty", "empty", "empty", "empty"] }
+    ]);
+  });
+
+  it("answers no-layout for the old layout once a new one is done", () => {
+    const handle = createRequestHandler();
+    send(handle, layoutRequest(7));
+    send(handle, layoutRequest(8, kPhrases.slice(0, 6)));
+    const [stale] = send(handle, place(7));
+    expect(stale.type === "placed" && stale.slots[0]).toBe("no-layout");
+    const [current] = send(handle, place(8));
+    expect(current.type === "placed" && current.slots[0]).toMatchObject({ neighborIndex: 0 });
+  });
+
+  it("drops the old layout when a new one has too few phrases", () => {
+    const handle = createRequestHandler();
+    send(handle, layoutRequest(7));
+    expect(send(handle, layoutRequest(8, kPhrases.slice(0, 3)))).toEqual([{ type: "too-few", requestId: 8 }]);
+    const [response] = send(handle, place(7));
+    expect(response.type === "placed" && response.slots[0]).toBe("no-layout");
   });
 });
