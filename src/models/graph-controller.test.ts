@@ -313,6 +313,35 @@ describe("startGraphController", () => {
     expect(store.computeStatus).toBe("error");
   });
 
+  it("clears the points when the new worker fails after finishing its layout", () => {
+    store.setTestPhrase(0, "the cat");
+    stop = startGraphController(store);
+    lastWorker().fail("crashed");
+    lastWorker().reply({ type: "done", requestId: lastWorker().lastRequest.requestId, positions: kPositions });
+    const placeRequest = lastWorker().lastPlaceRequest;
+    lastWorker().reply({ type: "placed", placementId: placeRequest.placementId,
+      layoutRequestId: placeRequest.layoutRequestId,
+      slots: [{ x: 0.5, y: 0.5, neighborIndex: 3, direction: { dx: 1, dy: 0 } }, "empty", "empty", "empty", "empty"] });
+    expect(store.testPhrasePoints).toHaveLength(1);
+
+    lastWorker().fail("crashed");
+    expect(store.computeStatus).toBe("error");
+    expect(store.points).toEqual([]);
+    expect(store.testPhrasePoints).toEqual([]);
+    expect(store.placementStatus).toEqual({});
+  });
+
+  it("clears a progress layout when the new worker fails before finishing", () => {
+    stop = startGraphController(store);
+    lastWorker().fail("crashed");
+    lastWorker().reply({ type: "progress", requestId: lastWorker().lastRequest.requestId, step: 50,
+      positions: kPositions });
+    expect(store.points).toHaveLength(4);
+    lastWorker().fail("crashed");
+    expect(store.points).toEqual([]);
+    expect(store.computeStatus).toBe("error");
+  });
+
   it("allows one retry again for each new layout request", () => {
     stop = startGraphController(store);
     lastWorker().fail("script not found");

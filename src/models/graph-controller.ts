@@ -109,6 +109,9 @@ export const startGraphController = (store: IPluginStore) => {
         if (newWorker !== worker) return;
         stopWorker();
         if (retried) {
+          // No layout is left to place into or to show
+          store.setPoints([]);
+          store.setTestPhrasePoints([], {});
           store.setComputeStatus("error");
         } else {
           // Same rows and seed, so the same picture; the test phrases are placed again after it
