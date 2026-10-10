@@ -1,7 +1,8 @@
 import { applySnapshot, getSnapshot } from "mobx-state-tree";
 import { kLabelColors, kUnlabeledColor } from "../tsne/labels";
 import {
-  AttributeInfo, CaseInfo, kMaxTestPhraseLength, kStoreVersion, PluginStore, TestPhrasePoint, truncateText
+  AttributeInfo, CaseInfo, fitEdit, kMaxTestPhraseLength, kStoreVersion, PluginStore, TestPhrasePoint,
+  truncateText
 } from "./plugin-store";
 
 const kAttributes: AttributeInfo[] = [
@@ -605,6 +606,48 @@ describe("truncateText", () => {
 
     it("can keep only some parts of a flag or a family, each part whole", () => {
       expect(truncateText(`ab${kFlag}`, 5, null)).toBe("ab🇺");
+    });
+  });
+});
+
+describe("fitEdit", () => {
+  it("leaves an edit that fits", () => {
+    expect(fitEdit("abc", "abXc", 5)).toBe("abXc");
+  });
+
+  it("adds nothing to a full field, wherever the typing is", () => {
+    expect(fitEdit("abcde", "Xabcde", 5)).toBe("abcde");
+    expect(fitEdit("abcde", "abXcde", 5)).toBe("abcde");
+    expect(fitEdit("abcde", "abcdeX", 5)).toBe("abcde");
+  });
+
+  it("keeps the part of a long paste that fits, over a selection of the whole text", () => {
+    expect(fitEdit("hello", "abcdefg", 5)).toBe("abcde");
+  });
+
+  it("cuts a paste in the middle, not the text after it", () => {
+    expect(fitEdit("abc", "abXYZWc", 5)).toBe("abXYc");
+  });
+
+  it("cuts the paste only between whole characters", () => {
+    expect(fitEdit("abc", "ab😀😀c", 5)).toBe("ab😀c");
+    expect(fitEdit("abc", "ab😀😀c", 4)).toBe("abc");
+  });
+
+  it("never keeps half of a flag emoji where the old and new text share its first half", () => {
+    // 🇺🇸 and 🇺🇦 share their first part; the paste replaces the US flag in "x🇺🇸"
+    expect(fitEdit("x🇺🇸", "x🇺🇦🇺🇦", 5)).toBe("x🇺🇦");
+  });
+
+  it("can cut a little differently than maxLength where the paste ends like the old text", () => {
+    // The shared final "o" is taken as kept, so the paste is cut one character earlier
+    expect(fitEdit("hello", "abcdefo", 5)).toBe("abcdo");
+  });
+
+  describe("without Intl.Segmenter", () => {
+    it("still never cuts between the two units of one character", () => {
+      expect(fitEdit("abc", "ab😀😀c", 4, null)).toBe("abc");
+      expect(fitEdit("abc", "ab😀😀c", 5, null)).toBe("ab😀c");
     });
   });
 });

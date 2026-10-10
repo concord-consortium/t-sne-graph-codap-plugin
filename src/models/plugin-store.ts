@@ -81,6 +81,48 @@ export const truncateText = (text: string, max: number, graphemes: Intl.Segmente
   return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
 };
 
+const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
+
+// Where the characters people see start and end in `text`, from 0 to text.length
+const characterBoundaries = (text: string, graphemes: Intl.Segmenter | null) => {
+  if (graphemes) return [...Array.from(graphemes.segment(text), ({ index }) => index), text.length];
+  const boundaries: number[] = [];
+  for (let i = 0; i <= text.length; i++) {
+    if (!isLowSurrogate(text.charCodeAt(i))) boundaries.push(i);
+  }
+  return boundaries;
+};
+
+/** The edit from `previous` to `next`, kept within `max` the way maxLength keeps it: only the
+ * inserted text is cut. Typing into a full field adds nothing; a long paste over a selection keeps
+ * the part of it that fits. The inserted text is found as what lies between the start and the end
+ * the two share, so where the pasted text repeats its neighbors, the cut can fall a little
+ * differently than maxLength's. */
+export const fitEdit = (previous: string, next: string, max: number,
+  graphemes: Intl.Segmenter | null = kGraphemes) => {
+  if (next.length <= max) return next;
+  const shortest = Math.min(previous.length, next.length);
+  let start = 0;
+  while (start < shortest && previous[start] === next[start]) start++;
+  let end = next.length;
+  while (end > start && next.length - end < shortest - start &&
+    previous[previous.length - (next.length - end) - 1] === next[end - 1]) end--;
+  // Widen the inserted part to whole characters, so the kept text never holds half of one
+  const boundaries = characterBoundaries(next, graphemes);
+  let from = 0;
+  let to = next.length;
+  for (const boundary of boundaries) {
+    if (boundary <= start) from = boundary;
+    if (boundary >= end) {
+      to = boundary;
+      break;
+    }
+  }
+  const room = Math.max(0, max - from - (next.length - to));
+  const fitted = next.slice(0, from) + truncateText(next.slice(from, to), room, graphemes) + next.slice(to);
+  return truncateText(fitted, max, graphemes);
+};
+
 // "" always means no phrase
 export const normalizeTestPhrase = (text: string) =>
   truncateText(text.trim().replace(/\s+/g, " "), kMaxTestPhraseLength);

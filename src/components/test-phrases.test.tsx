@@ -78,6 +78,17 @@ describe("TestPhrases", () => {
       expect(field(0)).toHaveValue(`${"a".repeat(253)}de`);
     });
 
+    it("lets a long paste replace a full phrase, keeping the part that fits", async () => {
+      store.setTestPhrase(0, "a".repeat(255));
+      renderTestPhrases(store);
+      // Tab into the field, which selects its text
+      await userEvent.tab();
+      await userEvent.tab();
+      expect(field(0)).toHaveFocus();
+      await userEvent.paste("b".repeat(300));
+      expect(field(0)).toHaveValue("b".repeat(255));
+    });
+
     it("takes no more typing anywhere in a full field, as maxLength would", async () => {
       store.setTestPhrase(0, "a".repeat(255));
       renderTestPhrases(store);
