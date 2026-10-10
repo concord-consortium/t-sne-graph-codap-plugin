@@ -102,7 +102,7 @@ export const answerPlaceRequest = (request: IPlaceRequest, layout: IRetainedLayo
   return { type: "placed", placementId, layoutRequestId, slots };
 };
 
-const isPlaceRequest = (request: WorkerRequest): request is IPlaceRequest =>
+export const isPlaceRequest = (request: WorkerRequest): request is IPlaceRequest =>
   "type" in request && request.type === "place";
 
 /** Handles the worker's messages, keeping the last finished layout for `place` requests. */

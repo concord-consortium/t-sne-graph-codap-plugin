@@ -1,5 +1,8 @@
 import { applySnapshot, getSnapshot } from "mobx-state-tree";
-import { ITsneRequest, kProgressInterval, TsneResponse } from "../tsne/compute-layout";
+import {
+  IPlacedResponse, IPlaceRequest, isPlaceRequest, ITsneRequest, kProgressInterval, SlotPlacement, WorkerRequest,
+  WorkerResponse
+} from "../tsne/compute-layout";
 import { createTsneWorker } from "../tsne/create-tsne-worker";
 import { startGraphController } from "./graph-controller";
 import { CaseInfo, IPluginStore, PluginStore } from "./plugin-store";
@@ -7,14 +10,16 @@ import { CaseInfo, IPluginStore, PluginStore } from "./plugin-store";
 // Each test supplies a fake worker
 jest.mock("../tsne/create-tsne-worker", () => ({ createTsneWorker: jest.fn() }));
 
-// Records requests; tests send its replies
+// Records requests, layout and place apart; tests send its replies
 class FakeWorker {
-  onmessage: ((event: MessageEvent<TsneResponse>) => void) | null = null;
+  onmessage: ((event: MessageEvent<WorkerResponse>) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
   requests: ITsneRequest[] = [];
+  placeRequests: IPlaceRequest[] = [];
   terminated = false;
-  postMessage(request: ITsneRequest) {
-    this.requests.push(request);
+  postMessage(request: WorkerRequest) {
+    if (isPlaceRequest(request)) this.placeRequests.push(request);
+    else this.requests.push(request);
   }
   terminate() {
     this.terminated = true;
@@ -22,8 +27,17 @@ class FakeWorker {
   get lastRequest() {
     return this.requests[this.requests.length - 1];
   }
-  reply(response: TsneResponse) {
-    this.onmessage?.({ data: response } as MessageEvent<TsneResponse>);
+  get lastPlaceRequest() {
+    return this.placeRequests[this.placeRequests.length - 1];
+  }
+  reply(response: WorkerResponse) {
+    this.onmessage?.({ data: response } as MessageEvent<WorkerResponse>);
+  }
+  // Answers a place request with the given slots
+  replyPlaced(request: IPlaceRequest, slots: SlotPlacement[]) {
+    const { placementId, layoutRequestId } = request;
+    const response: IPlacedResponse = { type: "placed", placementId, layoutRequestId, slots };
+    this.reply(response);
   }
   fail(message: string) {
     this.onerror?.({ message } as ErrorEvent);
@@ -324,5 +338,204 @@ describe("startGraphController", () => {
     expect(worker.terminated).toBe(true);
     store.setCases(kCases.slice(1));
     expect(workers).toHaveLength(1);
+  });
+});
+
+describe("startGraphController test-phrase placement", () => {
+  let store: IPluginStore;
+  let stop: () => void;
+
+  const kDirection = { dx: 1, dy: 0 };
+  // Neighbor index 3 is "the cat sat", case 1, in layout order
+  const placement = (neighborIndex: number, x = 0.25): SlotPlacement =>
+    ({ x, y: 0.5, neighborIndex, direction: kDirection });
+  const kAllEmpty: SlotPlacement[] = ["empty", "empty", "empty", "empty", "empty"];
+
+  const finishLayout = () => {
+    lastWorker().reply({ type: "done", requestId: lastWorker().lastRequest.requestId, positions: kPositions });
+  };
+
+  beforeEach(() => {
+    workers = [];
+    mockedCreateWorker.mockReset();
+    mockedCreateWorker.mockImplementation(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker as unknown as Worker;
+    });
+    setReducedMotion(false);
+    store = PluginStore.create({ dataContextName: "Phrases", tsneSeed: 42 });
+    store.setPhraseAttribute("phrase");
+    store.setCases(kCases);
+  });
+
+  afterEach(() => {
+    stop?.();
+    setReducedMotion(undefined);
+  });
+
+  it("places the phrases right after the layout is done, with null for empty slots", () => {
+    store.setTestPhrase(0, "the cat");
+    store.setTestPhrase(3, "a fish");
+    stop = startGraphController(store);
+    expect(lastWorker().placeRequests).toEqual([]);
+    const { requestId } = lastWorker().lastRequest;
+    finishLayout();
+    expect(lastWorker().placeRequests).toEqual([{
+      type: "place", placementId: expect.any(Number), layoutRequestId: requestId,
+      phrases: ["the cat", null, null, "a fish", null]
+    }]);
+  });
+
+  it("does not place while there is no finished layout", () => {
+    stop = startGraphController(store);
+    store.setTestPhrase(0, "the cat");
+    lastWorker().reply({ type: "progress", requestId: lastWorker().lastRequest.requestId, step: 50,
+      positions: kPositions });
+    expect(lastWorker().placeRequests).toEqual([]);
+  });
+
+  it("stores the placed points with their neighbors' case IDs, and each slot's status", () => {
+    store.setTestPhrase(0, "the cat");
+    store.setTestPhrase(2, "zebra");
+    stop = startGraphController(store);
+    finishLayout();
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest,
+      [placement(3), "empty", "no-words", "empty", "empty"]);
+    expect(store.testPhrasePoints).toEqual([
+      { slot: 0, x: 0.25, y: 0.5, neighborCaseId: "1", direction: kDirection }
+    ]);
+    expect(store.placementStatus).toEqual({ 0: "placed", 1: "empty", 2: "no-words", 3: "empty", 4: "empty" });
+  });
+
+  it("gives no status to a slot answered no-layout", () => {
+    store.setTestPhrase(0, "the cat");
+    stop = startGraphController(store);
+    finishLayout();
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest, ["no-layout", "empty", "empty", "empty", "empty"]);
+    expect(store.testPhrasePoints).toEqual([]);
+    expect(store.placementStatus).toEqual({ 1: "empty", 2: "empty", 3: "empty", 4: "empty" });
+  });
+
+  it("places again, with a larger placementId, when the phrases change", () => {
+    stop = startGraphController(store);
+    finishLayout();
+    const first = lastWorker().lastPlaceRequest;
+    store.setTestPhrase(1, "a dog");
+    const second = lastWorker().lastPlaceRequest;
+    expect(lastWorker().placeRequests).toHaveLength(2);
+    expect(second.placementId).toBeGreaterThan(first.placementId);
+    expect(second.layoutRequestId).toBe(first.layoutRequestId);
+    expect(second.phrases).toEqual([null, "a dog", null, null, null]);
+  });
+
+  it("sends nothing for an unchanged commit", () => {
+    store.setTestPhrase(0, "the cat");
+    stop = startGraphController(store);
+    finishLayout();
+    store.setTestPhrase(0, " the  cat ");
+    expect(lastWorker().placeRequests).toHaveLength(1);
+  });
+
+  it("removes a changed phrase's old point before the new placement arrives", () => {
+    store.setTestPhrase(0, "the cat");
+    stop = startGraphController(store);
+    finishLayout();
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), "empty", "empty", "empty", "empty"]);
+    store.setTestPhrase(0, "a dog");
+    expect(store.testPhrasePoints).toEqual([]);
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(0, 0.75), "empty", "empty", "empty", "empty"]);
+    expect(store.testPhrasePoints).toEqual([
+      { slot: 0, x: 0.75, y: 0.5, neighborCaseId: "2", direction: kDirection }
+    ]);
+  });
+
+  it("clears the test-phrase points when the layout is recomputed, and places into the new one", () => {
+    store.setTestPhrase(0, "the cat");
+    stop = startGraphController(store);
+    finishLayout();
+    const oldPlace = lastWorker().lastPlaceRequest;
+    lastWorker().replyPlaced(oldPlace, [placement(3), "empty", "empty", "empty", "empty"]);
+    store.setSelectedSlots([0]);
+
+    store.setCases(kCases.map((c, i) => i === 1 ? { ...c, values: { ...c.values, phrase: "a dog slept" } } : c));
+    expect(store.testPhrasePoints).toEqual([]);
+    expect(store.placementStatus).toEqual({});
+    // No layout yet, so no placement, even for an edit
+    store.setTestPhrase(1, "a bird");
+    expect(lastWorker().placeRequests).toHaveLength(1);
+    // A late reply for the old layout is ignored
+    lastWorker().replyPlaced(oldPlace, [placement(3), "empty", "empty", "empty", "empty"]);
+    expect(store.testPhrasePoints).toEqual([]);
+
+    const newLayout = lastWorker().lastRequest.requestId;
+    finishLayout();
+    const newPlace = lastWorker().lastPlaceRequest;
+    expect(newPlace.layoutRequestId).toBe(newLayout);
+    expect(newPlace.phrases).toEqual(["the cat", "a bird", null, null, null]);
+    lastWorker().replyPlaced(newPlace, [placement(3), placement(0), "empty", "empty", "empty"]);
+    expect(store.testPhrasePoints.map(point => point.slot)).toEqual([0, 1]);
+    // The slot selection outlives the new layout
+    expect(store.isSlotSelected(0)).toBe(true);
+  });
+
+  it("applies only the latest of several rapid edits, whatever order the replies arrive in", () => {
+    stop = startGraphController(store);
+    finishLayout();
+    store.setTestPhrase(0, "the");
+    store.setTestPhrase(0, "the cat");
+    store.setTestPhrase(0, "the cat sat");
+    const [, first, second, third] = lastWorker().placeRequests;
+    expect(lastWorker().placeRequests).toHaveLength(4);
+
+    lastWorker().replyPlaced(third, [placement(3, 0.3), "empty", "empty", "empty", "empty"]);
+    expect(store.testPhrasePoints).toEqual([
+      { slot: 0, x: 0.3, y: 0.5, neighborCaseId: "1", direction: kDirection }
+    ]);
+    lastWorker().replyPlaced(first, [placement(0, 0.1), "empty", "empty", "empty", "empty"]);
+    lastWorker().replyPlaced(second, [placement(1, 0.2), "empty", "empty", "empty", "empty"]);
+    expect(store.testPhrasePoints).toEqual([
+      { slot: 0, x: 0.3, y: 0.5, neighborCaseId: "1", direction: kDirection }
+    ]);
+  });
+
+  it("ignores a reply whose placementId matches but whose layout does not", () => {
+    store.setTestPhrase(0, "the cat");
+    stop = startGraphController(store);
+    finishLayout();
+    const request = lastWorker().lastPlaceRequest;
+    lastWorker().replyPlaced({ ...request, layoutRequestId: request.layoutRequestId - 1 },
+      [placement(3), "empty", "empty", "empty", "empty"]);
+    expect(store.testPhrasePoints).toEqual([]);
+    expect(store.placementStatus).toEqual({});
+  });
+
+  it("does not place after the worker fails, until a new layout is done", () => {
+    const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    stop = startGraphController(store);
+    finishLayout();
+    const failed = lastWorker();
+    failed.fail("crashed");
+    store.setTestPhrase(0, "the cat");
+    expect(failed.placeRequests).toHaveLength(1);
+    expect(workers).toHaveLength(1);
+    consoleError.mockRestore();
+  });
+
+  it("stops placing when stopped", () => {
+    stop = startGraphController(store);
+    finishLayout();
+    const worker = lastWorker();
+    stop();
+    store.setTestPhrase(0, "the cat");
+    expect(worker.placeRequests).toHaveLength(1);
+  });
+
+  it("answers every slot empty when there are no phrases", () => {
+    stop = startGraphController(store);
+    finishLayout();
+    expect(lastWorker().lastPlaceRequest.phrases).toEqual([null, null, null, null, null]);
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest, kAllEmpty);
+    expect(store.placementStatus).toEqual({ 0: "empty", 1: "empty", 2: "empty", 3: "empty", 4: "empty" });
   });
 });
