@@ -1,7 +1,7 @@
 import { applySnapshot, getSnapshot } from "mobx-state-tree";
 import { kLabelColors, kUnlabeledColor } from "../tsne/labels";
 import {
-  AttributeInfo, CaseInfo, kMaxTestPhraseLength, kStoreVersion, PluginStore, TestPhrasePoint
+  AttributeInfo, CaseInfo, kMaxTestPhraseLength, kStoreVersion, PluginStore, TestPhrasePoint, truncateText
 } from "./plugin-store";
 
 const kAttributes: AttributeInfo[] = [
@@ -462,6 +462,21 @@ describe("PluginStore test phrases", () => {
     expect(store.testPhrases[1]).toBe("");
   });
 
+  it("loads a saved entry that is not text as an empty phrase", () => {
+    const store = PluginStore.create();
+    applySnapshot(store, { version: 1, testPhrases: [null, 7, "a dog"] as unknown as string[] });
+    expect(store.testPhrases).toEqual(["", "", "a dog", "", ""]);
+  });
+
+  it("never cuts an emoji in half at the 255 cap, on load or on commit", () => {
+    // 254 units, then an emoji of 2: 256 in all
+    const long = `${"a".repeat(254)}😀`;
+    expect(PluginStore.create({ testPhrases: [long] }).testPhrases[0]).toBe("a".repeat(254));
+    const store = PluginStore.create();
+    store.setTestPhrase(0, long);
+    expect(store.testPhrases[0]).toBe("a".repeat(254));
+  });
+
   it("caps a committed phrase at 255 characters", () => {
     const store = PluginStore.create();
     store.setTestPhrase(0, "y".repeat(300));
@@ -559,5 +574,37 @@ describe("PluginStore test phrases", () => {
     store.setLabelAttribute(undefined);
     expect(store.testPhrasePoints).toHaveLength(2);
     expect(store.isSlotSelected(0)).toBe(true);
+  });
+});
+
+describe("truncateText", () => {
+  const kFamily = "👨‍👩‍👧";   // five parts joined, 8 units
+  const kFlag = "🇺🇸";      // two parts, 4 units
+
+  it("leaves text that fits", () => {
+    expect(truncateText("a cat", 255)).toBe("a cat");
+    expect(truncateText(`${"a".repeat(253)}😀`, 255)).toBe(`${"a".repeat(253)}😀`);
+  });
+
+  it("cuts plain text at the limit", () => {
+    expect(truncateText("abcdef", 4)).toBe("abcd");
+  });
+
+  it("drops a character that doesn't fit whole: an emoji, a flag, a family", () => {
+    expect(truncateText(`${"a".repeat(4)}😀`, 5)).toBe("aaaa");
+    expect(truncateText(`ab${kFlag}`, 5)).toBe("ab");
+    expect(truncateText(`ab${kFamily}c`, 9)).toBe("ab");
+    expect(truncateText(`ab${kFamily}c`, 10)).toBe(`ab${kFamily}`);
+  });
+
+  describe("without Intl.Segmenter", () => {
+    it("still never ends on half of a two-unit character", () => {
+      expect(truncateText(`${"a".repeat(4)}😀`, 5, null)).toBe("aaaa");
+      expect(truncateText(`${"a".repeat(4)}😀`, 6, null)).toBe("aaaa😀");
+    });
+
+    it("can keep only some parts of a flag or a family, each part whole", () => {
+      expect(truncateText(`ab${kFlag}`, 5, null)).toBe("ab🇺");
+    });
   });
 });

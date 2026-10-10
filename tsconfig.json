@@ -15,7 +15,7 @@
     "skipLibCheck": true,
     "types": [],
     "jsx": "react",
-    "lib": ["dom", "dom.iterable", "es2018"]
+    "lib": ["dom", "dom.iterable", "es2018", "es2022.intl"]
   },
   "include": [
     "./src/**/*"

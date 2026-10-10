@@ -1,7 +1,7 @@
 import React, { KeyboardEvent, useId, useRef, useState } from "react";
 import { Button, Input, TextField } from "react-aria-components";
 import { observer } from "mobx-react-lite";
-import { kMaxTestPhraseLength, kTestPhraseSlots, PhraseSymbol } from "../models/plugin-store";
+import { kMaxTestPhraseLength, kTestPhraseSlots, PhraseSymbol, truncateText } from "../models/plugin-store";
 import { selectTestPhrase } from "../models/selection-sync";
 import { useStore } from "../models/store-context";
 import { PhraseSymbolIcon } from "./phrase-symbol";
@@ -84,10 +84,12 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
         aria-label={`Test phrase ${slot + 1}`}
         aria-describedby={hasNoWords ? noWordsId : undefined}
         isReadOnly={isDisabled}
-        maxLength={kMaxTestPhraseLength}
         value={draft ?? committed}
         onChange={text => {
-          setDraft(text);
+          // A full field takes nothing more, as with maxLength. Not maxLength itself: it counts
+          // UTF-16 code units, so it can keep half of a flag emoji (🇺 of 🇺🇸).
+          if (text.length > kMaxTestPhraseLength && (draft ?? committed).length >= kMaxTestPhraseLength) return;
+          setDraft(truncateText(text, kMaxTestPhraseLength));
           startEditing();
         }}
         onFocus={() => {

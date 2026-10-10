@@ -66,9 +66,24 @@ describe("TestPhrases", () => {
       expect(field(0)).toHaveValue("");
     });
 
-    it("caps a field at 255 characters", () => {
+    it("caps a field at 255 characters, keeping only whole characters", async () => {
       renderTestPhrases(store);
-      expect(field(0)).toHaveAttribute("maxLength", "255");
+      await userEvent.click(field(0));
+      await userEvent.paste(`${"a".repeat(253)}🇺🇸bc`);
+      // The flag would end at 257, so it is dropped whole
+      expect(field(0)).toHaveValue("a".repeat(253));
+      await userEvent.paste("de");
+      expect(field(0)).toHaveValue(`${"a".repeat(253)}de`);
+      await userEvent.paste("f");
+      expect(field(0)).toHaveValue(`${"a".repeat(253)}de`);
+    });
+
+    it("takes no more typing anywhere in a full field, as maxLength would", async () => {
+      store.setTestPhrase(0, "a".repeat(255));
+      renderTestPhrases(store);
+      await userEvent.click(field(0));
+      await userEvent.keyboard("{Home}x");
+      expect(field(0)).toHaveValue("a".repeat(255));
     });
   });
 

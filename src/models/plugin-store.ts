@@ -59,13 +59,38 @@ export type PlacementStatus = "placed" | "no-words" | "empty";
 
 const emptyTestPhrases = () => new Array<string>(kTestPhraseSlots).fill("");
 
+// The characters people see. Firefox has it only from version 125.
+const kGraphemes = typeof Intl.Segmenter === "function"
+  ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+  : null;
+
+/** At most `max` UTF-16 code units, as the field's maxLength counts, without cutting a character in
+ * half: not an emoji's two units, and not the parts of a flag emoji (🇺🇸) or a family emoji (👨‍👩‍👧). */
+export const truncateText = (text: string, max: number, graphemes: Intl.Segmenter | null = kGraphemes) => {
+  if (text.length <= max) return text;
+  if (graphemes) {
+    let end = 0;
+    for (const { index, segment } of graphemes.segment(text)) {
+      if (index + segment.length > max) break;
+      end = index + segment.length;
+    }
+    return text.slice(0, end);
+  }
+  // Without Intl.Segmenter, at least don't end on the first unit of a two-unit character
+  const last = text.charCodeAt(max - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
+};
+
 // "" always means no phrase
 export const normalizeTestPhrase = (text: string) =>
-  text.trim().replace(/\s+/g, " ").slice(0, kMaxTestPhraseLength);
+  truncateText(text.trim().replace(/\s+/g, " "), kMaxTestPhraseLength);
 
 // Exactly five strings of at most 255 characters, whatever a saved document holds
-const normalizeTestPhrases = (phrases: readonly string[]) =>
-  emptyTestPhrases().map((empty, slot) => phrases[slot]?.slice(0, kMaxTestPhraseLength) ?? empty);
+const normalizeTestPhrases = (phrases: readonly unknown[]) =>
+  emptyTestPhrases().map((empty, slot) => {
+    const phrase = phrases[slot];
+    return typeof phrase === "string" ? truncateText(phrase, kMaxTestPhraseLength) : empty;
+  });
 
 export interface LabelEntry extends ILabelEntry {
   // All of the label's rows are selected
