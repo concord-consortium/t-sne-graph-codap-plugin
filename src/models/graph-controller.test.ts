@@ -276,17 +276,63 @@ describe("startGraphController", () => {
     expect(consoleError).toHaveBeenCalledWith("Unable to lay out the phrases:", "bad data");
   });
 
-  it("reports a failed worker, and starts a new one for the next request", () => {
+  it("replaces a failed worker once, laying out the same phrases with the same seed", () => {
     stop = startGraphController(store);
     const failed = lastWorker();
-    failed.fail("script not found");
-    expect(store.computeStatus).toBe("error");
+    const request = failed.lastRequest;
+    failed.fail("crashed");
     expect(failed.terminated).toBe(true);
-    expect(consoleError).toHaveBeenCalledWith("The t-SNE worker failed:", "script not found");
-
-    store.setCases(kCases.slice(1));
+    expect(consoleError).toHaveBeenCalledWith("The t-SNE worker failed:", "crashed");
     expect(workers).toHaveLength(2);
     expect(store.computeStatus).toBe("computing");
+    const { requestId: _old, ...same } = request;
+    expect(lastWorker().lastRequest).toEqual({ ...same, requestId: expect.any(Number) });
+    expect(lastWorker().lastRequest.requestId).not.toBe(request.requestId);
+
+    lastWorker().reply({ type: "done", requestId: lastWorker().lastRequest.requestId, positions: kPositions });
+    expect(store.points).toEqual(kPoints);
+    expect(store.computeStatus).toBe("done");
+  });
+
+  it("ignores a late reply from the failed worker", () => {
+    stop = startGraphController(store);
+    const failed = lastWorker();
+    const { requestId } = failed.lastRequest;
+    failed.fail("crashed");
+    failed.reply({ type: "done", requestId, positions: kPositions });
+    expect(store.points).toEqual([]);
+    expect(store.computeStatus).toBe("computing");
+  });
+
+  it("reports an error when the new worker fails too, and starts no third", () => {
+    stop = startGraphController(store);
+    lastWorker().fail("script not found");
+    lastWorker().fail("script not found");
+    expect(workers).toHaveLength(2);
+    expect(lastWorker().terminated).toBe(true);
+    expect(store.computeStatus).toBe("error");
+  });
+
+  it("allows one retry again for each new layout request", () => {
+    stop = startGraphController(store);
+    lastWorker().fail("script not found");
+    lastWorker().fail("script not found");
+    expect(store.computeStatus).toBe("error");
+
+    store.setCases(kCases.slice(1));
+    expect(workers).toHaveLength(3);
+    lastWorker().fail("script not found");
+    expect(workers).toHaveLength(4);
+    expect(store.computeStatus).toBe("computing");
+  });
+
+  it("doesn't give a second retry after a finished layout, so a repeating failure can't loop", () => {
+    stop = startGraphController(store);
+    lastWorker().fail("crashed");
+    lastWorker().reply({ type: "done", requestId: lastWorker().lastRequest.requestId, positions: kPositions });
+    lastWorker().fail("crashed");
+    expect(workers).toHaveLength(2);
+    expect(store.computeStatus).toBe("error");
   });
 
   it("reports an error when the worker can't be created, and tries again on the next change", () => {
@@ -510,16 +556,35 @@ describe("startGraphController test-phrase placement", () => {
     expect(store.placementStatus).toEqual({});
   });
 
-  it("does not place after the worker fails, until a new layout is done", () => {
+  it("places again after a failed worker is replaced and the layout is redone", () => {
     const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
+    store.setTestPhrase(0, "the cat");
     stop = startGraphController(store);
     finishLayout();
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), "empty", "empty", "empty", "empty"]);
     const failed = lastWorker();
     failed.fail("crashed");
-    store.setTestPhrase(0, "the cat");
+    // The points go with the layout; an edit waits for the new layout
+    expect(store.testPhrasePoints).toEqual([]);
+    store.setTestPhrase(1, "a dog");
     expect(failed.placeRequests).toHaveLength(1);
-    expect(workers).toHaveLength(1);
+    expect(workers).toHaveLength(2);
+    expect(lastWorker().placeRequests).toEqual([]);
+
+    finishLayout();
+    expect(lastWorker().lastPlaceRequest.phrases).toEqual(["the cat", "a dog", null, null, null]);
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), placement(0), "empty", "empty", "empty"]);
+    expect(store.testPhrasePoints.map(point => point.slot)).toEqual([0, 1]);
     consoleError.mockRestore();
+  });
+
+  it("gives no status to a slot the worker couldn't place", () => {
+    store.setTestPhrase(0, "the cat");
+    stop = startGraphController(store);
+    finishLayout();
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest, ["error", "empty", "empty", "empty", "empty"]);
+    expect(store.testPhrasePoints).toEqual([]);
+    expect(store.placementStatus).toEqual({ 1: "empty", 2: "empty", 3: "empty", 4: "empty" });
   });
 
   it("stops placing when stopped", () => {

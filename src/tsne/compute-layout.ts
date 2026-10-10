@@ -35,7 +35,8 @@ export interface IPlaceRequest {
   phrases: (string | null)[];
 }
 
-export type SlotPlacement = IPhrasePlacement | "empty" | "no-words" | "no-layout";
+// "error": placing this phrase threw; the other slots are unaffected
+export type SlotPlacement = IPhrasePlacement | "empty" | "no-words" | "no-layout" | "error";
 
 export interface IPlacedResponse {
   type: "placed";
@@ -97,7 +98,13 @@ export const answerPlaceRequest = (request: IPlaceRequest, layout: IRetainedLayo
   const slots = phrases.map((phrase, slot): SlotPlacement => {
     if (phrase === null) return "empty";
     if (!current) return "no-layout";
-    return placePhrase(current, phrase, current.seed, slot);
+    // An uncaught error would end the worker and take the plot with it
+    try {
+      return placePhrase(current, phrase, current.seed, slot);
+    } catch (error) {
+      console.error("Unable to place a test phrase:", error instanceof Error ? error.message : String(error));
+      return "error";
+    }
   });
   return { type: "placed", placementId, layoutRequestId, slots };
 };
