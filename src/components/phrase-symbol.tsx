@@ -9,8 +9,9 @@ export const kButtonSymbolBox = 16;
 export const kButtonSymbolExtents: Record<PhraseSymbol, number> = {
   square: 10.6, triangle: 16.2, diamond: 15, plus: 14.3, star: 17.58
 };
-// The spec's plot square fills a dot's 12px, so every plot shape does
-export const kPlotSymbolExtent = 12;
+export const kPlotSymbolExtents: Record<PhraseSymbol, number> = {
+  square: 13.3, triangle: 17.3, diamond: 18.8, plus: 17.8, star: 18.7
+};
 
 // Arm width over span, from the spec's 5 of 14px
 const kPlusArmRatio = 5 / 14;

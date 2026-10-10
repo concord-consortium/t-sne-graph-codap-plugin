@@ -80,13 +80,17 @@
 }
 
 // Strokes centered on the symbol's edge: the outline reaches 1px outside, the ring 3px, the edge 4px.
-// Miter joins keep the corners sharp, so a ring has its symbol's shape.
+// Corners as on the plot (graph.scss): sharp for the square, diamond and plus, round for the
+// triangle and star.
 .symbol-outline,
 .symbol-selection-ring,
 .symbol-selection-edge {
   fill: none;
   stroke-linejoin: miter;
-  stroke-miterlimit: 4;
+
+  svg:is([data-symbol="triangle"], [data-symbol="star"]) & {
+    stroke-linejoin: round;
+  }
 }
 
 .symbol-outline {

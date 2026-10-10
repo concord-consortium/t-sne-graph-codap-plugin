@@ -38,9 +38,12 @@ const selectListener = () => {
   expect(calls).toHaveLength(1);
   return calls[0][3] as unknown as ClientHandler;
 };
-const notifySelect = (table: string) =>
+// As CODAP v3 sends it; `extend` is true for addCasesToSelection and for shift-clicks in the table
+const notifySelect = (table: string, extend?: boolean) =>
   selectListener()({ action: "notify", resource: `dataContextChangeNotice[${table}]`,
-    values: { operation: "selectCases" } });
+    values: extend === undefined
+      ? { operation: "selectCases" }
+      : { operation: "selectCases", result: { success: true, removedCases: [], extend } } });
 
 describe("selection-sync", () => {
   let store: IPluginStore;
@@ -292,6 +295,165 @@ describe("selection-sync", () => {
       expect(Array.from(store.selectedSlots)).toEqual([1, 3]);
       expect(api.selectCases).not.toHaveBeenCalled();
       expect(api.addCasesToSelection).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("test-phrase (slot) selection with CODAP's notices", () => {
+    // Slot 2 is selected by the plugin; CODAP has no selection
+    beforeEach(async () => {
+      stop = startSelectionSync(store);
+      store.setCases(kCases);
+      await flush();
+      store.setSelectedSlots([2]);
+    });
+
+    const slots = () => Array.from(store.selectedSlots);
+
+    it("clears the slots on a table click: a replacing notice with a non-empty selection", async () => {
+      codapSelection = [leaf(101)];
+      notifySelect("Phrases", false);
+      await flush();
+      expect(slots()).toEqual([]);
+      expect(Array.from(store.selectedCaseIds)).toEqual(["101"]);
+    });
+
+    it("treats a notice without extend as replacing", async () => {
+      codapSelection = [leaf(101)];
+      notifySelect("Phrases");
+      await flush();
+      expect(slots()).toEqual([]);
+    });
+
+    it("keeps the slots on a table shift-click: an extending notice", async () => {
+      codapSelection = [leaf(101)];
+      notifySelect("Phrases", true);
+      await flush();
+      expect(slots()).toEqual([2]);
+      expect(Array.from(store.selectedCaseIds)).toEqual(["101"]);
+    });
+
+    it("keeps the slots on a clear from outside the plugin (the documented limit)", async () => {
+      codapSelection = [];
+      notifySelect("Phrases", false);
+      await flush();
+      expect(slots()).toEqual([2]);
+    });
+
+    it("keeps the slots on a notice for another table", async () => {
+      codapSelection = [leaf(101)];
+      notifySelect("Other", false);
+      await flush();
+      expect(slots()).toEqual([2]);
+    });
+
+    it("keeps the slots when the plugin extends with a case, and through its echo", async () => {
+      await selectInCodap(store, ["101"], true);
+      expect(slots()).toEqual([2]);
+      codapSelection = [leaf(101)];
+      notifySelect("Phrases", true);
+      await flush();
+      expect(slots()).toEqual([2]);
+    });
+
+    it("clears the slots at once when the plugin selects a case", () => {
+      const done = selectInCodap(store, ["101"]);
+      expect(slots()).toEqual([]);
+      return done;
+    });
+
+    it("clears the slots at once on the plugin's own clear (empty space, Escape)", () => {
+      const done = clearCodapSelection(store);
+      expect(slots()).toEqual([]);
+      expect(api.selectCases).toHaveBeenCalledWith("Phrases", []);
+      return done;
+    });
+
+    it("clears the slots for a replacing select that includes an already-selected case", async () => {
+      codapSelection = [leaf(100)];
+      notifySelect("Phrases", true);
+      await flush();
+      expect(slots()).toEqual([2]);
+      await selectInCodap(store, ["100", "101"]);
+      expect(slots()).toEqual([]);
+      // The echo lists only the newly selected case
+      codapSelection = [leaf(100), leaf(101)];
+      notifySelect("Phrases", false);
+      await flush();
+      expect(slots()).toEqual([]);
+      expect(Array.from(store.selectedCaseIds)).toEqual(["100", "101"]);
+    });
+
+    describe("a plain select of a slot ends with only that slot and no cases", () => {
+      beforeEach(async () => {
+        codapSelection = [leaf(101)];
+        notifySelect("Phrases", false);
+        await flush();
+      });
+
+      it("when the echo arrives before the request settles", async () => {
+        const answer = deferred<IResult>();
+        api.selectCases.mockImplementationOnce(() => answer.promise);
+        const done = selectTestPhrase(store, 3);
+        codapSelection = [];
+        notifySelect("Phrases", false);
+        await flush();
+        answer.resolve(ok({}));
+        await done;
+        expect(slots()).toEqual([3]);
+        expect(store.selectedCaseIds.size).toBe(0);
+      });
+
+      it("when the echo arrives after the request settles", async () => {
+        await selectTestPhrase(store, 3);
+        expect(slots()).toEqual([3]);
+        codapSelection = [];
+        notifySelect("Phrases", false);
+        await flush();
+        expect(slots()).toEqual([3]);
+        expect(store.selectedCaseIds.size).toBe(0);
+      });
+
+      it("when no echo arrives", async () => {
+        await selectTestPhrase(store, 3);
+        await flush();
+        expect(slots()).toEqual([3]);
+        expect(api.selectCases).toHaveBeenLastCalledWith("Phrases", []);
+      });
+    });
+
+    it("leaves a slot cleared by a later table click cleared after the slot select's echo", async () => {
+      // The plugin selects slot 3, which asks CODAP to clear
+      await selectTestPhrase(store, 3);
+      // A table click lands before the echo of that clear arrives
+      codapSelection = [leaf(102)];
+      notifySelect("Phrases", false);
+      await flush();
+      expect(slots()).toEqual([]);
+      // The late echo reads the table click's selection
+      notifySelect("Phrases", false);
+      await flush();
+      expect(slots()).toEqual([]);
+      expect(Array.from(store.selectedCaseIds)).toEqual(["102"]);
+    });
+
+    it("ignores a replacing notice whose read is overtaken by a newer one", async () => {
+      const slow = deferred<IResult>();
+      api.getSelectionList.mockImplementationOnce(() => slow.promise);
+      notifySelect("Phrases", false);
+      // A newer, extending notice reads an empty selection first
+      codapSelection = [];
+      notifySelect("Phrases", true);
+      await flush();
+      slow.resolve(ok([leaf(101)]));
+      await flush();
+      expect(slots()).toEqual([2]);
+    });
+
+    it("does not clear the slots when the cases are fetched again", async () => {
+      codapSelection = [leaf(101)];
+      store.setCases(kCases.slice());
+      await flush();
+      expect(slots()).toEqual([2]);
     });
   });
 });

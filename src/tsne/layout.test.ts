@@ -136,6 +136,7 @@ describe("directionToPixels", () => {
 });
 
 describe("offsetFromNeighbor", () => {
+
   const distance = (a: { x: number, y: number }, b: { x: number, y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
   const inside = ({ x, y }: { x: number, y: number }, bounds: ReturnType<typeof paddedBounds>) =>
     x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom;
@@ -147,15 +148,16 @@ describe("offsetFromNeighbor", () => {
     const center = { x: size.width / 2, y: size.height / 2 };
 
     describe(`on a ${size.width} x ${size.height} plot`, () => {
-      it("moves a point under 10px from its neighbor to exactly 10px along the direction", () => {
+      it("moves a point under 18px from its neighbor to exactly 18px along the direction", () => {
         const result = offsetFromNeighbor(center, { x: center.x + 1, y: center.y }, diagonal, bounds);
         expect(distance(result, center)).toBeCloseTo(kMinNeighborOffsetPx, 12);
-        expect(result.x - center.x).toBeCloseTo(10 * Math.SQRT1_2, 12);
-        expect(result.y - center.y).toBeCloseTo(10 * Math.SQRT1_2, 12);
+        expect(result.x - center.x).toBeCloseTo(kMinNeighborOffsetPx * Math.SQRT1_2, 12);
+        expect(result.y - center.y).toBeCloseTo(kMinNeighborOffsetPx * Math.SQRT1_2, 12);
       });
 
       it("moves a point on top of its neighbor", () => {
-        expect(offsetFromNeighbor(center, center, right, bounds)).toEqual({ x: center.x + 10, y: center.y });
+        expect(offsetFromNeighbor(center, center, right, bounds))
+          .toEqual({ x: center.x + kMinNeighborOffsetPx, y: center.y });
       });
 
       it("leaves a point that is inside and already far enough", () => {
@@ -163,7 +165,7 @@ describe("offsetFromNeighbor", () => {
         expect(offsetFromNeighbor(center, point, right, bounds)).toEqual(point);
       });
 
-      it("clamps in a point that is outside but more than 10px away", () => {
+      it("clamps in a point that is outside but more than 18px away", () => {
         const neighbor = { x: bounds.right - 40, y: bounds.top + 40 };
         const result = offsetFromNeighbor(neighbor, { x: bounds.right + 15, y: bounds.top - 5 }, right, bounds);
         expect(result).toEqual({ x: bounds.right, y: bounds.top });
@@ -190,8 +192,8 @@ describe("offsetFromNeighbor", () => {
       it("flips only the component that would leave the area", () => {
         const neighbor = { x: bounds.right - 3, y: center.y };
         const result = offsetFromNeighbor(neighbor, neighbor, diagonal, bounds);
-        expect(result.x).toBeCloseTo(neighbor.x - 10 * Math.SQRT1_2, 12);
-        expect(result.y).toBeCloseTo(neighbor.y + 10 * Math.SQRT1_2, 12);
+        expect(result.x).toBeCloseTo(neighbor.x - kMinNeighborOffsetPx * Math.SQRT1_2, 12);
+        expect(result.y).toBeCloseTo(neighbor.y + kMinNeighborOffsetPx * Math.SQRT1_2, 12);
       });
     });
   });

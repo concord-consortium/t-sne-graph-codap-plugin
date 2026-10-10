@@ -1,8 +1,9 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { kPhraseSymbols, PhraseSymbol } from "../models/plugin-store";
+import { kMinNeighborOffsetPx } from "../tsne/layout";
 import {
-  kButtonSymbolExtents, kPlotSymbolExtent, kTestPhraseColor, PhraseSymbolIcon, symbolPath
+  kButtonSymbolExtents, kPlotSymbolExtents, kTestPhraseColor, PhraseSymbolIcon, symbolPath
 } from "./phrase-symbol";
 
 // The [x, y] points of an "M x yL x y…Z" path
@@ -17,12 +18,13 @@ const box = (symbol: PhraseSymbol, extent: number) => {
 
 describe("symbolPath", () => {
   describe.each(kPhraseSymbols.map(symbol => [symbol]))("%s", symbol => {
-    it.each([kButtonSymbolExtents[symbol], kPlotSymbolExtent])("is %ipx at its larger side, centered", extent => {
-      const { left, right, top, bottom } = box(symbol, extent);
-      expect(Math.max(right - left, bottom - top)).toBeCloseTo(extent, 2);
-      expect((left + right) / 2).toBeCloseTo(0, 2);
-      expect((top + bottom) / 2).toBeCloseTo(0, 2);
-    });
+    it.each([kButtonSymbolExtents[symbol], kPlotSymbolExtents[symbol]])(
+      "is %fpx at its larger side, centered", extent => {
+        const { left, right, top, bottom } = box(symbol, extent);
+        expect(Math.max(right - left, bottom - top)).toBeCloseTo(extent, 2);
+        expect((left + right) / 2).toBeCloseTo(0, 2);
+        expect((top + bottom) / 2).toBeCloseTo(0, 2);
+      });
 
     it("fits the 24px symbol button", () => {
       const { left, right, top, bottom } = box(symbol, kButtonSymbolExtents[symbol]);
@@ -69,6 +71,16 @@ describe("symbolPath", () => {
     expect(star).toHaveLength(10);
     expect(star[0][0]).toBeCloseTo(0, 3);
     expect(star[0][1]).toBe(Math.min(...star.map(([, y]) => y)));
+  });
+});
+
+describe("plot symbols", () => {
+  it("are each pushed far enough from the neighbor's 6px-radius dot to leave it uncovered", () => {
+    kPhraseSymbols.forEach(symbol => {
+      const { left, right, top, bottom } = box(symbol, kPlotSymbolExtents[symbol]);
+      const reach = Math.max(-left, right, -top, bottom);
+      expect(reach + 6).toBeLessThan(kMinNeighborOffsetPx);
+    });
   });
 });
 
