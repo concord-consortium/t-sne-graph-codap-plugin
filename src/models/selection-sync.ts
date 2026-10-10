@@ -29,6 +29,9 @@ export const startSelectionSync = (store: IPluginStore) => {
   // `replacing`: the read follows a notice of a selection that replaced the old one
   const refreshSelection = async (replacing = false) => {
     const request = ++selectionRequest;
+    // Slots the plugin selects while the read is in progress are a later action; the read mustn't
+    // clear them. setSelectedSlots always stores a new Set, so comparing the Sets is enough.
+    const slotsAtStart = store.selectedSlots;
     const dataContextName = store.dataContextName;
     if (!dataContextName) {
       store.setSelectedCaseIds([]);
@@ -41,7 +44,7 @@ export const startSelectionSync = (store: IPluginStore) => {
       const caseIds = (result.values as ISelectionItem[]).map(item => String(item.caseID));
       store.setSelectedCaseIds(caseIds);
       // A non-empty replacement came after any slot select, whose own clear leaves CODAP empty
-      if (replacing && caseIds.length > 0) store.setSelectedSlots([]);
+      if (replacing && caseIds.length > 0 && store.selectedSlots === slotsAtStart) store.setSelectedSlots([]);
     } catch (error) {
       console.error("Unable to get the selection of", dataContextName, errorMessage(error));
     }

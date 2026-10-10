@@ -449,6 +449,33 @@ describe("selection-sync", () => {
       expect(slots()).toEqual([2]);
     });
 
+    it("keeps a slot selected while a replacing notice's read is in progress", async () => {
+      // A case click in the plot: its echo's read is slow, and holds the case
+      const slow = deferred<IResult>();
+      api.getSelectionList.mockImplementationOnce(() => slow.promise);
+      notifySelect("Phrases", false);
+      // Before the read returns, the student selects a test phrase
+      await selectTestPhrase(store, 3);
+      slow.resolve(ok([leaf(101)]));
+      await flush();
+      expect(slots()).toEqual([3]);
+      // The echo of the slot select's clear reads the empty selection
+      codapSelection = [];
+      notifySelect("Phrases", false);
+      await flush();
+      expect(slots()).toEqual([3]);
+      expect(store.selectedCaseIds.size).toBe(0);
+    });
+
+    it("still clears the slots when nothing changed them during a slow read", async () => {
+      const slow = deferred<IResult>();
+      api.getSelectionList.mockImplementationOnce(() => slow.promise);
+      notifySelect("Phrases", false);
+      slow.resolve(ok([leaf(101)]));
+      await flush();
+      expect(slots()).toEqual([]);
+    });
+
     it("does not clear the slots when the cases are fetched again", async () => {
       codapSelection = [leaf(101)];
       store.setCases(kCases.slice());
