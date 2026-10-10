@@ -1,6 +1,8 @@
 import { applySnapshot, getSnapshot } from "mobx-state-tree";
 import { kLabelColors, kUnlabeledColor } from "../tsne/labels";
-import { AttributeInfo, CaseInfo, kStoreVersion, PluginStore } from "./plugin-store";
+import {
+  AttributeInfo, CaseInfo, kMaxTestPhraseLength, kStoreVersion, PluginStore, TestPhrasePoint
+} from "./plugin-store";
 
 const kAttributes: AttributeInfo[] = [
   { id: "1", name: "group", title: "Group", collectionName: "Groups", isLeaf: false },
@@ -33,7 +35,8 @@ describe("PluginStore", () => {
       dataContextName: undefined,
       phraseAttributeName: undefined,
       labelAttributeName: undefined,
-      tsneSeed: undefined
+      tsneSeed: undefined,
+      testPhrases: ["", "", "", "", ""]
     });
     expect(store.dataContexts).toEqual([]);
     expect(store.attributes).toEqual([]);
@@ -84,12 +87,18 @@ describe("PluginStore", () => {
     store.setPoints([{ caseId: "1", x: 0.5, y: 0.5 }]);
     store.setComputeStatus("done");
     store.setSelectedCaseIds(["1"]);
+    store.setTestPhrase(0, "a cat");
+    store.setTestPhrasePoints(
+      [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "1", direction: { dx: 1, dy: 0 } }], { 0: "placed" });
+    store.setEditingSlot(0);
+    store.setSelectedSlots([0]);
     expect(getSnapshot(store)).toEqual({
       version: 1,
       dataContextName: "Phrases",
       phraseAttributeName: "phrase",
       labelAttributeName: "label",
-      tsneSeed: expect.any(Number)
+      tsneSeed: expect.any(Number),
+      testPhrases: ["a cat", "", "", "", ""]
     });
   });
 
@@ -175,7 +184,8 @@ describe("PluginStore snapshot version", () => {
     const saved = { version: 1, dataContextName: "Phrases", phraseAttributeName: "phrase" };
     const store = PluginStore.create();
     applySnapshot(store, saved);
-    expect(getSnapshot(store)).toEqual({ ...saved, labelAttributeName: undefined, tsneSeed: undefined });
+    expect(getSnapshot(store)).toEqual({ ...saved, labelAttributeName: undefined, tsneSeed: undefined,
+      testPhrases: ["", "", "", "", ""] });
   });
 
   it("restores a saved seed", () => {
@@ -384,5 +394,170 @@ describe("PluginStore plot data", () => {
     expect(store.isSelected("1")).toBe(false);
     store.setSelectedCaseIds([]);
     expect(store.isSelected("2")).toBe(false);
+  });
+});
+
+describe("PluginStore test phrases", () => {
+  const point = (slot: number): TestPhrasePoint =>
+    ({ slot, x: 0.5, y: 0.5, neighborCaseId: "1", direction: { dx: 1, dy: 0 } });
+
+  // Slots 0 and 2 have phrases, both placed; slot 0 is selected
+  const placedStore = () => {
+    const store = selectedStore();
+    store.setCases(kCases);
+    store.setTestPhrase(0, "the cat");
+    store.setTestPhrase(2, "a dog");
+    store.setTestPhrasePoints([point(0), point(2)], { 0: "placed", 1: "empty", 2: "placed", 3: "empty", 4: "empty" });
+    store.setSelectedSlots([0]);
+    return store;
+  };
+
+  it("starts with five empty phrases and nothing placed, edited or selected", () => {
+    const store = PluginStore.create();
+    expect(store.testPhrases).toEqual(["", "", "", "", ""]);
+    expect(store.testPhrasePoints).toEqual([]);
+    expect(store.placementStatus).toEqual({});
+    expect(store.editingSlot).toBeUndefined();
+    expect(store.selectedSlots.size).toBe(0);
+  });
+
+  it("loads a snapshot without test phrases as five empty ones, at version 1", () => {
+    const store = PluginStore.create();
+    applySnapshot(store, { version: 1, dataContextName: "Phrases", phraseAttributeName: "phrase", tsneSeed: 3 });
+    expect(store.testPhrases).toEqual(["", "", "", "", ""]);
+    expect(store.version).toBe(1);
+  });
+
+  it("restores saved test phrases", () => {
+    const saved = getSnapshot(placedStore());
+    const store = PluginStore.create();
+    applySnapshot(store, saved);
+    expect(store.testPhrases).toEqual(["the cat", "", "a dog", "", ""]);
+  });
+
+  it.each([
+    [[], ["", "", "", "", ""]],
+    [["a", "b", "c"], ["a", "b", "c", "", ""]],
+    [["a", "b", "c", "d", "e"], ["a", "b", "c", "d", "e"]],
+    [["a", "b", "c", "d", "e", "f", "g"], ["a", "b", "c", "d", "e"]]
+  ])("loads %j as exactly five phrases", (testPhrases, expected) => {
+    expect(PluginStore.create({ testPhrases }).testPhrases).toEqual(expected);
+    const store = PluginStore.create();
+    applySnapshot(store, { version: 1, testPhrases });
+    expect(store.testPhrases).toEqual(expected);
+  });
+
+  it("truncates a saved phrase to 255 characters", () => {
+    const long = "x".repeat(300);
+    const store = PluginStore.create({ testPhrases: [long, "short"] });
+    expect(store.testPhrases[0]).toBe("x".repeat(kMaxTestPhraseLength));
+    expect(store.testPhrases[1]).toBe("short");
+  });
+
+  it("commits a phrase trimmed, with each run of whitespace made one space", () => {
+    const store = PluginStore.create();
+    store.setTestPhrase(1, "  the \t cat\n\nsat  ");
+    expect(store.testPhrases[1]).toBe("the cat sat");
+    store.setTestPhrase(1, " \t ");
+    expect(store.testPhrases[1]).toBe("");
+  });
+
+  it("caps a committed phrase at 255 characters", () => {
+    const store = PluginStore.create();
+    store.setTestPhrase(0, "y".repeat(300));
+    expect(store.testPhrases[0]).toHaveLength(kMaxTestPhraseLength);
+  });
+
+  it("drops the slot's point, status and selection on a changed commit", () => {
+    const store = placedStore();
+    store.setTestPhrase(0, "the kitten");
+    expect(store.testPhrases[0]).toBe("the kitten");
+    expect(store.testPhrasePoints.map(({ slot }) => slot)).toEqual([2]);
+    expect(store.placementStatus).toEqual({ 1: "empty", 2: "placed", 3: "empty", 4: "empty" });
+    expect(store.isSlotSelected(0)).toBe(false);
+  });
+
+  it("drops only the slot's own selection on a changed commit", () => {
+    const store = placedStore();
+    store.setSelectedSlots([0, 2]);
+    store.setTestPhrase(2, "");
+    expect([...store.selectedSlots]).toEqual([0]);
+  });
+
+  it("does nothing on an unchanged commit, including one that differs only in spaces", () => {
+    const store = placedStore();
+    const { testPhrasePoints, placementStatus, selectedSlots } = store;
+    store.setTestPhrase(0, "the cat");
+    store.setTestPhrase(0, "  the   cat ");
+    expect(store.testPhrasePoints).toBe(testPhrasePoints);
+    expect(store.placementStatus).toBe(placementStatus);
+    expect(store.selectedSlots).toBe(selectedSlots);
+  });
+
+  it("ignores a slot outside 0 to 4", () => {
+    const store = PluginStore.create();
+    store.setTestPhrase(5, "the cat");
+    store.setTestPhrase(-1, "the cat");
+    expect(store.testPhrases).toEqual(["", "", "", "", ""]);
+  });
+
+  it("replaces every slot's placement from one reply", () => {
+    const store = placedStore();
+    store.setTestPhrasePoints([point(2)], { 0: "no-words", 1: "empty", 2: "placed", 3: "empty", 4: "empty" });
+    expect(store.testPhrasePoints).toEqual([point(2)]);
+    expect(store.placementStatus[0]).toBe("no-words");
+  });
+
+  it("lists the placed slots, leaving out the one being edited", () => {
+    const store = placedStore();
+    expect([...store.placedSlots]).toEqual([0, 2]);
+    store.setEditingSlot(2);
+    expect([...store.placedSlots]).toEqual([0]);
+    // The point is kept, so an unchanged commit brings it back
+    expect(store.testPhrasePoints).toHaveLength(2);
+    store.setEditingSlot(undefined);
+    expect([...store.placedSlots]).toEqual([0, 2]);
+  });
+
+  it("matches slot selection by slot", () => {
+    const store = placedStore();
+    expect(store.isSlotSelected(0)).toBe(true);
+    expect(store.isSlotSelected(2)).toBe(false);
+    store.setSelectedSlots([2]);
+    expect(store.isSlotSelected(0)).toBe(false);
+    expect(store.isSlotSelected(2)).toBe(true);
+  });
+
+  it("gives each slot its symbol, in order", () => {
+    const store = PluginStore.create();
+    expect([0, 1, 2, 3, 4].map(slot => store.symbolForSlot(slot)))
+      .toEqual(["square", "triangle", "diamond", "plus", "star"]);
+  });
+
+  it("drops placements and slot selection, but keeps the phrases, when a different table is selected", () => {
+    const store = placedStore();
+    store.setDataContext("Other");
+    expect(store.testPhrases).toEqual(["the cat", "", "a dog", "", ""]);
+    expect(store.testPhrasePoints).toEqual([]);
+    expect(store.placementStatus).toEqual({});
+    expect(store.selectedSlots.size).toBe(0);
+  });
+
+  it("drops placements and slot selection, but keeps the phrases, when the Phrase Column is cleared", () => {
+    const store = placedStore();
+    store.setPhraseAttribute(undefined);
+    expect(store.testPhrases).toEqual(["the cat", "", "a dog", "", ""]);
+    expect(store.testPhrasePoints).toEqual([]);
+    expect(store.placementStatus).toEqual({});
+    expect(store.selectedSlots.size).toBe(0);
+  });
+
+  it("keeps placements when the same table, another Phrase Column or a Label Column is chosen", () => {
+    const store = placedStore();
+    store.setDataContext("Phrases");
+    store.setPhraseAttribute("notes");
+    store.setLabelAttribute(undefined);
+    expect(store.testPhrasePoints).toHaveLength(2);
+    expect(store.isSlotSelected(0)).toBe(true);
   });
 });
