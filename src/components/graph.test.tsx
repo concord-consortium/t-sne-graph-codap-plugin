@@ -57,6 +57,7 @@ describe("Graph", () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+    delete (globalThis as ResizeGlobal).ResizeObserver;
   });
 
   describe("drawing", () => {
@@ -544,7 +545,6 @@ describe("Graph", () => {
         act(() => resize?.([{ contentRect: { width: 600, height: 200 } }]));
         // The plot is a 200px square, so case 3 is at (100, 100)
         expect(symbolPoint("Square: the cat")).toHaveAttribute("transform", "translate(118 100)");
-        delete (globalThis as ResizeGlobal).ResizeObserver;
       });
 
       it("hides the symbol of a slot being edited", () => {
