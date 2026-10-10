@@ -607,6 +607,40 @@ describe("startGraphController test-phrase placement", () => {
     consoleError.mockRestore();
   });
 
+  it("unselects a selected slot that a new layout leaves with no point", () => {
+    store.setTestPhrase(0, "the cat");
+    store.setTestPhrase(1, "a dog");
+    stop = startGraphController(store);
+    finishLayout();
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), placement(0), "empty", "empty", "empty"]);
+    store.setSelectedSlots([0, 1]);
+
+    // A new layout in which slot 0's phrase has no words
+    store.setCases(kCases.slice(1));
+    expect(store.isSlotSelected(0)).toBe(true);
+    finishLayout();
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest, ["no-words", placement(0), "empty", "empty", "empty"]);
+    expect(Array.from(store.selectedSlots)).toEqual([1]);
+
+    // Placed again later, it is not selected
+    store.setCases(kCases);
+    finishLayout();
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), placement(0), "empty", "empty", "empty"]);
+    expect(store.isSlotSelected(0)).toBe(false);
+    expect(store.isSlotSelected(1)).toBe(true);
+  });
+
+  it("leaves the slot selection alone when every selected slot is placed", () => {
+    store.setTestPhrase(0, "the cat");
+    stop = startGraphController(store);
+    finishLayout();
+    store.setSelectedSlots([0]);
+    const selected = store.selectedSlots;
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), "empty", "empty", "empty", "empty"]);
+    // The same Set, so an in-progress selection read isn't disturbed
+    expect(store.selectedSlots).toBe(selected);
+  });
+
   it("gives no status to a slot the worker couldn't place", () => {
     store.setTestPhrase(0, "the cat");
     stop = startGraphController(store);

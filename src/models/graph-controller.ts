@@ -65,6 +65,10 @@ export const startGraphController = (store: IPluginStore) => {
       status[slot] = "placed";
     });
     store.setTestPhrasePoints(points, status);
+    // A slot left with no point can't stay selected, or it would come back selected later
+    const placedSlots = new Set(points.map(point => point.slot));
+    const stillSelected = Array.from(store.selectedSlots).filter(slot => placedSlots.has(slot));
+    if (stillSelected.length < store.selectedSlots.size) store.setSelectedSlots(stillSelected);
   };
 
   const compute = (retry = false) => {
