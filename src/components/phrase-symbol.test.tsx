@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { kPhraseSymbols, PhraseSymbol } from "../models/plugin-store";
 import {
-  kButtonSymbolBox, kButtonSymbolExtents, kPlotSymbolExtent, kTestPhraseColor, PhraseSymbolIcon, symbolPath
+  kButtonSymbolExtents, kPlotSymbolExtent, kTestPhraseColor, PhraseSymbolIcon, symbolPath
 } from "./phrase-symbol";
 
 // The [x, y] points of an "M x yL x y…Z" path
@@ -24,9 +24,9 @@ describe("symbolPath", () => {
       expect((top + bottom) / 2).toBeCloseTo(0, 2);
     });
 
-    it("fits its button box", () => {
+    it("fits the 24px symbol button", () => {
       const { left, right, top, bottom } = box(symbol, kButtonSymbolExtents[symbol]);
-      [left, right, top, bottom].forEach(value => expect(Math.abs(value)).toBeLessThanOrEqual(kButtonSymbolBox / 2));
+      [left, right, top, bottom].forEach(value => expect(Math.abs(value)).toBeLessThanOrEqual(12));
     });
   });
 
@@ -55,6 +55,15 @@ describe("symbolPath", () => {
     expect(xs).toContain(-2.5);
   });
 
+  it.each([
+    ["square", 10.6, 10.6], ["triangle", 16.2, 14], ["diamond", 15, 15], ["plus", 14.3, 14.3], ["star", 17.58, 16.72]
+  ] as const)("draws the %s at the spec's %f × %f in the button", (symbol, width, height) => {
+    const { left, right, top, bottom } = box(symbol, kButtonSymbolExtents[symbol]);
+    expect(right - left).toBeCloseTo(width, 2);
+    // The triangle's 14 is the spec's rounding of an equilateral 14.03
+    expect(bottom - top).toBeCloseTo(height, symbol === "triangle" ? 1 : 2);
+  });
+
   it("draws a five-point star, point up", () => {
     const star = points(symbolPath("star", 16));
     expect(star).toHaveLength(10);
@@ -74,7 +83,7 @@ describe("PhraseSymbolIcon", () => {
     expect(svg).toHaveAttribute("data-symbol", "star");
     expect(svg).toHaveClass("symbol");
     const path = screen.getByTestId("phrase-symbol-path");
-    expect(path).toHaveAttribute("d", symbolPath("star", 16));
+    expect(path).toHaveAttribute("d", symbolPath("star", kButtonSymbolExtents.star));
     expect(path).toHaveAttribute("fill", kTestPhraseColor);
   });
 

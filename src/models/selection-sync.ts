@@ -4,8 +4,8 @@ import {
 } from "@concord-consortium/codap-plugin-api";
 import { IPluginStore } from "./plugin-store";
 
-// CODAP owns the selection: the plugin reads it and asks CODAP to change it, never changing the
-// store's copy itself.
+// CODAP owns the case selection: the plugin reads it and asks CODAP to change it, never changing
+// the store's copy itself. Test phrases are the plugin's own (selectTestPhrase).
 
 interface ISelectionItem {
   caseID: number | string;
@@ -72,3 +72,14 @@ export const selectPoint = (store: IPluginStore, caseId: string, extend: boolean
 
 /** Parent-case selections are cleared too. */
 export const clearCodapSelection = (store: IPluginStore) => selectInCodap(store, []);
+
+/** Test phrases aren't CODAP cases, so the plugin owns their selection and sets it at once. A plain
+ * select replaces everything: the slot alone, and no cases. `extend` adds the slot. */
+export const selectTestPhrase = async (store: IPluginStore, slot: number, extend = false) => {
+  if (extend) {
+    store.setSelectedSlots([...store.selectedSlots, slot]);
+    return;
+  }
+  store.setSelectedSlots([slot]);
+  await clearCodapSelection(store);
+};

@@ -1,0 +1,203 @@
+@use "sass:color";
+@use "../styles/variables" as *;
+
+@function dimmed($color) {
+  @return color.change($color, $alpha: $disabled-opacity);
+}
+
+.test-phrases {
+  font-size: 14px;
+  padding-left: $test-phrase-column-padding;
+}
+
+// Lines up with the Key heading
+.test-phrases-heading {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 16px;
+  margin: 0 0 6px;
+}
+
+// Rows are 29px apart, like the Key's
+.test-phrases-list {
+  display: flex;
+  flex-direction: column;
+  gap: $key-entry-gap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.test-phrase-row {
+  align-items: center;
+  display: flex;
+  gap: $test-phrase-field-gap;
+  height: $key-entry-height;
+}
+
+// The Key entry's states. The focus border is an inset box-shadow, so the symbol doesn't shift.
+.test-phrase-symbol {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: $key-entry-radius;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  height: $test-phrase-symbol-button-size;
+  justify-content: center;
+  outline: none;
+  padding: 0;
+  width: $test-phrase-symbol-button-size;
+
+  // Pressed overrides hover; focus adds its border
+  &[data-hovered] {
+    background-color: $key-entry-fill-hover;
+  }
+  &[data-pressed] {
+    background-color: $key-entry-fill-pressed;
+  }
+  &[data-focus-visible] {
+    background-color: $key-entry-fill-hover;
+    box-shadow: inset 0 0 0 2px $focus-color;
+  }
+
+  // No point to select: no hover or press fill; the focus border stays, since it stays in the Tab order
+  &[aria-disabled="true"] {
+    background: none;
+    cursor: default;
+
+    &[data-focus-visible] {
+      background-color: white;
+    }
+  }
+
+  // The rings reach 4px outside the symbol's 16px box
+  svg {
+    overflow: visible;
+  }
+}
+
+// Strokes centered on the symbol's edge: the outline reaches 1px outside, the ring 3px, the edge 4px.
+// Miter joins keep the corners sharp, so a ring has its symbol's shape.
+.symbol-outline,
+.symbol-selection-ring,
+.symbol-selection-edge {
+  fill: none;
+  stroke-linejoin: miter;
+  stroke-miterlimit: 4;
+}
+
+.symbol-outline {
+  stroke: $dot-outline-color;
+  stroke-width: 2px;
+}
+
+.symbol-selection-ring,
+.symbol-selection-edge {
+  stroke: none;
+}
+
+// Hover previews the ring at half strength; selected and pressed show it in full
+.test-phrase-symbol[data-hovered]:not([aria-disabled="true"]) .symbol-selection-ring {
+  stroke: color.change($selection-ring-color, $alpha: 0.5);
+  stroke-width: 6px;
+}
+.test-phrase-symbol[data-pressed]:not([aria-disabled="true"]),
+.test-phrase-symbol[aria-pressed="true"] {
+  .symbol-selection-ring {
+    stroke: $selection-ring-color;
+    stroke-width: 6px;
+  }
+  .symbol-selection-edge {
+    stroke: $dot-outline-color;
+    stroke-width: 8px;
+  }
+}
+
+// 35% while the slot has no point; full color once it does, and while it is edited
+.test-phrase-symbol:not([data-placed]) svg {
+  opacity: $disabled-opacity;
+}
+
+// Borders are inset box-shadows, so the 2px focus border doesn't shift the text
+.test-phrase-input {
+  background-color: white;
+  border: none;
+  border-radius: $test-phrase-field-radius;
+  box-shadow: inset 0 0 0 1px $test-phrase-field-border;
+  box-sizing: border-box;
+  color: $text-color;
+  font: inherit;
+  height: $key-entry-height;
+  outline: none;
+  padding: 0 6px;
+  // The body turns off text selection; the field needs it
+  user-select: text;
+  width: $test-phrase-field-width;
+
+  &::placeholder {
+    color: $test-phrase-placeholder-color;
+    opacity: 1;
+  }
+
+  // Focus comes after hover, so a focused field stays white
+  &[data-hovered] {
+    background-color: $test-phrase-field-fill-hover;
+  }
+  &[data-focused] {
+    background-color: white;
+    box-shadow: inset 0 0 0 2px $focus-color;
+  }
+}
+
+// Disabled fields stay focusable, so each color is dimmed rather than using `opacity`, which would
+// also dim the focus border
+.test-phrase-row[data-disabled] {
+  .test-phrase-symbol svg {
+    opacity: $disabled-opacity;
+  }
+
+  .test-phrase-input {
+    background-color: dimmed(white);
+    box-shadow: inset 0 0 0 1px dimmed($test-phrase-field-border);
+    color: dimmed($text-color);
+    cursor: default;
+
+    &::placeholder {
+      color: dimmed($test-phrase-placeholder-color);
+    }
+
+    &[data-focused] {
+      box-shadow: inset 0 0 0 2px $focus-color;
+    }
+  }
+}
+
+// Forced colors drop box-shadows and replace colors, hiding the borders and the focus border
+@media (forced-colors: active) {
+  // The symbol's color and rings identify it
+  .test-phrase-symbol svg {
+    forced-color-adjust: none;
+  }
+
+  .test-phrase-symbol[data-focus-visible] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .test-phrase-input {
+    border: 1px solid CanvasText;
+
+    &[data-focused] {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+  }
+
+  .test-phrase-row[data-disabled] .test-phrase-input {
+    border-color: GrayText;
+    color: GrayText;
+  }
+}

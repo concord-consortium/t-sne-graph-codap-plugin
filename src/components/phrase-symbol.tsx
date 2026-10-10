@@ -3,10 +3,11 @@ import { PhraseSymbol } from "../models/plugin-store";
 
 export const kTestPhraseColor = "#2e007f";
 
-// Each shape's width or height, whichever is larger, in px. Read from the spec at 1×.
+// Each shape's width or height, whichever is larger, in px, from the spec's measurements. The
+// triangle (16.2 × 14) and the star (17.58 × 16.72) are a little wider than the box; it doesn't clip.
 export const kButtonSymbolBox = 16;
 export const kButtonSymbolExtents: Record<PhraseSymbol, number> = {
-  square: 11, triangle: 14, diamond: 14, plus: 14, star: 16
+  square: 10.6, triangle: 16.2, diamond: 15, plus: 14.3, star: 17.58
 };
 // The spec's plot square fills a dot's 12px, so every plot shape does
 export const kPlotSymbolExtent = 12;
@@ -66,15 +67,21 @@ interface IPhraseSymbolIconProps {
   className?: string;
 }
 
-/** The symbol in a 16px box, as next to a test-phrase field. Decorative: the control names it. */
+/** The symbol in a 16px box, as next to a test-phrase field. Decorative: the control names it.
+ * Behind the fill, the same path is stroked for the outline and the selection ring and edge: a
+ * centered stroke reaches half its width outside, so each follows the symbol's shape. CSS sets
+ * their strokes by state. */
 export const PhraseSymbolIcon = ({ symbol, className }: IPhraseSymbolIconProps) => {
   const half = kButtonSymbolBox / 2;
+  const path = symbolPath(symbol, kButtonSymbolExtents[symbol]);
   return (
     <svg className={className} width={kButtonSymbolBox} height={kButtonSymbolBox}
       viewBox={`${-half} ${-half} ${kButtonSymbolBox} ${kButtonSymbolBox}`} aria-hidden="true"
       data-symbol={symbol} data-testid="phrase-symbol">
-      <path d={symbolPath(symbol, kButtonSymbolExtents[symbol])} fill={kTestPhraseColor}
-        data-testid="phrase-symbol-path" />
+      <path className="symbol-selection-edge" d={path} />
+      <path className="symbol-selection-ring" d={path} />
+      <path className="symbol-outline" d={path} />
+      <path className="symbol-fill" d={path} fill={kTestPhraseColor} data-testid="phrase-symbol-path" />
     </svg>
   );
 };

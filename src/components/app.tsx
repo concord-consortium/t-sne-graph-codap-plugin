@@ -4,6 +4,7 @@ import { StoreProvider } from "../models/store-context";
 import { DataSourceSelector } from "./data-source-selector";
 import { Graph } from "./graph";
 import { Key } from "./key";
+import { TestPhrases } from "./test-phrases";
 import "./app.scss";
 
 interface IProps {
@@ -20,12 +21,13 @@ export const App = ({ store }: IProps) => (
         <div className="controls-header">
           <DataSourceSelector />
         </div>
-        {/* The Key, and an empty right column for Test Phrases */}
         <div className="lower-panel">
           <div className="lower-panel-left">
             <Key />
           </div>
-          <div className="lower-panel-right" />
+          <div className="lower-panel-right">
+            <TestPhrases />
+          </div>
         </div>
       </div>
     </div>

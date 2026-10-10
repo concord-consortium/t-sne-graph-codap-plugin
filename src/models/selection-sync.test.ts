@@ -1,7 +1,7 @@
 import * as codapApi from "@concord-consortium/codap-plugin-api";
 import { ClientHandler, IResult } from "@concord-consortium/codap-plugin-api";
 import { CaseInfo, IPluginStore, PluginStore } from "./plugin-store";
-import { clearCodapSelection, selectInCodap, selectPoint, startSelectionSync } from "./selection-sync";
+import { clearCodapSelection, selectInCodap, selectPoint, selectTestPhrase, startSelectionSync } from "./selection-sync";
 
 jest.mock("@concord-consortium/codap-plugin-api", () => ({
   addCasesToSelection: jest.fn(),
@@ -273,6 +273,25 @@ describe("selection-sync", () => {
       store.setSelectedCaseIds(["100"]);
       await selectPoint(store, "100", true);
       expect(api.selectCases).toHaveBeenCalledWith("Phrases", []);
+    });
+  });
+
+  describe("selecting a test phrase", () => {
+    it("selects only that slot at once, then clears CODAP's selection", () => {
+      store.setSelectedSlots([1, 3]);
+      const done = selectTestPhrase(store, 2);
+      // Before CODAP answers
+      expect(Array.from(store.selectedSlots)).toEqual([2]);
+      expect(api.selectCases).toHaveBeenCalledWith("Phrases", []);
+      return done;
+    });
+
+    it("adds the slot when extending, without asking CODAP", async () => {
+      store.setSelectedSlots([1]);
+      await selectTestPhrase(store, 3, true);
+      expect(Array.from(store.selectedSlots)).toEqual([1, 3]);
+      expect(api.selectCases).not.toHaveBeenCalled();
+      expect(api.addCasesToSelection).not.toHaveBeenCalled();
     });
   });
 });

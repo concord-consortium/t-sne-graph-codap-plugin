@@ -46,3 +46,13 @@ $key-entry-radius: 4px;
 $key-entry-fill-hover: #d3f4ff;
 $key-entry-fill-pressed: #bfefff;
 $key-dot-size: 12px;
+
+// Test Phrases rows line up with the Key rows; the 184px field ends at the column's right edge
+$test-phrase-column-padding: 12px;
+$test-phrase-symbol-button-size: 24px;
+$test-phrase-field-gap: 2px;
+$test-phrase-field-width: 184px;
+$test-phrase-field-radius: 4px;
+$test-phrase-field-border: #006c8e;
+$test-phrase-field-fill-hover: #d3f4ff;
+$test-phrase-placeholder-color: #767676;
