@@ -48,6 +48,9 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
+    // Enter and Escape that confirm or cancel an input method's text belong to it.
+    // Safari sends the confirming Enter after the composition ends, marked only by keyCode 229.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === "Enter") {
       commit(draft ?? committed);
       // Shows the phrase as stored; focus stays in the field

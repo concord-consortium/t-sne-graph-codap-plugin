@@ -1,5 +1,5 @@
 import React from "react";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CaseInfo, IPluginStore, PluginStore, TestPhrasePoint } from "../models/plugin-store";
 import { selectTestPhrase } from "../models/selection-sync";
@@ -114,6 +114,25 @@ describe("TestPhrases", () => {
       expect(store.testPhrases[1]).toBe("a dog");
       expect(field(1)).toHaveFocus();
       expect(field(1)).toHaveValue("a dog");
+    });
+
+    it("leaves Enter and Escape to an input method that is composing text", async () => {
+      store = placedStore();
+      renderTestPhrases(store);
+      await userEvent.click(field(0));
+      await userEvent.keyboard("{Control>}a{/Control}にほん");
+      // Confirming the input method's text, in most browsers and in Safari
+      fireEvent.keyDown(field(0), { key: "Enter", isComposing: true });
+      fireEvent.keyDown(field(0), { key: "Enter", keyCode: 229 });
+      expect(store.testPhrases[0]).toBe("the cat");
+      expect(store.editingSlot).toBe(0);
+      // Canceling it
+      fireEvent.keyDown(field(0), { key: "Escape", isComposing: true });
+      expect(field(0)).toHaveFocus();
+      expect(field(0)).toHaveValue("にほん");
+      // A plain Enter still commits
+      await userEvent.keyboard("{Enter}");
+      expect(store.testPhrases[0]).toBe("にほん");
     });
 
     it("reverts the draft on Escape and leaves the field", async () => {
