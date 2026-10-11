@@ -10,7 +10,7 @@ import { CaseInfo, IPluginStore, PluginStore } from "./plugin-store";
 // Each test supplies a fake worker
 jest.mock("../tsne/create-tsne-worker", () => ({ createTsneWorker: jest.fn() }));
 
-// Records requests, layout and place apart; tests send its replies
+// Records layout and place requests separately; tests send its replies
 class FakeWorker {
   onmessage: ((event: MessageEvent<WorkerResponse>) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
@@ -33,7 +33,6 @@ class FakeWorker {
   reply(response: WorkerResponse) {
     this.onmessage?.({ data: response } as MessageEvent<WorkerResponse>);
   }
-  // Answers a place request with the given slots
   replyPlaced(request: IPlaceRequest, slots: SlotPlacement[]) {
     const { placementId, layoutRequestId } = request;
     const response: IPlacedResponse = { type: "placed", placementId, layoutRequestId, slots };
@@ -536,10 +535,9 @@ describe("startGraphController test-phrase placement", () => {
     store.setCases(kCases.map((c, i) => i === 1 ? { ...c, values: { ...c.values, phrase: "a dog slept" } } : c));
     expect(store.testPhrasePoints).toEqual([]);
     expect(store.placementStatus).toEqual({});
-    // No layout yet, so no placement, even for an edit
+    // No layout yet: an edit sends nothing
     store.setTestPhrase(1, "a bird");
     expect(lastWorker().placeRequests).toHaveLength(1);
-    // A late reply for the old layout is ignored
     lastWorker().replyPlaced(oldPlace, [placement(3), "empty", "empty", "empty", "empty"]);
     expect(store.testPhrasePoints).toEqual([]);
 
@@ -550,7 +548,6 @@ describe("startGraphController test-phrase placement", () => {
     expect(newPlace.phrases).toEqual(["the cat", "a bird", null, null, null]);
     lastWorker().replyPlaced(newPlace, [placement(3), placement(0), "empty", "empty", "empty"]);
     expect(store.testPhrasePoints.map(point => point.slot)).toEqual([0, 1]);
-    // The slot selection outlives the new layout
     expect(store.isSlotSelected(0)).toBe(true);
   });
 
@@ -593,7 +590,7 @@ describe("startGraphController test-phrase placement", () => {
     lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), "empty", "empty", "empty", "empty"]);
     const failed = lastWorker();
     failed.fail("crashed");
-    // The points go with the layout; an edit waits for the new layout
+    // An edit waits for the new layout
     expect(store.testPhrasePoints).toEqual([]);
     store.setTestPhrase(1, "a dog");
     expect(failed.placeRequests).toHaveLength(1);
@@ -622,7 +619,6 @@ describe("startGraphController test-phrase placement", () => {
     lastWorker().replyPlaced(lastWorker().lastPlaceRequest, ["no-words", placement(0), "empty", "empty", "empty"]);
     expect(Array.from(store.selectedSlots)).toEqual([1]);
 
-    // Placed again later, it is not selected
     store.setCases(kCases);
     finishLayout();
     lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), placement(0), "empty", "empty", "empty"]);
@@ -647,8 +643,7 @@ describe("startGraphController test-phrase placement", () => {
       consoleError.mockRestore();
     });
 
-    // A later layout (new phrases, so it always runs) places slot 0 again; it must not come back
-    // selected
+    // New phrases, so a layout always runs
     const placeAgain = () => {
       store.setCases([...kCases, { caseId: "5", values: { phrase: "a frog hopped" } }]);
       finishLayout();
@@ -680,7 +675,7 @@ describe("startGraphController test-phrase placement", () => {
 
     it("when the replacement worker fails too", () => {
       lastWorker().fail("crashed");
-      // The retry is a normal new layout, so the selection waits for its reply
+      // The retry keeps it until its reply
       expect(store.isSlotSelected(0)).toBe(true);
       lastWorker().fail("crashed");
       expect(store.selectedSlots.size).toBe(0);
@@ -703,7 +698,7 @@ describe("startGraphController test-phrase placement", () => {
     store.setSelectedSlots([0]);
     const selected = store.selectedSlots;
     lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), "empty", "empty", "empty", "empty"]);
-    // The same Set, so an in-progress selection read isn't disturbed
+    // Same Set: an in-progress selection read isn't disturbed
     expect(store.selectedSlots).toBe(selected);
   });
 

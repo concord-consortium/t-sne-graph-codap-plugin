@@ -81,7 +81,7 @@ describe("TestPhrases", () => {
     it("lets a long paste replace a full phrase, keeping the part that fits", async () => {
       store.setTestPhrase(0, "a".repeat(255));
       renderTestPhrases(store);
-      // Tab into the field, which selects its text
+      // Tabbing in selects the text
       await userEvent.tab();
       await userEvent.tab();
       expect(field(0)).toHaveFocus();
@@ -141,16 +141,15 @@ describe("TestPhrases", () => {
       renderTestPhrases(store);
       await userEvent.click(field(0));
       await userEvent.keyboard("{Control>}a{/Control}にほん");
-      // Confirming the input method's text, in most browsers and in Safari
+      // IME confirm: most browsers, then Safari
       fireEvent.keyDown(field(0), { key: "Enter", isComposing: true });
       fireEvent.keyDown(field(0), { key: "Enter", keyCode: 229 });
       expect(store.testPhrases[0]).toBe("the cat");
       expect(store.editingSlot).toBe(0);
-      // Canceling it
+      // IME cancel
       fireEvent.keyDown(field(0), { key: "Escape", isComposing: true });
       expect(field(0)).toHaveFocus();
       expect(field(0)).toHaveValue("にほん");
-      // A plain Enter still commits
       await userEvent.keyboard("{Enter}");
       expect(store.testPhrases[0]).toBe("にほん");
     });
@@ -347,7 +346,7 @@ describe("TestPhrases", () => {
     it("has no description for other slots", () => {
       renderTestPhrases(store);
       expect(field(0)).not.toHaveAccessibleDescription();
-      // React Aria sets an empty title to hide the browser's validation tooltip
+      // React Aria sets title="" to hide validation tooltips
       expect(field(0).getAttribute("title") ?? "").toBe("");
     });
   });

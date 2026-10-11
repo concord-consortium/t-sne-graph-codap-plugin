@@ -4,10 +4,9 @@ import {
 } from "@concord-consortium/codap-plugin-api";
 import { IPluginStore } from "./plugin-store";
 
-// CODAP owns the case selection: the plugin reads it and asks CODAP to change it, never changing
-// the store's copy itself. The plugin owns the test-phrase (slot) selection and sets it at once,
-// when the action happens. CODAP's notices carry no origin, so the plugin never tries to recognize
-// its own; a notice only ever clears slots, and only when a later action must have replaced them.
+// CODAP owns the case selection; the store only mirrors it. The plugin owns the test-phrase (slot)
+// selection and sets it as the action happens. Notices carry no origin, so one only clears slots,
+// and only when a later action must have replaced them.
 
 interface ISelectionItem {
   caseID: number | string;
@@ -26,11 +25,11 @@ export const startSelectionSync = (store: IPluginStore) => {
   // Replies to older reads are ignored
   let selectionRequest = 0;
 
-  // `replacing`: the read follows a notice of a selection that replaced the old one
+  // `replacing`: after a non-extending notice
   const refreshSelection = async (replacing = false) => {
     const request = ++selectionRequest;
-    // Slots the plugin selects while the read is in progress are a later action; the read mustn't
-    // clear them. setSelectedSlots always stores a new Set, so comparing the Sets is enough.
+    // Slots selected during the read are a later action, so keep them. setSelectedSlots always
+    // stores a new Set.
     const slotsAtStart = store.selectedSlots;
     const dataContextName = store.dataContextName;
     if (!dataContextName) {
@@ -43,7 +42,7 @@ export const startSelectionSync = (store: IPluginStore) => {
       if (!result.success) throw new Error(String(result.values?.error ?? "request failed"));
       const caseIds = (result.values as ISelectionItem[]).map(item => String(item.caseID));
       store.setSelectedCaseIds(caseIds);
-      // A non-empty replacement came after any slot select, whose own clear leaves CODAP empty
+      // A slot select leaves CODAP empty, so a non-empty replacement came after it
       if (replacing && caseIds.length > 0 && store.selectedSlots === slotsAtStart) store.setSelectedSlots([]);
     } catch (error) {
       console.error("Unable to get the selection of", dataContextName, errorMessage(error));
@@ -72,8 +71,8 @@ const requestCodapSelection = async (store: IPluginStore, caseIds: string[], ext
   }
 };
 
-/** Adds to the selection when `extend` is true. Otherwise the cases replace everything, so the
- * test phrases are unselected at once. The cases follow CODAP's notice. */
+/** Adds to the selection when `extend` is true; otherwise replaces it, test phrases included. The
+ * store's cases follow CODAP's notice. */
 export const selectInCodap = (store: IPluginStore, caseIds: string[], extend = false) => {
   if (!extend) store.setSelectedSlots([]);
   return requestCodapSelection(store, caseIds, extend);
@@ -91,11 +90,10 @@ export const selectPoint = (store: IPluginStore, caseId: string, extend: boolean
   return selectInCodap(store, others);
 };
 
-/** Test phrases too, and parent-case selections. */
+/** Test phrases and parent cases too. */
 export const clearCodapSelection = (store: IPluginStore) => selectInCodap(store, []);
 
-/** A plain select replaces everything: the slot alone, and no cases. `extend` adds the slot and
- * leaves CODAP alone. */
+/** Plain: this slot alone, no cases. `extend` adds the slot without asking CODAP. */
 export const selectTestPhrase = async (store: IPluginStore, slot: number, extend = false) => {
   if (extend) {
     store.setSelectedSlots([...store.selectedSlots, slot]);

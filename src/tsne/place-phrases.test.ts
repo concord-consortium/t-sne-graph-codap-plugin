@@ -4,7 +4,7 @@ import { fitTfidf, ITfidfModel } from "./tfidf";
 
 const phrases = ["the cat sat", "a dog ran", "red apples fall", "the cat ran"];
 
-// Far-apart raw positions, so each row's placement is easy to tell apart
+// Far apart, so placements are easy to tell apart
 const solution = [[-100, 0], [0, 100], [100, 0], [0, -100]];
 
 const makeLayout = (tablePhrases: string[], raw: number[][]): IPlacementLayout => {
@@ -52,7 +52,7 @@ describe("placePhrase", () => {
       if (placement === "no-words") throw new Error("expected a placement");
       expect(placement.neighborIndex).toBe(i);
       const [x, y] = toRaw(placement);
-      // Well inside 5 standard deviations per axis
+      // Within 5 standard deviations
       expect(Math.abs(x - solution[i][0])).toBeLessThan(5 * kJitterStandardDeviation);
       expect(Math.abs(y - solution[i][1])).toBeLessThan(5 * kJitterStandardDeviation);
     });
@@ -64,7 +64,7 @@ describe("placePhrase", () => {
   });
 
   it("never places beside a row with no words, even for a weak match", () => {
-    // Rows 0 and 2 have no word of 2+ characters, so their vectors are all zeros
+    // Rows 0 and 2 have no 2+ character word: zero vectors
     const table = makeLayout(["a b", "green tea and lemon cake", "x", "lemon pie"], solution);
     expect(table.matrix[0].every(value => value === 0)).toBe(true);
     expect(table.matrix[2].every(value => value === 0)).toBe(true);
@@ -122,7 +122,7 @@ describe("placePhrase", () => {
   });
 
   it("maps through the layout's transform to the unit square", () => {
-    // A single-row table whose layout is one point: the transform sends everything to the center
+    // One point: the transform maps everything to the center
     const model: ITfidfModel = { vocabulary: new Map([["cat", 0]]), idf: [1] };
     const single: IPlacementLayout =
       { model, matrix: [[1]], solution: [[5, 5]], transform: fitLayout([[5, 5]]).transform };

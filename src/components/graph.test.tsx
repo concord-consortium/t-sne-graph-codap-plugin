@@ -477,17 +477,17 @@ describe("Graph", () => {
     const symbolPoints = () => screen.queryAllByTestId("test-phrase-point");
     const symbolPoint = (name: string) => screen.getByRole("button", { name });
 
-    // On a 300 × 300 plot: case 3 is at (150, 150), case 1 at the bottom-left corner (12, 288)
+    // 300 × 300: case 3 at (150, 150), case 1 at (12, 288)
     beforeEach(() => {
       store.setTestPhrase(0, "the cat");
       store.setTestPhrase(2, "a bird");
       store.setTestPhrase(4, "a fish");
       store.setTestPhrasePoints([
-        // On top of its neighbor, pushed along +x
+        // On its neighbor
         testPoint(0, 0.5, 0.5, "3"),
         // Far from its neighbor
         testPoint(2, 0.25, 0.75, "3"),
-        // On the corner point, pushed outward, so the push flips inward
+        // On the corner point, pushed outward, so it flips inward
         testPoint(4, 0, 0, "1", -1, 0)
       ], { 0: "placed", 1: "empty", 2: "placed", 3: "empty", 4: "placed" });
     });
@@ -562,7 +562,6 @@ describe("Graph", () => {
         expect(diamond).toHaveAttribute("aria-pressed", "true");
         expect(symbolPoint("Square: the cat")).toHaveAttribute("aria-pressed", "false");
         const path = within(diamond).getByTestId("symbol").getAttribute("d");
-        // Stroked paths of the symbol: the ring reaches 3px outside, the edge 4px
         expect(within(diamond).getByTestId("selection-ring")).toHaveAttribute("d", path);
         expect(within(diamond).getByTestId("selection-ring")).toHaveStyle({ strokeWidth: "6" });
         expect(within(diamond).getByTestId("selection-edge")).toHaveStyle({ strokeWidth: "8" });

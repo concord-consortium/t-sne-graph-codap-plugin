@@ -33,7 +33,7 @@ export interface ILayoutTransform {
   offsetY: number;
 }
 
-// Keeps a test phrase's symbol beside its neighbor's dot instead of on it
+// Enough that no plot symbol covers its neighbor's dot
 export const kMinNeighborOffsetPx = 18;
 
 /** Unit length; +x for a zero vector. */
@@ -49,7 +49,7 @@ export const applyTransform = (transform: ILayoutTransform, [x, y]: readonly num
 };
 
 /** Fits the layout into the unit square with one scale for both axes, centering the shorter
- * side. Coincident points go to the center. Also returns the transform, for placing new points. */
+ * side. Coincident points go to the center. Also returns the transform. */
 export const fitLayout = (solution: readonly (readonly number[])[]) => {
   // Not Math.min(...xs): spreading many points can exceed the engine's argument limit
   let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
@@ -87,8 +87,7 @@ export const paddedBounds = ({ width, height }: ISize, padding = kGraphPadding):
   return { left: topLeft.x, top: topLeft.y, right: bottomRight.x, bottom: bottomRight.y };
 };
 
-/** Converts a unit-square direction to a unit pixel direction: each axis is scaled as `toPixels`
- * scales it, and y is flipped. */
+/** Unit pixel direction for a unit-square one: each axis scaled as `toPixels` scales it, y flipped. */
 export const directionToPixels = ({ dx, dy }: IDirection, size: ISize, padding = kGraphPadding): IDirection => {
   const { left, top, right, bottom } = paddedBounds(size, padding);
   return unitDirection(dx * (right - left), -dy * (bottom - top));
@@ -99,9 +98,9 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const clampToBounds = ({ x, y }: IPosition, { left, top, right, bottom }: IBounds): IPosition =>
   ({ x: clamp(x, left, right), y: clamp(y, top, bottom) });
 
-/** Clamps the point into the bounds, then moves it to `kMinNeighborOffsetPx` from its neighbor
- * along `direction` (a unit pixel direction) if it is closer. A component that would leave the
- * bounds is flipped. Bounds under twice the minimum across can't hold it; the result is clamped. */
+/** Clamps the point into the bounds; if it is within `kMinNeighborOffsetPx` of its neighbor, moves
+ * it to that distance along `direction` (unit, in pixels), flipping any component that would leave
+ * the bounds. Bounds under twice the minimum across can't hold it. */
 export const offsetFromNeighbor = (
   neighbor: IPosition, point: IPosition, direction: IDirection, bounds: IBounds
 ): IPosition => {

@@ -65,8 +65,7 @@
     pointer-events: none;
   }
 
-  // Sharp ring corners for the square, diamond and plus, as the spec shows for the square. The
-  // triangle's and star's points are too sharp for that: mitered rings would reach far past them.
+  // Mitered rings would spike far past the triangle's and star's points
   .test-phrase-point path {
     stroke-linejoin: miter;
   }

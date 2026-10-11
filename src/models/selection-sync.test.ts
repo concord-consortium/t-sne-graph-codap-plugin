@@ -38,7 +38,7 @@ const selectListener = () => {
   expect(calls).toHaveLength(1);
   return calls[0][3] as unknown as ClientHandler;
 };
-// As CODAP v3 sends it; `extend` is true for addCasesToSelection and for shift-clicks in the table
+// `extend` is true for addCasesToSelection and table shift-clicks
 const notifySelect = (table: string, extend?: boolean) =>
   selectListener()({ action: "notify", resource: `dataContextChangeNotice[${table}]`,
     values: extend === undefined
@@ -422,9 +422,9 @@ describe("selection-sync", () => {
     });
 
     it("leaves a slot cleared by a later table click cleared after the slot select's echo", async () => {
-      // The plugin selects slot 3, which asks CODAP to clear
+      // Selecting slot 3 asks CODAP to clear
       await selectTestPhrase(store, 3);
-      // A table click lands before the echo of that clear arrives
+      // A table click lands before that clear's echo
       codapSelection = [leaf(102)];
       notifySelect("Phrases", false);
       await flush();
@@ -450,16 +450,16 @@ describe("selection-sync", () => {
     });
 
     it("keeps a slot selected while a replacing notice's read is in progress", async () => {
-      // A case click in the plot: its echo's read is slow, and holds the case
+      // A plot case click; its echo's read is slow
       const slow = deferred<IResult>();
       api.getSelectionList.mockImplementationOnce(() => slow.promise);
       notifySelect("Phrases", false);
-      // Before the read returns, the student selects a test phrase
+      // A test phrase is selected before the read returns
       await selectTestPhrase(store, 3);
       slow.resolve(ok([leaf(101)]));
       await flush();
       expect(slots()).toEqual([3]);
-      // The echo of the slot select's clear reads the empty selection
+      // The slot select's echo reads an empty selection
       codapSelection = [];
       notifySelect("Phrases", false);
       await flush();

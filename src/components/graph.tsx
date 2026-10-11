@@ -17,15 +17,13 @@ const kOutlineRadius = kPointRadius + 0.5;
 const kSelectionRingRadius = kPointRadius + 2;
 const kSelectionEdgeRadius = kPointRadius + 3.5;
 const kFocusRingRadius = kPointRadius + 5;
-// A test-phrase symbol's rings are its path stroked: a centered stroke reaches half its width
-// outside, so each ring keeps the symbol's shape at the dots' distances. Set inline, since the
-// dots' CSS widths would otherwise win.
+// Symbol rings are its path stroked; half of each width lands outside. Set inline, or the dots' CSS
+// widths win.
 const kSymbolOutlineWidth = 2;
 const kSymbolRingWidth = 6;
 const kSymbolEdgeWidth = 8;
 const kSymbolFocusOuterWidth = 12;
 
-// Roving-focus keys for both kinds of point
 const caseKey = (caseId: string) => `case:${caseId}`;
 const slotKey = (slot: number) => `slot:${slot}`;
 const slotFromKey = (key: string) => key.startsWith("slot:") ? Number(key.slice(5)) : undefined;
@@ -70,7 +68,7 @@ const PointMarks = ({ color, selected }: IPointMarksProps) => (
   </>
 );
 
-/** One Tab stop; the arrow keys move between points, case points first, then test phrases. */
+/** One Tab stop; arrow keys move through the case points, then the test phrases. */
 export const Graph = observer(() => {
   const store = useStore();
   const maskIdPrefix = useId();
@@ -85,7 +83,7 @@ export const Graph = observer(() => {
   const size = { width: side, height: side };
   const offset = { left: Math.floor((area.width - side) / 2), top: Math.floor((area.height - side) / 2) };
 
-  // Remembered while a recompute empties the plot, so focus can return to the same point
+  // Kept while a recompute empties the plot, so focus can return
   const [activeKey, setActiveKey] = useState<string>();
   const focusWithin = useRef(false);
   // Set when a recompute removed the focused point, until focus is back on a point
@@ -103,7 +101,6 @@ export const Graph = observer(() => {
     return ordered;
   }, [store.points, store.rows]);
   const phrases = useMemo(() => new Map(store.rows.map(row => [row.caseId, row.phrase])), [store.rows]);
-  // Placed and not being edited, in slot order
   const testPoints = useMemo(
     () => store.testPhrasePoints.filter(point => store.placedSlots.has(point.slot)).sort((a, b) => a.slot - b.slot),
     [store.testPhrasePoints, store.placedSlots]);
@@ -197,7 +194,6 @@ export const Graph = observer(() => {
     else pointRefs.current.delete(key);
   };
 
-  // Beside its neighbor's dot, never on it, and inside the padded area (plan §4.2 step 5)
   const neighborPoints = useMemo(() => new Map(store.points.map(point => [point.caseId, point])), [store.points]);
   const testPointPixels = (point: TestPhrasePoint): IPosition => {
     const pixels = toPixels(point, size);
@@ -302,7 +298,7 @@ export const Graph = observer(() => {
           const path = symbolPath(symbol, extent);
           const key = slotKey(point.slot);
           const maskId = `${maskIdPrefix}-focus-${point.slot}`;
-          // Covers the focus ring's reach, with a pixel to spare
+          // The focus ring's reach, plus 1px
           const maskSize = extent + kSymbolFocusOuterWidth + 2;
           const maskOrigin = -maskSize / 2;
           return (
@@ -328,8 +324,7 @@ export const Graph = observer(() => {
               <path className="dot-outline" data-testid="dot-outline" d={path}
                 style={{ strokeWidth: kSymbolOutlineWidth }} />
               <path className="symbol" data-testid="symbol" d={path} fill={kTestPhraseColor} />
-              {/* The focus ring is the band 4–6px outside the symbol: a wide stroke with the inner part
-                  masked away, so the gap shows what is behind */}
+              {/* Focus ring: the band 4–6px outside the symbol, a wide stroke with its inner part masked out */}
               <mask id={maskId} data-testid="focus-mask" maskUnits="userSpaceOnUse" x={maskOrigin} y={maskOrigin}
                 width={maskSize} height={maskSize}>
                 <path d={path} fill="white" stroke="white" strokeWidth={kSymbolFocusOuterWidth} />

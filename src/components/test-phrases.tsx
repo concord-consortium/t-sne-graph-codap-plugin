@@ -7,7 +7,7 @@ import { useStore } from "../models/store-context";
 import { PhraseSymbolIcon } from "./phrase-symbol";
 import "./test-phrases.scss";
 
-// Interim wording until design decides (plan §7)
+// TODO: interim wording until design decides
 export const kNoWordsText = "No words in common with the table's phrases";
 
 const symbolName = (symbol: PhraseSymbol) => symbol.charAt(0).toUpperCase() + symbol.slice(1);
@@ -16,17 +16,16 @@ interface ITestPhraseRowProps {
   slot: number;
 }
 
-/** The field keeps its own draft and commits it to the store on blur, Tab or Enter. While a slot
- * with a phrase is edited, its point is hidden. Escape reverts the draft. */
+/** Commits its draft on blur, Tab or Enter; Escape reverts. The slot's point hides while editing. */
 const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
   const store = useStore();
   const noWordsId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
-  // Undefined when not focused: the field shows the committed phrase
+  // Undefined when not focused: shows the committed phrase
   const [draft, setDraft] = useState<string>();
   // Set by Escape, so the blur it causes doesn't commit
   const reverting = useRef(false);
-  // A mouse focus selects the text; the mouse-up that follows would place the caret instead
+  // Stops the mouse-up after a focus from undoing the select-all
   const keepSelectionOnMouseUp = useRef(false);
 
   const committed = store.testPhrases[slot];
@@ -48,12 +47,12 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
   };
 
   const handleKeyDown = (event: KeyboardEvent) => {
-    // Enter and Escape that confirm or cancel an input method's text belong to it.
-    // Safari sends the confirming Enter after the composition ends, marked only by keyCode 229.
+    // Leave IME confirm/cancel keys alone. Safari's confirming Enter follows compositionend, marked only
+    // by keyCode 229.
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === "Enter") {
       commit(draft ?? committed);
-      // Shows the phrase as stored; focus stays in the field
+      // Show it as stored
       setDraft(store.testPhrases[slot]);
     } else if (event.key === "Escape") {
       reverting.current = true;
@@ -89,7 +88,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
         isReadOnly={isDisabled}
         value={draft ?? committed}
         onChange={text => {
-          // Not maxLength: it counts UTF-16 code units, so it can keep half of a flag emoji (🇺 of 🇺🇸)
+          // Not maxLength: it can keep half a flag emoji (🇺 of 🇺🇸)
           setDraft(fitEdit(draft ?? committed, text, kMaxTestPhraseLength));
           startEditing();
         }}
@@ -110,7 +109,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
         <Input
           ref={inputRef}
           className="test-phrase-input"
-          // On the input itself: TextField doesn't pass it on. Not isDisabled, so it stays in the Tab order.
+          // Here, since TextField drops it. Not isDisabled, which leaves the Tab order.
           aria-disabled={isDisabled || undefined}
           placeholder="Enter a phrase"
           title={hasNoWords ? kNoWordsText : undefined}
@@ -119,7 +118,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
             keepSelectionOnMouseUp.current = true;
           }}
           onMouseDown={event => {
-            // A click into a focused field places the caret as usual ("Select Again")
+            // A click in a focused field places the caret
             if (event.currentTarget === document.activeElement) keepSelectionOnMouseUp.current = false;
           }}
           onMouseUp={event => {
@@ -133,8 +132,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
   );
 });
 
-/** Five fields for the student's own phrases, each with a symbol button that selects its point.
- * The fields are disabled until a Phrase Column is chosen. */
+/** Five phrase fields, each with a symbol button that selects its point. */
 export const TestPhrases = () => {
   const headingId = useId();
   return (

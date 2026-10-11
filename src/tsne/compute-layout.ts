@@ -27,15 +27,15 @@ export type TsneResponse =
 
 export interface IPlaceRequest {
   type: "place";
-  // Both ids are echoed back, so stale replies can be ignored
+  // Echoed back with layoutRequestId, so stale replies can be ignored
   placementId: number;
   // The layout to place into; any other gets "no-layout"
   layoutRequestId: number;
-  // One per slot; null for an empty slot
+  // One per slot; null if empty
   phrases: (string | null)[];
 }
 
-// "error": placing this phrase threw; the other slots are unaffected
+// "error": placing this slot's phrase threw
 export type SlotPlacement = IPhrasePlacement | "empty" | "no-words" | "no-layout" | "error";
 
 export interface IPlacedResponse {
@@ -48,14 +48,13 @@ export interface IPlacedResponse {
 export type WorkerRequest = ITsneRequest | IPlaceRequest;
 export type WorkerResponse = TsneResponse | IPlacedResponse;
 
-/** What a finished layout keeps for placing phrases later. */
 export interface IRetainedLayout extends IPlacementLayout {
   requestId: number;
   seed: number;
 }
 
 /** Posts progress every `progressInterval` steps, then one final response. Synchronous.
- * Returns the finished layout, or undefined if there is none. */
+ * Returns the finished layout, if any. */
 export const computeLayout = (
   request: ITsneRequest, post: (response: TsneResponse) => void
 ): IRetainedLayout | undefined => {
@@ -80,7 +79,7 @@ export const computeLayout = (
         post({ type: "progress", requestId, step, positions: normalizeLayout(tsne.solution) });
       }
     }
-    // A copy, so the t-SNE object and its n × n arrays can be freed
+    // Copied so the t-SNE object and its n × n arrays can be freed
     const solution = tsne.solution.map(row => row.slice());
     const { positions, transform } = fitLayout(solution);
     post({ type: "done", requestId, positions });
@@ -91,14 +90,13 @@ export const computeLayout = (
   }
 };
 
-/** Places each slot's phrase into the layout, if the request is for that layout. */
 export const answerPlaceRequest = (request: IPlaceRequest, layout: IRetainedLayout | undefined): IPlacedResponse => {
   const { placementId, layoutRequestId, phrases } = request;
   const current = layout?.requestId === layoutRequestId ? layout : undefined;
   const slots = phrases.map((phrase, slot): SlotPlacement => {
     if (phrase === null) return "empty";
     if (!current) return "no-layout";
-    // An uncaught error would end the worker and take the plot with it
+    // Uncaught, it would end the worker
     try {
       return placePhrase(current, phrase, current.seed, slot);
     } catch (error) {
@@ -112,7 +110,7 @@ export const answerPlaceRequest = (request: IPlaceRequest, layout: IRetainedLayo
 export const isPlaceRequest = (request: WorkerRequest): request is IPlaceRequest =>
   "type" in request && request.type === "place";
 
-/** Handles the worker's messages, keeping the last finished layout for `place` requests. */
+/** Keeps the last finished layout for `place` requests. */
 export const createRequestHandler = () => {
   let layout: IRetainedLayout | undefined;
   return (request: WorkerRequest, post: (response: WorkerResponse) => void) => {
@@ -120,7 +118,7 @@ export const createRequestHandler = () => {
       post(answerPlaceRequest(request, layout));
       return;
     }
-    // A new layout replaces the old one, even if it fails (then it is undefined)
+    // Replaced even if the layout fails
     layout = computeLayout(request, post);
   };
 };

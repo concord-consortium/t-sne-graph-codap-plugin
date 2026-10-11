@@ -3,8 +3,7 @@ import { PhraseSymbol } from "../models/plugin-store";
 
 export const kTestPhraseColor = "#2e007f";
 
-// Each shape's width or height, whichever is larger, in px, from the spec's measurements. The
-// triangle (16.2 × 14) and the star (17.58 × 16.72) are a little wider than the box; it doesn't clip.
+// Larger side in px. The triangle and star overflow the box slightly; it doesn't clip.
 export const kButtonSymbolBox = 16;
 export const kButtonSymbolExtents: Record<PhraseSymbol, number> = {
   square: 10.6, triangle: 16.2, diamond: 15, plus: 14.3, star: 17.58
@@ -13,24 +12,24 @@ export const kPlotSymbolExtents: Record<PhraseSymbol, number> = {
   square: 13.3, triangle: 17.3, diamond: 18.8, plus: 17.8, star: 18.7
 };
 
-// Arm width over span, from the spec's 5 of 14px
+// Arm width / span
 const kPlusArmRatio = 5 / 14;
-// Inner over outer radius of a regular five-point star
+// Inner / outer radius of a regular star
 const kStarInnerRatio = Math.sin(Math.PI / 10) / Math.sin(3 * Math.PI / 10);
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
-// Closed path through the points, each [x, y], rounded so paths read cleanly in the DOM
+// Rounded for readable paths in the DOM
 const polygon = (points: number[][]) =>
   `M${points.map(([x, y]) => `${round(x)} ${round(y)}`).join("L")}Z`;
 
-// Centered on (0, 0); y grows downward, as in SVG
+// Centered on (0, 0); y points down
 const shapes: Record<PhraseSymbol, (extent: number) => number[][]> = {
   square: extent => {
     const h = extent / 2;
     return [[-h, -h], [h, -h], [h, h], [-h, h]];
   },
-  // Equilateral, pointing up, with its box centered
+  // Bounding box centered
   triangle: extent => {
     const h = extent / 2;
     const height = extent * Math.sqrt(3) / 2;
@@ -45,7 +44,7 @@ const shapes: Record<PhraseSymbol, (extent: number) => number[][]> = {
     const a = extent * kPlusArmRatio / 2;
     return [[-a, -h], [a, -h], [a, -a], [h, -a], [h, a], [a, a], [a, h], [-a, h], [-a, a], [-h, a], [-h, -a], [-a, -a]];
   },
-  // Point up; scaled so its width is the extent, then its box centered
+  // Width = extent; bounding box centered
   star: extent => {
     const outer = extent / (2 * Math.sin(2 * Math.PI / 5));
     const inner = outer * kStarInnerRatio;
@@ -60,7 +59,7 @@ const shapes: Record<PhraseSymbol, (extent: number) => number[][]> = {
   }
 };
 
-/** The symbol's SVG path, centered on (0, 0), at most `extent` wide and tall. */
+/** Centered on (0, 0); the larger side is `extent`. */
 export const symbolPath = (symbol: PhraseSymbol, extent: number) => polygon(shapes[symbol](extent));
 
 interface IPhraseSymbolIconProps {
@@ -68,10 +67,8 @@ interface IPhraseSymbolIconProps {
   className?: string;
 }
 
-/** The symbol in a 16px box, as next to a test-phrase field. Decorative: the control names it.
- * Behind the fill, the same path is stroked for the outline and the selection ring and edge: a
- * centered stroke reaches half its width outside, so each follows the symbol's shape. CSS sets
- * their strokes by state. */
+/** Decorative; its control names it. The outline and rings are the path stroked behind the fill,
+ * styled by state in CSS. */
 export const PhraseSymbolIcon = ({ symbol, className }: IPhraseSymbolIconProps) => {
   const half = kButtonSymbolBox / 2;
   const path = symbolPath(symbol, kButtonSymbolExtents[symbol]);

@@ -112,7 +112,6 @@ describe("computeLayout's retained layout", () => {
     expect(layout.matrix).toHaveLength(kPhrases.length);
     expect(layout.model.vocabulary.get("cat")).toEqual(expect.any(Number));
     expect(layout.solution).toHaveLength(kPhrases.length);
-    // The transform maps each raw point to the position that was posted
     const positions = finalPositions(responses);
     layout.solution.forEach((point, i) => expect(applyTransform(layout.transform, point)).toEqual(positions?.[i]));
   });

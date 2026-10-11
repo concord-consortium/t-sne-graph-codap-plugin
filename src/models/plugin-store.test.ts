@@ -470,7 +470,7 @@ describe("PluginStore test phrases", () => {
   });
 
   it("never cuts an emoji in half at the 255 cap, on load or on commit", () => {
-    // 254 units, then an emoji of 2: 256 in all
+    // 254 units + a 2-unit emoji
     const long = `${"a".repeat(254)}😀`;
     expect(PluginStore.create({ testPhrases: [long] }).testPhrases[0]).toBe("a".repeat(254));
     const store = PluginStore.create();
@@ -529,7 +529,7 @@ describe("PluginStore test phrases", () => {
     expect([...store.placedSlots]).toEqual([0, 2]);
     store.setEditingSlot(2);
     expect([...store.placedSlots]).toEqual([0]);
-    // The point is kept, so an unchanged commit brings it back
+    // Kept, so an unchanged commit shows it again
     expect(store.testPhrasePoints).toHaveLength(2);
     store.setEditingSlot(undefined);
     expect([...store.placedSlots]).toEqual([0, 2]);
@@ -579,8 +579,8 @@ describe("PluginStore test phrases", () => {
 });
 
 describe("truncateText", () => {
-  const kFamily = "👨‍👩‍👧";   // five parts joined, 8 units
-  const kFlag = "🇺🇸";      // two parts, 4 units
+  const kFamily = "👨‍👩‍👧";   // 8 units
+  const kFlag = "🇺🇸";      // 4 units
 
   it("leaves text that fits", () => {
     expect(truncateText("a cat", 255)).toBe("a cat");
@@ -635,7 +635,7 @@ describe("fitEdit", () => {
   });
 
   it("never keeps half of a flag emoji where the old and new text share its first half", () => {
-    // 🇺🇸 and 🇺🇦 share their first part; the paste replaces the US flag in "x🇺🇸"
+    // 🇺🇸 and 🇺🇦 share their first part
     expect(fitEdit("x🇺🇸", "x🇺🇦🇺🇦", 5)).toBe("x🇺🇦");
   });
 
@@ -644,12 +644,11 @@ describe("fitEdit", () => {
     expect(fitEdit("aaaae", "aaaae\u0301", 5)).toBe("aaaae");
     expect(fitEdit("aaa👍", "aaa👍🏽", 5)).toBe("aaa👍");
     expect(fitEdit("aaa🇺", "aaa🇺🇸", 5)).toBe("aaa🇺");
-    // In the middle too
     expect(fitEdit("aeaaa", "ae\u0301aaa", 5)).toBe("aeaaa");
   });
 
   it("can cut a little differently than maxLength where the paste ends like the old text", () => {
-    // The shared final "o" is taken as kept, so the paste is cut one character earlier
+    // The shared final "o" is kept, so the paste is cut one earlier
     expect(fitEdit("hello", "abcdefo", 5)).toBe("abcdo");
   });
 

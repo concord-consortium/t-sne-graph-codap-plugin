@@ -15,23 +15,22 @@ const layoutOrder = (rows: readonly Row[]) =>
 
 const prefersReducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 
-/** Lays out the rows in a worker when the phrases or seed change, then places the test phrases
- * into the finished layout, and again when they change. Returns a stop function. */
+/** Lays out the rows in a worker when the phrases or seed change, and places the test phrases in
+ * the result. Returns a stop function. */
 export const startGraphController = (store: IPluginStore) => {
   let worker: Worker | undefined;
   let busy = false;
   // Replies to older requests are ignored
   let currentRequest = 0;
   let currentPlacement = 0;
-  // The finished layout the worker holds; caseIds are in its phrase order
+  // The worker's finished layout; caseIds in its phrase order
   let doneLayout: { requestId: number, caseIds: string[] } | undefined;
-  // A failed worker is replaced once per layout request, so one that can't even load can't loop.
-  // Reset only by a new request, not by a finished layout.
+  // One replacement worker per layout request, reset only by a new request, so a repeating failure
+  // can't loop
   let retried = false;
 
-  // No placement reply will come to drop a selected slot, which would then come back selected when
-  // a later layout places it. Replaced only if non-empty, so a selection read in progress is
-  // otherwise undisturbed.
+  // No placement reply will drop a stale slot selection, so drop it here. Only if non-empty:
+  // replacing the Set disturbs an in-progress selection read.
   const endWithoutPlacement = (status: "idle" | "too-few" | "error") => {
     store.setComputeStatus(status);
     if (store.selectedSlots.size > 0) store.setSelectedSlots([]);
@@ -62,7 +61,7 @@ export const startGraphController = (store: IPluginStore) => {
     const points: TestPhrasePoint[] = [];
     const status: Record<number, PlacementStatus> = {};
     response.slots.forEach((placement, slot) => {
-      // No status: still waiting, or the worker couldn't place it
+      // No status: waiting or failed
       if (placement === "no-layout" || placement === "error") return;
       if (placement === "empty" || placement === "no-words") {
         status[slot] = placement;
@@ -73,7 +72,7 @@ export const startGraphController = (store: IPluginStore) => {
       status[slot] = "placed";
     });
     store.setTestPhrasePoints(points, status);
-    // A slot left with no point can't stay selected, or it would come back selected later
+    // Unselect slots left without a point, or they'd come back selected later
     const placedSlots = new Set(points.map(point => point.slot));
     const stillSelected = Array.from(store.selectedSlots).filter(slot => placedSlots.has(slot));
     if (stillSelected.length < store.selectedSlots.size) store.setSelectedSlots(stillSelected);
@@ -116,17 +115,16 @@ export const startGraphController = (store: IPluginStore) => {
         return;
       }
       newWorker.onerror = event => {
-        // E.g. the script failed to load, or the worker crashed
         console.error("The t-SNE worker failed:", event.message);
         if (newWorker !== worker) return;
         stopWorker();
         if (retried) {
-          // No layout is left to place into or to show
+          // Nothing left to show or place into
           store.setPoints([]);
           store.setTestPhrasePoints([], {});
           endWithoutPlacement("error");
         } else {
-          // Same rows and seed, so the same picture; the test phrases are placed again after it
+          // Same rows and seed: same picture
           retried = true;
           compute(true);
         }
@@ -181,7 +179,7 @@ export const startGraphController = (store: IPluginStore) => {
     { equals: compareStructural, fireImmediately: true }
   );
 
-  // An unchanged commit leaves the phrases equal, so it sends nothing
+  // By value: an unchanged commit sends nothing
   const stopPlacementReaction = reaction(() => store.testPhrases.slice(), place, { equals: compareStructural });
 
   return () => {
