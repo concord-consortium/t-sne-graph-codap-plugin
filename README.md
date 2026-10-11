@@ -8,7 +8,7 @@ The plugin reads the chosen Phrase Column from a CODAP table and turns each phra
 
 Each label in the Label Column gets a color in the order it first appears in the table: the four colors from the design spec, then four placeholder colors, then a generated color for each further label, so labels get different colors (up to 424 labels; past that, colors can repeat). Labels that differ only in capitalization or spacing count as one label, and rows with an empty label (or no Label Column) are gray "Unlabeled". Clicking a point or a Key label selects the matching cases in CODAP, and selecting cases in CODAP selects their points.
 
-Students can add up to five phrases of their own in the Test Phrases fields. When a field loses focus, or on Return, the plugin turns the phrase into numbers with the same TF-IDF vocabulary as the table and finds the table phrase that is most like it. The phrase's symbol is drawn at least 18px from that phrase's dot, in a direction set by the saved seed, so it lands in the same place each time the document is opened; the rest of the plot doesn't change. A phrase that shares no words with the table gets no point, and its field says so to screen readers and in a tooltip. Test phrases are saved with the document but never added to the CODAP table, so selecting one selects only its point.
+Students can add up to five phrases of their own in the Test Phrases fields. When a field loses focus, or on Return, the plugin turns the phrase into numbers with the same TF-IDF vocabulary as the table and finds the table phrase that is most like it. The phrase's symbol is drawn 18px from that phrase's dot, in a direction set by the saved seed, so it lands in the same place each time the document is opened; the rest of the plot doesn't change. If another dot, or an earlier test phrase's symbol, is in the way, the symbol moves around the dot to the nearest place that is at least 18px from everything else. A phrase that shares no words with the table gets no point, and its field says so to screen readers and in a tooltip. Test phrases are saved with the document but never added to the CODAP table, so selecting one selects only its point.
 
 ## Deployment
 
@@ -26,7 +26,7 @@ S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. Se
 
 ### Known limitations
 - A selected test phrase stays selected when the selection is cleared from another CODAP component, such as a graph. CODAP's selection notices don't say where a change came from, so the plugin can't tell that clear from its own. Clicking empty space in the plot, a Key label, a point or a table row clears it.
-- A test phrase's symbol is kept clear of its own nearest phrase's dot, but it can cover another dot nearby.
+- In a crowded area, where no place 18px from the nearest phrase's dot is clear of every other dot, a test phrase's symbol goes to the place with the most room and can touch another dot.
 - Changing a dropdown or a test phrase doesn't mark the CODAP document as changed, so on its own it doesn't trigger CODAP's autosave or its unsaved-changes warning. The change is saved with the document's next save. CODAP v3 doesn't yet let a plugin mark the document as changed.
 
 ### Testing

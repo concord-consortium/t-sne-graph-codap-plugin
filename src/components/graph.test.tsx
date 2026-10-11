@@ -476,6 +476,10 @@ describe("Graph", () => {
       ({ slot, x, y, neighborCaseId, direction: { dx, dy } });
     const symbolPoints = () => screen.queryAllByTestId("test-phrase-point");
     const symbolPoint = (name: string) => screen.getByRole("button", { name });
+    const symbolCenter = (name: string) => {
+      const [, x, y] = /translate\(([\d.]+) ([\d.]+)\)/.exec(symbolPoint(name).getAttribute("transform") ?? "") ?? [];
+      return { x: Number(x), y: Number(y) };
+    };
 
     // 300 × 300: case 3 at (150, 150), case 1 at (12, 288)
     beforeEach(() => {
@@ -524,15 +528,39 @@ describe("Graph", () => {
         expect(symbolPoint("Diamond: a bird")).toHaveAttribute("transform", "translate(81 81)");
       });
 
-      it("flips the push inward at the plot's edge", () => {
+      it("takes the ring point nearest its direction that is inside the plot", () => {
+        // Pushed outward from the bottom-left corner: straight up is the first inside
         renderGraph(store);
-        expect(symbolPoint("Star: a fish")).toHaveAttribute("transform", "translate(30 288)");
+        const { x, y } = symbolCenter("Star: a fish");
+        expect(x).toBeCloseTo(12, 6);
+        expect(y).toBeCloseTo(270, 6);
       });
 
       it("clamps a symbol placed past the edge into the padded area", () => {
-        store.setTestPhrasePoints([testPoint(2, 1.2, -0.1, "3")], { 2: "placed" });
+        store.setTestPhrasePoints([testPoint(2, 1.2, 0.5, "3")], { 2: "placed" });
         renderGraph(store);
-        expect(symbolPoint("Diamond: a bird")).toHaveAttribute("transform", "translate(288 288)");
+        expect(symbolPoint("Diamond: a bird")).toHaveAttribute("transform", "translate(288 150)");
+      });
+
+      it("keeps a symbol clear of another phrase's dot", () => {
+        // Placed on case 4, far from its neighbor, case 3
+        store.setTestPhrasePoints([testPoint(2, 1, 0, "3")], { 2: "placed" });
+        renderGraph(store);
+        const { x, y } = symbolCenter("Diamond: a bird");
+        expect(Math.hypot(x - 288, y - 288)).toBeGreaterThanOrEqual(18 - 1e-6);
+        expect(Math.hypot(x - 150, y - 150)).toBeCloseTo(18, 6);
+      });
+
+      it("keeps a higher slot's symbol clear of a lower slot's", () => {
+        // Both on case 3, pushed the same way
+        store.setTestPhrasePoints([testPoint(0, 0.5, 0.5, "3"), testPoint(2, 0.5, 0.5, "3")],
+          { 0: "placed", 2: "placed" });
+        renderGraph(store);
+        const square = symbolCenter("Square: the cat");
+        const diamond = symbolCenter("Diamond: a bird");
+        expect(square).toEqual({ x: 168, y: 150 });
+        expect(Math.hypot(diamond.x - square.x, diamond.y - square.y)).toBeGreaterThanOrEqual(18 - 1e-6);
+        expect(Math.hypot(diamond.x - 150, diamond.y - 150)).toBeCloseTo(18, 6);
       });
 
       it("keeps the 18px push when the plot is resized", () => {

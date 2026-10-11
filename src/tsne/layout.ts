@@ -33,8 +33,13 @@ export interface ILayoutTransform {
   offsetY: number;
 }
 
-// Enough that no plot symbol covers its neighbor's dot
+// Enough that no plot symbol covers a dot: the ring radius around the neighbor, and the clearance
+// from every other dot
 export const kMinNeighborOffsetPx = 18;
+// Points on that ring, 15° apart
+export const kOffsetCandidates = 24;
+// So float error in cos and sin can't push a ring point off an edge, or under the minimum
+const kTolerance = 1e-9;
 
 /** Unit length; +x for a zero vector. */
 export const unitDirection = (dx: number, dy: number): IDirection => {
@@ -98,15 +103,56 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const clampToBounds = ({ x, y }: IPosition, { left, top, right, bottom }: IBounds): IPosition =>
   ({ x: clamp(x, left, right), y: clamp(y, top, bottom) });
 
-/** Clamps the point into the bounds; if it is within `kMinNeighborOffsetPx` of its neighbor, moves
- * it to that distance along `direction` (unit, in pixels), flipping any component that would leave
- * the bounds. Bounds under twice the minimum across can't hold it. */
+const distance = (a: IPosition, b: IPosition) => Math.hypot(a.x - b.x, a.y - b.y);
+
+const isInBounds = ({ x, y }: IPosition, { left, top, right, bottom }: IBounds) =>
+  x >= left - kTolerance && x <= right + kTolerance && y >= top - kTolerance && y <= bottom + kTolerance;
+
+// Stops at the first dot that is too close
+const isClear = (point: IPosition, others: readonly IPosition[]) =>
+  others.every(other => distance(point, other) >= kMinNeighborOffsetPx - kTolerance);
+
+const clearance = (point: IPosition, others: readonly IPosition[]) =>
+  others.reduce((nearest, other) => Math.min(nearest, distance(point, other)), Infinity);
+
+// The ring around the neighbor inside the bounds, nearest `direction` first: 0°, +15°, −15°, …, 180°
+const ringCandidates = (neighbor: IPosition, direction: IDirection, bounds: IBounds) => {
+  const start = Math.atan2(direction.dy, direction.dx);
+  const step = 2 * Math.PI / kOffsetCandidates;
+  const candidates: IPosition[] = [];
+  for (let i = 0; i < kOffsetCandidates; i++) {
+    const turns = i % 2 === 1 ? (i + 1) / 2 : -i / 2;
+    const angle = start + turns * step;
+    const candidate = {
+      x: neighbor.x + kMinNeighborOffsetPx * Math.cos(angle),
+      y: neighbor.y + kMinNeighborOffsetPx * Math.sin(angle)
+    };
+    if (isInBounds(candidate, bounds)) candidates.push(clampToBounds(candidate, bounds));
+  }
+  return candidates;
+};
+
+/** Clamps the point into the bounds. If it is within `kMinNeighborOffsetPx` of its neighbor or of
+ * any of `others`, moves it to the first point on the ring around the neighbor, nearest `direction`
+ * (unit, in pixels), that clears every other dot; in a crowded area, to the one with the most
+ * clearance. Bounds under twice the minimum across can't hold the ring. */
 export const offsetFromNeighbor = (
-  neighbor: IPosition, point: IPosition, direction: IDirection, bounds: IBounds
+  neighbor: IPosition, point: IPosition, direction: IDirection, bounds: IBounds,
+  others: readonly IPosition[] = []
 ): IPosition => {
   const clamped = clampToBounds(point, bounds);
-  if (Math.hypot(clamped.x - neighbor.x, clamped.y - neighbor.y) >= kMinNeighborOffsetPx) return clamped;
+  if (distance(clamped, neighbor) >= kMinNeighborOffsetPx && isClear(clamped, others)) return clamped;
 
+  const candidates = ringCandidates(neighbor, direction, bounds);
+  const firstClear = candidates.find(candidate => isClear(candidate, others));
+  if (firstClear) return firstClear;
+  if (candidates.length > 0) {
+    // Crowded: the most clearance, the earliest on a tie
+    return candidates.reduce((best, candidate) =>
+      clearance(candidate, others) > clearance(best, others) ? candidate : best);
+  }
+
+  // A tiny plot: no candidate is inside
   const outside = (value: number, min: number, max: number) => value < min || value > max;
   const x = neighbor.x + kMinNeighborOffsetPx * direction.dx;
   const y = neighbor.y + kMinNeighborOffsetPx * direction.dy;

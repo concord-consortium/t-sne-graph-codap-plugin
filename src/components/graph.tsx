@@ -194,17 +194,25 @@ export const Graph = observer(() => {
     else pointRefs.current.delete(key);
   };
 
-  const neighborPoints = useMemo(() => new Map(store.points.map(point => [point.caseId, point])), [store.points]);
-  const testPointPixels = (point: TestPhrasePoint): IPosition => {
-    const pixels = toPixels(point, size);
-    const neighbor = neighborPoints.get(point.neighborCaseId);
+  // In slot order: each symbol keeps clear of every dot and of the lower slots' symbols
+  const testPointPixels = useMemo(() => {
     const bounds = paddedBounds(size);
-    if (!neighbor) {
-      return { x: Math.min(bounds.right, Math.max(bounds.left, pixels.x)),
-        y: Math.min(bounds.bottom, Math.max(bounds.top, pixels.y)) };
-    }
-    return offsetFromNeighbor(toPixels(neighbor, size), pixels, directionToPixels(point.direction, size), bounds);
-  };
+    const casePixels = store.points.map(point => ({ caseId: point.caseId, ...toPixels(point, size) }));
+    const placed = new Map<number, IPosition>();
+    testPoints.forEach((point: TestPhrasePoint) => {
+      const pixels = toPixels(point, size);
+      const neighbor = casePixels.find(({ caseId }) => caseId === point.neighborCaseId);
+      if (!neighbor) {
+        placed.set(point.slot, { x: Math.min(bounds.right, Math.max(bounds.left, pixels.x)),
+          y: Math.min(bounds.bottom, Math.max(bounds.top, pixels.y)) });
+        return;
+      }
+      const others = [...casePixels.filter(({ caseId }) => caseId !== point.neighborCaseId), ...placed.values()];
+      placed.set(point.slot,
+        offsetFromNeighbor(neighbor, pixels, directionToPixels(point.direction, size), bounds, others));
+    });
+    return placed;
+  }, [store.points, testPoints, size]);
 
   // A test phrase is drawn after the case points, so only a case point needs drawing again on top
   const activePoint = activeExists ? points.find(point => caseKey(point.caseId) === activeKey) : undefined;
@@ -291,7 +299,7 @@ export const Graph = observer(() => {
           </g>
         )}
         {testPoints.map(point => {
-          const { x, y } = testPointPixels(point);
+          const { x, y } = testPointPixels.get(point.slot) ?? { x: 0, y: 0 };
           const selected = store.isSlotSelected(point.slot);
           const symbol = store.symbolForSlot(point.slot);
           const extent = kPlotSymbolExtents[symbol];

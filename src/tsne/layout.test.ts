@@ -1,6 +1,6 @@
 import {
-  applyTransform, directionToPixels, fitLayout, kGraphPadding, kMinNeighborOffsetPx, normalizeLayout,
-  offsetFromNeighbor, paddedBounds, toPixels, unitDirection
+  applyTransform, directionToPixels, fitLayout, kGraphPadding, kMinNeighborOffsetPx, kOffsetCandidates,
+  normalizeLayout, offsetFromNeighbor, paddedBounds, toPixels, unitDirection
 } from "./layout";
 
 describe("normalizeLayout", () => {
@@ -171,7 +171,7 @@ describe("offsetFromNeighbor", () => {
         expect(result).toEqual({ x: bounds.right, y: bounds.top });
       });
 
-      it("flips the direction inward near each edge and corner", () => {
+      it("stays inside, 18px from the neighbor, near each edge and corner", () => {
         const corners = [
           { x: bounds.left + 2, y: bounds.top + 2 }, { x: bounds.right - 2, y: bounds.top + 2 },
           { x: bounds.left + 2, y: bounds.bottom - 2 }, { x: bounds.right - 2, y: bounds.bottom - 2 }
@@ -189,11 +189,13 @@ describe("offsetFromNeighbor", () => {
         }));
       });
 
-      it("flips only the component that would leave the area", () => {
+      it("takes the ring point nearest the direction that is inside the area", () => {
+        // Down and to the right of a neighbor 3px from the right edge: straight down (+45°) is the
+        // first inside
         const neighbor = { x: bounds.right - 3, y: center.y };
         const result = offsetFromNeighbor(neighbor, neighbor, diagonal, bounds);
-        expect(result.x).toBeCloseTo(neighbor.x - kMinNeighborOffsetPx * Math.SQRT1_2, 12);
-        expect(result.y).toBeCloseTo(neighbor.y + kMinNeighborOffsetPx * Math.SQRT1_2, 12);
+        expect(result.x).toBeCloseTo(neighbor.x, 9);
+        expect(result.y).toBeCloseTo(neighbor.y + kMinNeighborOffsetPx, 9);
       });
     });
   });
@@ -202,5 +204,106 @@ describe("offsetFromNeighbor", () => {
     const bounds = { left: 0, top: 0, right: 8, bottom: 8 };
     const result = offsetFromNeighbor({ x: 4, y: 4 }, { x: 4, y: 4 }, right, bounds);
     expect(inside(result, bounds)).toBe(true);
+  });
+
+  describe("keeping clear of other dots", () => {
+    const bounds = paddedBounds({ width: 300, height: 300 });
+    const neighbor = { x: 150, y: 150 };
+    // The ring point `degrees` from +x (y down, so positive turns clockwise on screen)
+    const ring = (degrees: number) => ({
+      x: neighbor.x + kMinNeighborOffsetPx * Math.cos(degrees * Math.PI / 180),
+      y: neighbor.y + kMinNeighborOffsetPx * Math.sin(degrees * Math.PI / 180)
+    });
+    // The result's angle around the neighbor, in degrees
+    const angleOf = ({ x, y }: { x: number, y: number }) =>
+      Math.atan2(y - neighbor.y, x - neighbor.x) * 180 / Math.PI;
+    const nearestOther = (point: { x: number, y: number }, others: { x: number, y: number }[]) =>
+      Math.min(...others.map(other => distance(point, other)));
+
+    it("has 24 ring points, 15° apart", () => {
+      expect(kOffsetCandidates).toBe(24);
+    });
+
+    it("moves along the direction when no other dot is near, as before", () => {
+      const far = [{ x: 30, y: 30 }, { x: 270, y: 270 }];
+      expect(angleOf(offsetFromNeighbor(neighbor, neighbor, right, bounds, far))).toBeCloseTo(0, 6);
+    });
+
+    it("turns away from a dot on the direction, to the first ring point 18px clear of it", () => {
+      const others = [ring(0)];
+      const result = offsetFromNeighbor(neighbor, neighbor, right, bounds, others);
+      // Ring points are 18px apart at 60°; +60° is visited before −60°
+      expect(angleOf(result)).toBeCloseTo(60, 6);
+      expect(distance(result, neighbor)).toBeCloseTo(kMinNeighborOffsetPx, 9);
+      expect(nearestOther(result, others)).toBeGreaterThanOrEqual(kMinNeighborOffsetPx - 1e-9);
+    });
+
+    it("prefers the clear ring point nearest the direction, on either side", () => {
+      // A dot at +15°: −45° (60° from it) comes before +75°
+      expect(angleOf(offsetFromNeighbor(neighbor, neighbor, right, bounds, [ring(15)]))).toBeCloseTo(-45, 6);
+    });
+
+    it("takes the one free ring point when dots sit on all the others", () => {
+      const others = Array.from({ length: kOffsetCandidates }, (_value, i) => ring(i * 15))
+        .filter((_point, i) => i !== 7);
+      // Its neighbors on the ring are 4.7px away, so it isn't clear, but it has the most room
+      expect(angleOf(offsetFromNeighbor(neighbor, neighbor, right, bounds, others))).toBeCloseTo(105, 6);
+    });
+
+    it("takes the ring point with the most clearance when none is clear", () => {
+      // Dots 6px outside every ring point, except 12px outside at 120°
+      const others = Array.from({ length: kOffsetCandidates }, (_value, i) => {
+        const degrees = i * 15;
+        const radius = kMinNeighborOffsetPx + (degrees === 120 ? 12 : 6);
+        return { x: neighbor.x + radius * Math.cos(degrees * Math.PI / 180),
+          y: neighbor.y + radius * Math.sin(degrees * Math.PI / 180) };
+      });
+      const result = offsetFromNeighbor(neighbor, neighbor, right, bounds, others);
+      expect(inside(result, bounds)).toBe(true);
+      expect(distance(result, neighbor)).toBeCloseTo(kMinNeighborOffsetPx, 9);
+      expect(angleOf(result)).toBeCloseTo(120, 6);
+    });
+
+    it("never picks a ring point outside the area near a corner", () => {
+      const corner = { x: bounds.left + 4, y: bounds.bottom - 4 };
+      const others = [{ x: corner.x + kMinNeighborOffsetPx, y: corner.y }];
+      const result = offsetFromNeighbor(corner, corner, { dx: -1, dy: 0 }, bounds, others);
+      expect(inside(result, bounds)).toBe(true);
+      expect(distance(result, corner)).toBeCloseTo(kMinNeighborOffsetPx, 9);
+      expect(nearestOther(result, others)).toBeGreaterThanOrEqual(kMinNeighborOffsetPx - 1e-9);
+    });
+
+    it("keeps a ring point on an edge, despite float error", () => {
+      // Straight up from a neighbor on the left edge: cos(270°) is a hair below 0
+      const onEdge = { x: bounds.left, y: bounds.bottom };
+      const result = offsetFromNeighbor(onEdge, onEdge, { dx: -1, dy: 0 }, bounds);
+      expect(result).toEqual({ x: bounds.left, y: bounds.bottom - kMinNeighborOffsetPx });
+    });
+
+    it("stays inside a plot too small for the ring, with other dots", () => {
+      const tiny = { left: 0, top: 0, right: 8, bottom: 8 };
+      const result = offsetFromNeighbor({ x: 4, y: 4 }, { x: 4, y: 4 }, right, tiny, [{ x: 6, y: 4 }]);
+      expect(inside(result, tiny)).toBe(true);
+    });
+
+    it("moves a point already far enough from its neighbor but on another dot", () => {
+      const point = ring(90);
+      const others = [{ x: point.x + 2, y: point.y }];
+      const result = offsetFromNeighbor(neighbor, point, right, bounds, others);
+      expect(nearestOther(result, others)).toBeGreaterThanOrEqual(kMinNeighborOffsetPx - 1e-9);
+      expect(distance(result, neighbor)).toBeCloseTo(kMinNeighborOffsetPx, 9);
+    });
+
+    it("leaves a point clear of its neighbor and every other dot", () => {
+      const point = { x: 200, y: 120 };
+      expect(offsetFromNeighbor(neighbor, point, right, bounds, [{ x: 30, y: 30 }])).toEqual(point);
+    });
+
+    it("keeps two test phrases with the same neighbor and direction apart", () => {
+      const first = offsetFromNeighbor(neighbor, neighbor, right, bounds);
+      const second = offsetFromNeighbor(neighbor, neighbor, right, bounds, [first]);
+      expect(distance(second, first)).toBeGreaterThanOrEqual(kMinNeighborOffsetPx - 1e-9);
+      expect(distance(second, neighbor)).toBeCloseTo(kMinNeighborOffsetPx, 9);
+    });
   });
 });
