@@ -120,7 +120,12 @@ export const fitEdit = (previous: string, next: string, max: number,
   }
   const room = Math.max(0, max - from - (next.length - to));
   const fitted = next.slice(0, from) + truncateText(next.slice(from, to), room, graphemes) + next.slice(to);
-  return truncateText(fitted, max, graphemes);
+  const result = truncateText(fitted, max, graphemes);
+  // Widening can reach into the old text: an accent pasted after an "e" joins it. If the cut then
+  // drops old text, refuse the edit instead, as maxLength refuses typing into a full field.
+  const sharedStart = previous.slice(0, start);
+  const sharedEnd = previous.slice(previous.length - (next.length - end));
+  return result.startsWith(sharedStart) && result.endsWith(sharedEnd) ? result : previous;
 };
 
 // "" always means no phrase

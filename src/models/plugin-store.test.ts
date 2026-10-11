@@ -639,12 +639,25 @@ describe("fitEdit", () => {
     expect(fitEdit("x🇺🇸", "x🇺🇦🇺🇦", 5)).toBe("x🇺🇦");
   });
 
+  it("refuses an edit that would join the last old character and can't fit, keeping that character", () => {
+    // A combining accent after "e", a skin tone after 👍, the second half of a flag after 🇺
+    expect(fitEdit("aaaae", "aaaae\u0301", 5)).toBe("aaaae");
+    expect(fitEdit("aaa👍", "aaa👍🏽", 5)).toBe("aaa👍");
+    expect(fitEdit("aaa🇺", "aaa🇺🇸", 5)).toBe("aaa🇺");
+    // In the middle too
+    expect(fitEdit("aeaaa", "ae\u0301aaa", 5)).toBe("aeaaa");
+  });
+
   it("can cut a little differently than maxLength where the paste ends like the old text", () => {
     // The shared final "o" is taken as kept, so the paste is cut one character earlier
     expect(fitEdit("hello", "abcdefo", 5)).toBe("abcdo");
   });
 
   describe("without Intl.Segmenter", () => {
+    it("refuses a combining accent that doesn't fit, keeping the old text", () => {
+      expect(fitEdit("aaaae", "aaaae\u0301", 5, null)).toBe("aaaae");
+    });
+
     it("still never cuts between the two units of one character", () => {
       expect(fitEdit("abc", "ab😀😀c", 4, null)).toBe("abc");
       expect(fitEdit("abc", "ab😀😀c", 5, null)).toBe("ab😀c");

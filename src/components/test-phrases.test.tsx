@@ -89,6 +89,15 @@ describe("TestPhrases", () => {
       expect(field(0)).toHaveValue("b".repeat(255));
     });
 
+    it("keeps the last letter when an accent pasted after it can't fit", async () => {
+      store.setTestPhrase(0, `${"a".repeat(254)}e`);
+      renderTestPhrases(store);
+      await userEvent.click(field(0));
+      await userEvent.keyboard("{End}");
+      await userEvent.paste("\u0301");
+      expect(field(0)).toHaveValue(`${"a".repeat(254)}e`);
+    });
+
     it("takes no more typing anywhere in a full field, as maxLength would", async () => {
       store.setTestPhrase(0, "a".repeat(255));
       renderTestPhrases(store);
