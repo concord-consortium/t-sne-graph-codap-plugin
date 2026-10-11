@@ -630,6 +630,72 @@ describe("startGraphController test-phrase placement", () => {
     expect(store.isSlotSelected(1)).toBe(true);
   });
 
+  describe("a layout that ends with no placement drops the slot selection", () => {
+    let consoleError: jest.SpyInstance;
+
+    // Slot 0 placed and selected
+    beforeEach(() => {
+      consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
+      store.setTestPhrase(0, "the cat");
+      stop = startGraphController(store);
+      finishLayout();
+      lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), "empty", "empty", "empty", "empty"]);
+      store.setSelectedSlots([0]);
+    });
+
+    afterEach(() => {
+      consoleError.mockRestore();
+    });
+
+    // A later layout (new phrases, so it always runs) places slot 0 again; it must not come back
+    // selected
+    const placeAgain = () => {
+      store.setCases([...kCases, { caseId: "5", values: { phrase: "a frog hopped" } }]);
+      finishLayout();
+      lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), "empty", "empty", "empty", "empty"]);
+      expect(store.testPhrasePoints).toHaveLength(1);
+      expect(store.isSlotSelected(0)).toBe(false);
+    };
+
+    it("when the table has no rows", () => {
+      store.setCases([]);
+      expect(store.computeStatus).toBe("idle");
+      expect(store.selectedSlots.size).toBe(0);
+      placeAgain();
+    });
+
+    it("when there are too few phrases", () => {
+      store.setCases(kCases.slice(1));
+      lastWorker().reply({ type: "too-few", requestId: lastWorker().lastRequest.requestId });
+      expect(store.selectedSlots.size).toBe(0);
+      placeAgain();
+    });
+
+    it("when the layout reports an error", () => {
+      store.setCases(kCases.slice(1));
+      lastWorker().reply({ type: "error", requestId: lastWorker().lastRequest.requestId, message: "bad data" });
+      expect(store.selectedSlots.size).toBe(0);
+      placeAgain();
+    });
+
+    it("when the replacement worker fails too", () => {
+      lastWorker().fail("crashed");
+      // The retry is a normal new layout, so the selection waits for its reply
+      expect(store.isSlotSelected(0)).toBe(true);
+      lastWorker().fail("crashed");
+      expect(store.selectedSlots.size).toBe(0);
+      placeAgain();
+    });
+
+    it("when the replacement worker can't be created", () => {
+      mockedCreateWorker.mockImplementationOnce(() => { throw new Error("Workers are blocked"); });
+      lastWorker().fail("crashed");
+      expect(store.computeStatus).toBe("error");
+      expect(store.selectedSlots.size).toBe(0);
+      placeAgain();
+    });
+  });
+
   it("leaves the slot selection alone when every selected slot is placed", () => {
     store.setTestPhrase(0, "the cat");
     stop = startGraphController(store);

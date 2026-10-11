@@ -29,6 +29,14 @@ export const startGraphController = (store: IPluginStore) => {
   // Reset only by a new request, not by a finished layout.
   let retried = false;
 
+  // No placement reply will come to drop a selected slot, which would then come back selected when
+  // a later layout places it. Replaced only if non-empty, so a selection read in progress is
+  // otherwise undisturbed.
+  const endWithoutPlacement = (status: "idle" | "too-few" | "error") => {
+    store.setComputeStatus(status);
+    if (store.selectedSlots.size > 0) store.setSelectedSlots([]);
+  };
+
   const stopWorker = () => {
     worker?.terminate();
     worker = undefined;
@@ -83,7 +91,7 @@ export const startGraphController = (store: IPluginStore) => {
 
     const rows = layoutOrder(store.rows);
     if (rows.length === 0) {
-      store.setComputeStatus("idle");
+      endWithoutPlacement("idle");
       return;
     }
     const seed = store.tsneSeed;
@@ -104,7 +112,7 @@ export const startGraphController = (store: IPluginStore) => {
       } catch (error) {
         // E.g. a policy that blocks workers. The next change retries.
         console.error("Unable to start the t-SNE worker:", error instanceof Error ? error.message : String(error));
-        store.setComputeStatus("error");
+        endWithoutPlacement("error");
         return;
       }
       newWorker.onerror = event => {
@@ -116,7 +124,7 @@ export const startGraphController = (store: IPluginStore) => {
           // No layout is left to place into or to show
           store.setPoints([]);
           store.setTestPhrasePoints([], {});
-          store.setComputeStatus("error");
+          endWithoutPlacement("error");
         } else {
           // Same rows and seed, so the same picture; the test phrases are placed again after it
           retried = true;
@@ -145,12 +153,12 @@ export const startGraphController = (store: IPluginStore) => {
           break;
         case "too-few":
           busy = false;
-          store.setComputeStatus("too-few");
+          endWithoutPlacement("too-few");
           break;
         case "error":
           busy = false;
           console.error("Unable to lay out the phrases:", response.message);
-          store.setComputeStatus("error");
+          endWithoutPlacement("error");
           break;
       }
     };
