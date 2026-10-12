@@ -194,12 +194,13 @@ export const Graph = observer(() => {
     else pointRefs.current.delete(key);
   };
 
-  // In slot order: each symbol keeps clear of every dot and of the lower slots' symbols
+  // In slot order: each symbol keeps clear of every dot and of the lower slots' symbols. Includes the
+  // hidden slot being edited, so the others don't move into its place meanwhile.
   const testPointPixels = useMemo(() => {
     const bounds = paddedBounds(size);
     const casePixels = store.points.map(point => ({ caseId: point.caseId, ...toPixels(point, size) }));
     const placed = new Map<number, IPosition>();
-    testPoints.forEach((point: TestPhrasePoint) => {
+    store.testPhrasePoints.slice().sort((a, b) => a.slot - b.slot).forEach((point: TestPhrasePoint) => {
       const pixels = toPixels(point, size);
       const neighbor = casePixels.find(({ caseId }) => caseId === point.neighborCaseId);
       if (!neighbor) {
@@ -212,7 +213,7 @@ export const Graph = observer(() => {
         offsetFromNeighbor(neighbor, pixels, directionToPixels(point.direction, size), bounds, others));
     });
     return placed;
-  }, [store.points, testPoints, size]);
+  }, [store.points, store.testPhrasePoints, size]);
 
   // A test phrase is drawn after the case points, so only a case point needs drawing again on top
   const activePoint = activeExists ? points.find(point => caseKey(point.caseId) === activeKey) : undefined;

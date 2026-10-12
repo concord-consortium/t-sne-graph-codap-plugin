@@ -551,6 +551,19 @@ describe("Graph", () => {
         expect(Math.hypot(x - 150, y - 150)).toBeCloseTo(18, 6);
       });
 
+      it("keeps a higher slot's symbol in place while a lower slot is hidden for editing", () => {
+        // Both on case 3, pushed the same way
+        store.setTestPhrasePoints([testPoint(0, 0.5, 0.5, "3"), testPoint(2, 0.5, 0.5, "3")],
+          { 0: "placed", 2: "placed" });
+        renderGraph(store);
+        const before = symbolCenter("Diamond: a bird");
+        act(() => store.setEditingSlot(0));
+        expect(pointNames()).not.toContain("Square: the cat");
+        expect(symbolCenter("Diamond: a bird")).toEqual(before);
+        act(() => store.setEditingSlot(undefined));
+        expect(symbolCenter("Diamond: a bird")).toEqual(before);
+      });
+
       it("keeps a higher slot's symbol clear of a lower slot's", () => {
         // Both on case 3, pushed the same way
         store.setTestPhrasePoints([testPoint(0, 0.5, 0.5, "3"), testPoint(2, 0.5, 0.5, "3")],
