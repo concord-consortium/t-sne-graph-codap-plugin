@@ -25,9 +25,6 @@ export const startGraphController = (store: IPluginStore) => {
   let currentPlacement = 0;
   // The worker's finished layout; caseIds in its phrase order
   let doneLayout: { requestId: number, caseIds: string[] } | undefined;
-  // One replacement worker per layout request, reset only by a new request, so a repeating failure
-  // can't loop
-  let retried = false;
 
   // No placement reply will drop a stale slot selection, so drop it here. Only if non-empty:
   // replacing the Set disturbs an in-progress selection read.
@@ -61,8 +58,8 @@ export const startGraphController = (store: IPluginStore) => {
     const points: TestPhrasePoint[] = [];
     const status: Record<number, PlacementStatus> = {};
     response.slots.forEach((placement, slot) => {
-      // No status: waiting or failed
-      if (placement === "no-layout" || placement === "error") return;
+      // "no-layout" gets no status: still waiting
+      if (placement === "no-layout") return;
       if (placement === "empty" || placement === "no-words") {
         status[slot] = placement;
         return;
@@ -78,8 +75,7 @@ export const startGraphController = (store: IPluginStore) => {
     if (stillSelected.length < store.selectedSlots.size) store.setSelectedSlots(stillSelected);
   };
 
-  const compute = (retry = false) => {
-    if (!retry) retried = false;
+  const compute = () => {
     const requestId = ++currentRequest;
     // Never show an old layout against new phrases
     store.setPoints([]);
@@ -115,19 +111,14 @@ export const startGraphController = (store: IPluginStore) => {
         return;
       }
       newWorker.onerror = event => {
+        // E.g. the script failed to load. A new worker is made next time.
         console.error("The t-SNE worker failed:", event.message);
         if (newWorker !== worker) return;
         stopWorker();
-        if (retried) {
-          // Nothing left to show or place into
-          store.setPoints([]);
-          store.setTestPhrasePoints([], {});
-          endWithoutPlacement("error");
-        } else {
-          // Same rows and seed: same picture
-          retried = true;
-          compute(true);
-        }
+        // Nothing left to show or place into
+        store.setPoints([]);
+        store.setTestPhrasePoints([], {});
+        endWithoutPlacement("error");
       };
       worker = newWorker;
     }
@@ -175,7 +166,7 @@ export const startGraphController = (store: IPluginStore) => {
   // Compared by value, so a label change starts no new layout
   const stopReaction = reaction(
     () => ({ phrases: layoutOrder(store.rows).map(row => [row.caseId, row.phrase]), seed: store.tsneSeed }),
-    () => compute(),
+    compute,
     { equals: compareStructural, fireImmediately: true }
   );
 

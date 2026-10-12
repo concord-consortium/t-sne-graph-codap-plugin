@@ -160,17 +160,6 @@ describe("answerPlaceRequest", () => {
     expect(slots).toEqual(["no-layout", "empty", "empty", "empty", "empty"]);
   });
 
-  it("answers error for a slot whose placement throws, and still places the others", () => {
-    if (!layout) throw new Error("expected a layout");
-    const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
-    // A model with no vocabulary makes vectorize throw
-    const broken = { ...layout, model: undefined as unknown as typeof layout.model };
-    const { slots } = answerPlaceRequest(placeRequest({ phrases: ["the cat sat", null, null, null, null] }), broken);
-    expect(slots).toEqual(["error", "empty", "empty", "empty", "empty"]);
-    expect(consoleError).toHaveBeenCalledWith("Unable to place a test phrase:", expect.any(String));
-    consoleError.mockRestore();
-  });
-
   it("answers no-layout when there is no layout", () => {
     expect(answerPlaceRequest(placeRequest({ phrases: ["the cat sat", null, null, null, null] }), undefined).slots)
       .toEqual(["no-layout", "empty", "empty", "empty", "empty"]);
