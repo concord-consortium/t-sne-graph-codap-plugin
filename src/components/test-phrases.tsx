@@ -1,7 +1,7 @@
 import React, { KeyboardEvent, useId, useRef, useState } from "react";
 import { Button, Input, TextField } from "react-aria-components";
 import { observer } from "mobx-react-lite";
-import { fitEdit, kMaxTestPhraseLength, kTestPhraseSlots, PhraseSymbol } from "../models/plugin-store";
+import { kMaxTestPhraseLength, kTestPhraseSlots, PhraseSymbol } from "../models/plugin-store";
 import { selectTestPhrase } from "../models/selection-sync";
 import { useStore } from "../models/store-context";
 import { PhraseSymbolIcon } from "./phrase-symbol";
@@ -86,10 +86,10 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
         aria-label={`Test phrase ${slot + 1}`}
         aria-describedby={hasNoWords ? noWordsId : undefined}
         isReadOnly={isDisabled}
+        maxLength={kMaxTestPhraseLength}
         value={draft ?? committed}
         onChange={text => {
-          // Not maxLength: it can keep half a flag emoji (🇺 of 🇺🇸)
-          setDraft(fitEdit(draft ?? committed, text, kMaxTestPhraseLength));
+          setDraft(text);
           startEditing();
         }}
         onFocus={() => {

@@ -59,81 +59,22 @@ export type PlacementStatus = "placed" | "no-words" | "empty";
 
 const emptyTestPhrases = () => new Array<string>(kTestPhraseSlots).fill("");
 
-// Splits graphemes; Firefox has it from 125
-const kGraphemes = typeof Intl.Segmenter === "function"
-  ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
-  : null;
-
-/** At most `max` UTF-16 code units, never splitting a character: an emoji, a flag (🇺🇸), a family
- * (👨‍👩‍👧). */
-export const truncateText = (text: string, max: number, graphemes: Intl.Segmenter | null = kGraphemes) => {
-  if (text.length <= max) return text;
-  if (graphemes) {
-    let end = 0;
-    for (const { index, segment } of graphemes.segment(text)) {
-      if (index + segment.length > max) break;
-      end = index + segment.length;
-    }
-    return text.slice(0, end);
-  }
-  // Fallback: don't split a surrogate pair
-  const last = text.charCodeAt(max - 1);
-  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max);
-};
-
-const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
-
-// Grapheme boundaries, 0 to text.length
-const characterBoundaries = (text: string, graphemes: Intl.Segmenter | null) => {
-  if (graphemes) return [...Array.from(graphemes.segment(text), ({ index }) => index), text.length];
-  const boundaries: number[] = [];
-  for (let i = 0; i <= text.length; i++) {
-    if (!isLowSurrogate(text.charCodeAt(i))) boundaries.push(i);
-  }
-  return boundaries;
-};
-
-/** Fits the edit within `max` like maxLength: only the inserted text is cut. The insertion is
- * inferred from the shared start and end, so a paste that repeats its neighbors can be cut slightly
- * differently. */
-export const fitEdit = (previous: string, next: string, max: number,
-  graphemes: Intl.Segmenter | null = kGraphemes) => {
-  if (next.length <= max) return next;
-  const shortest = Math.min(previous.length, next.length);
-  let start = 0;
-  while (start < shortest && previous[start] === next[start]) start++;
-  let end = next.length;
-  while (end > start && next.length - end < shortest - start &&
-    previous[previous.length - (next.length - end) - 1] === next[end - 1]) end--;
-  // Widen to whole characters
-  const boundaries = characterBoundaries(next, graphemes);
-  let from = 0;
-  let to = next.length;
-  for (const boundary of boundaries) {
-    if (boundary <= start) from = boundary;
-    if (boundary >= end) {
-      to = boundary;
-      break;
-    }
-  }
-  const room = Math.max(0, max - from - (next.length - to));
-  const fitted = next.slice(0, from) + truncateText(next.slice(from, to), room, graphemes) + next.slice(to);
-  const result = truncateText(fitted, max, graphemes);
-  // Widening can reach old text (an accent joins a preceding "e"); refuse an edit that would drop it
-  const sharedStart = previous.slice(0, start);
-  const sharedEnd = previous.slice(previous.length - (next.length - end));
-  return result.startsWith(sharedStart) && result.endsWith(sharedEnd) ? result : previous;
+// Never ends on the first half of a surrogate pair. Longer characters (flags, families) can still be
+// cut at the limit; it is only a sanity bound.
+const capPhrase = (text: string) => {
+  const last = text.charCodeAt(kMaxTestPhraseLength - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? kMaxTestPhraseLength - 1 : kMaxTestPhraseLength);
 };
 
 // "" always means no phrase
 export const normalizeTestPhrase = (text: string) =>
-  truncateText(text.trim().replace(/\s+/g, " "), kMaxTestPhraseLength);
+  capPhrase(text.trim().replace(/\s+/g, " "));
 
 // Exactly five strings of at most 255, whatever a saved document holds
 const normalizeTestPhrases = (phrases: readonly unknown[]) =>
   emptyTestPhrases().map((empty, slot) => {
     const phrase = phrases[slot];
-    return typeof phrase === "string" ? truncateText(phrase, kMaxTestPhraseLength) : empty;
+    return typeof phrase === "string" ? capPhrase(phrase) : empty;
   });
 
 export interface LabelEntry extends ILabelEntry {

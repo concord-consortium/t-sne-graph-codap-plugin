@@ -1,8 +1,7 @@
 import { applySnapshot, getSnapshot } from "mobx-state-tree";
 import { kLabelColors, kUnlabeledColor } from "../tsne/labels";
 import {
-  AttributeInfo, CaseInfo, fitEdit, kMaxTestPhraseLength, kStoreVersion, PluginStore, TestPhrasePoint,
-  truncateText
+  AttributeInfo, CaseInfo, kMaxTestPhraseLength, kStoreVersion, PluginStore, TestPhrasePoint
 } from "./plugin-store";
 
 const kAttributes: AttributeInfo[] = [
@@ -478,6 +477,13 @@ describe("PluginStore test phrases", () => {
     expect(store.testPhrases[0]).toBe("a".repeat(254));
   });
 
+  it("can cut a longer character, such as a flag, at the 255 cap", () => {
+    // 253 units + a 4-unit flag: its first half stays
+    const store = PluginStore.create();
+    store.setTestPhrase(0, `${"a".repeat(253)}🇺🇸`);
+    expect(store.testPhrases[0]).toBe(`${"a".repeat(253)}🇺`);
+  });
+
   it("caps a committed phrase at 255 characters", () => {
     const store = PluginStore.create();
     store.setTestPhrase(0, "y".repeat(300));
@@ -575,91 +581,5 @@ describe("PluginStore test phrases", () => {
     store.setLabelAttribute(undefined);
     expect(store.testPhrasePoints).toHaveLength(2);
     expect(store.isSlotSelected(0)).toBe(true);
-  });
-});
-
-describe("truncateText", () => {
-  const kFamily = "👨‍👩‍👧";   // 8 units
-  const kFlag = "🇺🇸";      // 4 units
-
-  it("leaves text that fits", () => {
-    expect(truncateText("a cat", 255)).toBe("a cat");
-    expect(truncateText(`${"a".repeat(253)}😀`, 255)).toBe(`${"a".repeat(253)}😀`);
-  });
-
-  it("cuts plain text at the limit", () => {
-    expect(truncateText("abcdef", 4)).toBe("abcd");
-  });
-
-  it("drops a character that doesn't fit whole: an emoji, a flag, a family", () => {
-    expect(truncateText(`${"a".repeat(4)}😀`, 5)).toBe("aaaa");
-    expect(truncateText(`ab${kFlag}`, 5)).toBe("ab");
-    expect(truncateText(`ab${kFamily}c`, 9)).toBe("ab");
-    expect(truncateText(`ab${kFamily}c`, 10)).toBe(`ab${kFamily}`);
-  });
-
-  describe("without Intl.Segmenter", () => {
-    it("still never ends on half of a two-unit character", () => {
-      expect(truncateText(`${"a".repeat(4)}😀`, 5, null)).toBe("aaaa");
-      expect(truncateText(`${"a".repeat(4)}😀`, 6, null)).toBe("aaaa😀");
-    });
-
-    it("can keep only some parts of a flag or a family, each part whole", () => {
-      expect(truncateText(`ab${kFlag}`, 5, null)).toBe("ab🇺");
-    });
-  });
-});
-
-describe("fitEdit", () => {
-  it("leaves an edit that fits", () => {
-    expect(fitEdit("abc", "abXc", 5)).toBe("abXc");
-  });
-
-  it("adds nothing to a full field, wherever the typing is", () => {
-    expect(fitEdit("abcde", "Xabcde", 5)).toBe("abcde");
-    expect(fitEdit("abcde", "abXcde", 5)).toBe("abcde");
-    expect(fitEdit("abcde", "abcdeX", 5)).toBe("abcde");
-  });
-
-  it("keeps the part of a long paste that fits, over a selection of the whole text", () => {
-    expect(fitEdit("hello", "abcdefg", 5)).toBe("abcde");
-  });
-
-  it("cuts a paste in the middle, not the text after it", () => {
-    expect(fitEdit("abc", "abXYZWc", 5)).toBe("abXYc");
-  });
-
-  it("cuts the paste only between whole characters", () => {
-    expect(fitEdit("abc", "ab😀😀c", 5)).toBe("ab😀c");
-    expect(fitEdit("abc", "ab😀😀c", 4)).toBe("abc");
-  });
-
-  it("never keeps half of a flag emoji where the old and new text share its first half", () => {
-    // 🇺🇸 and 🇺🇦 share their first part
-    expect(fitEdit("x🇺🇸", "x🇺🇦🇺🇦", 5)).toBe("x🇺🇦");
-  });
-
-  it("refuses an edit that would join the last old character and can't fit, keeping that character", () => {
-    // A combining accent after "e", a skin tone after 👍, the second half of a flag after 🇺
-    expect(fitEdit("aaaae", "aaaae\u0301", 5)).toBe("aaaae");
-    expect(fitEdit("aaa👍", "aaa👍🏽", 5)).toBe("aaa👍");
-    expect(fitEdit("aaa🇺", "aaa🇺🇸", 5)).toBe("aaa🇺");
-    expect(fitEdit("aeaaa", "ae\u0301aaa", 5)).toBe("aeaaa");
-  });
-
-  it("can cut a little differently than maxLength where the paste ends like the old text", () => {
-    // The shared final "o" is kept, so the paste is cut one earlier
-    expect(fitEdit("hello", "abcdefo", 5)).toBe("abcdo");
-  });
-
-  describe("without Intl.Segmenter", () => {
-    it("refuses a combining accent that doesn't fit, keeping the old text", () => {
-      expect(fitEdit("aaaae", "aaaae\u0301", 5, null)).toBe("aaaae");
-    });
-
-    it("still never cuts between the two units of one character", () => {
-      expect(fitEdit("abc", "ab😀😀c", 4, null)).toBe("abc");
-      expect(fitEdit("abc", "ab😀😀c", 5, null)).toBe("ab😀c");
-    });
   });
 });

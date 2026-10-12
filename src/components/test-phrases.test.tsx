@@ -66,44 +66,9 @@ describe("TestPhrases", () => {
       expect(field(0)).toHaveValue("");
     });
 
-    it("caps a field at 255 characters, keeping only whole characters", async () => {
+    it("caps a field at 255 characters", () => {
       renderTestPhrases(store);
-      await userEvent.click(field(0));
-      await userEvent.paste(`${"a".repeat(253)}🇺🇸bc`);
-      // The flag would end at 257, so it is dropped whole
-      expect(field(0)).toHaveValue("a".repeat(253));
-      await userEvent.paste("de");
-      expect(field(0)).toHaveValue(`${"a".repeat(253)}de`);
-      await userEvent.paste("f");
-      expect(field(0)).toHaveValue(`${"a".repeat(253)}de`);
-    });
-
-    it("lets a long paste replace a full phrase, keeping the part that fits", async () => {
-      store.setTestPhrase(0, "a".repeat(255));
-      renderTestPhrases(store);
-      // Tabbing in selects the text
-      await userEvent.tab();
-      await userEvent.tab();
-      expect(field(0)).toHaveFocus();
-      await userEvent.paste("b".repeat(300));
-      expect(field(0)).toHaveValue("b".repeat(255));
-    });
-
-    it("keeps the last letter when an accent pasted after it can't fit", async () => {
-      store.setTestPhrase(0, `${"a".repeat(254)}e`);
-      renderTestPhrases(store);
-      await userEvent.click(field(0));
-      await userEvent.keyboard("{End}");
-      await userEvent.paste("\u0301");
-      expect(field(0)).toHaveValue(`${"a".repeat(254)}e`);
-    });
-
-    it("takes no more typing anywhere in a full field, as maxLength would", async () => {
-      store.setTestPhrase(0, "a".repeat(255));
-      renderTestPhrases(store);
-      await userEvent.click(field(0));
-      await userEvent.keyboard("{Home}x");
-      expect(field(0)).toHaveValue("a".repeat(255));
+      expect(field(0)).toHaveAttribute("maxLength", "255");
     });
   });
 
