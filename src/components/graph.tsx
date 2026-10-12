@@ -336,8 +336,10 @@ export const Graph = observer(() => {
               {/* Focus ring: the band 4–6px outside the symbol, a wide stroke with its inner part masked out */}
               <mask id={maskId} data-testid="focus-mask" maskUnits="userSpaceOnUse" x={maskOrigin} y={maskOrigin}
                 width={maskSize} height={maskSize}>
-                <path d={path} fill="white" stroke="white" strokeWidth={kSymbolFocusOuterWidth} />
-                <path d={path} fill="black" stroke="black" strokeWidth={kSymbolEdgeWidth} />
+                <path d={path} fill="white" stroke="white" strokeWidth={kSymbolFocusOuterWidth}
+                  data-testid="focus-mask-outer" />
+                <path d={path} fill="black" stroke="black" strokeWidth={kSymbolEdgeWidth}
+                  data-testid="focus-mask-inner" />
               </mask>
               <path className="focus-ring" data-testid="focus-ring" d={path} mask={`url(#${maskId})`}
                 style={{ strokeWidth: kSymbolFocusOuterWidth }} />

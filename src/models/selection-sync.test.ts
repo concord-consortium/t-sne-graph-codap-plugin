@@ -447,6 +447,7 @@ describe("selection-sync", () => {
       slow.resolve(ok([leaf(101)]));
       await flush();
       expect(slots()).toEqual([2]);
+      expect(store.selectedCaseIds.size).toBe(0);
     });
 
     it("keeps a slot selected while a replacing notice's read is in progress", async () => {
@@ -480,6 +481,8 @@ describe("selection-sync", () => {
       codapSelection = [leaf(101)];
       store.setCases(kCases.slice());
       await flush();
+      // The read ran
+      expect(Array.from(store.selectedCaseIds)).toEqual(["101"]);
       expect(slots()).toEqual([2]);
     });
   });

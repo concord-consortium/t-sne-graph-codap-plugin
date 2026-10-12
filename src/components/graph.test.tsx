@@ -491,7 +491,7 @@ describe("Graph", () => {
         testPoint(0, 0.5, 0.5, "3"),
         // Far from its neighbor
         testPoint(2, 0.25, 0.75, "3"),
-        // On the corner point, pushed outward, so it flips inward
+        // On the corner point, pushed outward; the nearest ring point inside is straight up
         testPoint(4, 0, 0, "1", -1, 0)
       ], { 0: "placed", 1: "empty", 2: "placed", 3: "empty", 4: "placed" });
     });
@@ -618,6 +618,17 @@ describe("Graph", () => {
         const mask = within(square).getByTestId("focus-mask");
         expect(mask).toHaveAttribute("id", maskId);
         expect(focusRing).toHaveStyle({ strokeWidth: "12" });
+        // Kept out to 6px outside the symbol, cut away up to 4px outside
+        const outer = within(mask).getByTestId("focus-mask-outer");
+        const inner = within(mask).getByTestId("focus-mask-inner");
+        expect(outer).toHaveAttribute("fill", "white");
+        expect(outer).toHaveAttribute("stroke", "white");
+        expect(outer).toHaveAttribute("stroke-width", "12");
+        expect(inner).toHaveAttribute("fill", "black");
+        expect(inner).toHaveAttribute("stroke", "black");
+        expect(inner).toHaveAttribute("stroke-width", "8");
+        [outer, inner].forEach(path => expect(path).toHaveAttribute("d", within(square).getByTestId("symbol")
+          .getAttribute("d")));
       });
 
       it("counts the test phrases in the plot's label", () => {

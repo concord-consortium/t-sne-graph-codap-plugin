@@ -121,7 +121,7 @@ describe("placePhrase", () => {
     expect(placement.direction.dy).toBeCloseTo(offset.y / length, 9);
   });
 
-  it("maps through the layout's transform to the unit square", () => {
+  it("maps a one-point layout to the center", () => {
     // One point: the transform maps everything to the center
     const model: ITfidfModel = { vocabulary: new Map([["cat", 0]]), idf: [1] };
     const single: IPlacementLayout =

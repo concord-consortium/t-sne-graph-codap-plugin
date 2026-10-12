@@ -447,11 +447,15 @@ describe("PluginStore test phrases", () => {
     expect(store.testPhrases).toEqual(expected);
   });
 
-  it("truncates a saved phrase to 255 characters", () => {
+  it("truncates a saved phrase to 255 characters, on create and on restore", () => {
     const long = "x".repeat(300);
     const store = PluginStore.create({ testPhrases: [long, "short"] });
     expect(store.testPhrases[0]).toBe("x".repeat(kMaxTestPhraseLength));
     expect(store.testPhrases[1]).toBe("short");
+    const restored = PluginStore.create();
+    applySnapshot(restored, { version: 1, testPhrases: [long, "short"] });
+    expect(restored.testPhrases[0]).toBe("x".repeat(kMaxTestPhraseLength));
+    expect(restored.testPhrases[1]).toBe("short");
   });
 
   it("commits a phrase trimmed, with each run of whitespace made one space", () => {

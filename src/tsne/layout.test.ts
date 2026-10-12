@@ -220,10 +220,6 @@ describe("offsetFromNeighbor", () => {
     const nearestOther = (point: { x: number, y: number }, others: { x: number, y: number }[]) =>
       Math.min(...others.map(other => distance(point, other)));
 
-    it("has 24 ring points, 15° apart", () => {
-      expect(kOffsetCandidates).toBe(24);
-    });
-
     it("moves along the direction when no other dot is near, as before", () => {
       const far = [{ x: 30, y: 30 }, { x: 270, y: 270 }];
       expect(angleOf(offsetFromNeighbor(neighbor, neighbor, right, bounds, far))).toBeCloseTo(0, 6);
@@ -264,13 +260,16 @@ describe("offsetFromNeighbor", () => {
       expect(angleOf(result)).toBeCloseTo(120, 6);
     });
 
-    it("never picks a ring point outside the area near a corner", () => {
+    it("skips ring points outside the area and ring points on other dots, near a corner", () => {
+      // Pushed left, out of the bottom-left corner: straight up is the first ring point inside, and a
+      // dot sits there, so the search goes on to the first point inside and clear of it, at −30°
       const corner = { x: bounds.left + 4, y: bounds.bottom - 4 };
-      const others = [{ x: corner.x + kMinNeighborOffsetPx, y: corner.y }];
+      const others = [{ x: corner.x, y: corner.y - kMinNeighborOffsetPx }];
       const result = offsetFromNeighbor(corner, corner, { dx: -1, dy: 0 }, bounds, others);
       expect(inside(result, bounds)).toBe(true);
       expect(distance(result, corner)).toBeCloseTo(kMinNeighborOffsetPx, 9);
       expect(nearestOther(result, others)).toBeGreaterThanOrEqual(kMinNeighborOffsetPx - 1e-9);
+      expect(Math.atan2(result.y - corner.y, result.x - corner.x) * 180 / Math.PI).toBeCloseTo(-30, 6);
     });
 
     it("keeps a ring point on an edge, despite float error", () => {

@@ -129,6 +129,9 @@ describe("TestPhrases", () => {
       expect(field(0)).not.toHaveFocus();
       expect(store.testPhrases[0]).toBe("the cat");
       expect(store.testPhrasePoints).toHaveLength(1);
+      // Its point shows again
+      expect(store.editingSlot).toBeUndefined();
+      expect(store.placedSlots.has(0)).toBe(true);
     });
 
     it("clears a phrase when its text is deleted", async () => {
@@ -159,10 +162,20 @@ describe("TestPhrases", () => {
       expect(store.placedSlots.has(0)).toBe(true);
     });
 
-    it("does not mark an empty slot as edited until text is typed", async () => {
+    it("never marks a slot with no committed phrase as edited: it has no point to hide", async () => {
       renderTestPhrases(store);
       await userEvent.click(field(3));
+      await userEvent.keyboard("a dog");
       expect(store.editingSlot).toBeUndefined();
+    });
+
+    it("marks a slot as edited when typing resumes after Enter commits it", async () => {
+      renderTestPhrases(store);
+      await userEvent.click(field(3));
+      await userEvent.keyboard("a dog{Enter}");
+      expect(store.editingSlot).toBeUndefined();
+      await userEvent.keyboard("s");
+      expect(store.editingSlot).toBe(3);
     });
 
     it("selects the text when the field is entered with Tab", async () => {
@@ -230,7 +243,7 @@ describe("TestPhrases", () => {
       expect(square).toHaveAttribute("data-placed");
     });
 
-    it("is disabled without a point: empty, no words, being edited, or no Phrase Column", async () => {
+    it("is disabled without a point: empty, no words, or being edited", async () => {
       store = placedStore();
       store.setTestPhrase(2, "zebra");
       store.setTestPhrasePoints([point(0)], { 0: "placed", 1: "empty", 2: "no-words", 3: "empty", 4: "empty" });
@@ -242,8 +255,16 @@ describe("TestPhrases", () => {
       await userEvent.click(field(0));
       expect(square).toHaveAttribute("aria-disabled", "true");
       await userEvent.tab();
-      act(() => store.setPhraseAttribute(undefined));
-      expect(square).toHaveAttribute("aria-disabled", "true");
+      expect(square).not.toHaveAttribute("aria-disabled");
+    });
+
+    it("is disabled without a Phrase Column, even with a point", () => {
+      store = PluginStore.create({ dataContextName: "Phrases", tsneSeed: 1 });
+      store.setTestPhrase(0, "the cat");
+      store.setTestPhrasePoints([point(0)], { 0: "placed", 1: "empty", 2: "empty", 3: "empty", 4: "empty" });
+      expect(store.placedSlots.has(0)).toBe(true);
+      renderTestPhrases(store);
+      expect(symbolButtons()[0]).toHaveAttribute("aria-disabled", "true");
     });
 
     it("keeps a disabled button in the Tab order", async () => {
@@ -271,6 +292,8 @@ describe("TestPhrases", () => {
       await userEvent.keyboard("{Enter}");
       await userEvent.keyboard(" ");
       expect(selectTestPhrase).toHaveBeenCalledTimes(2);
+      expect(selectTestPhrase).toHaveBeenNthCalledWith(1, store, 0, false);
+      expect(selectTestPhrase).toHaveBeenNthCalledWith(2, store, 0, false);
     });
 
     it("does nothing on press without a point", async () => {
