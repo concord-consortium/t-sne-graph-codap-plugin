@@ -526,3 +526,53 @@ test("wraps a long Key label to two lines, then cuts it short", async ({ page })
   // The other entries keep their height
   expect(await height(/^Similar,/)).toBe(24);
 });
+
+// Drags the plugin tile's bottom-right corner
+const resizeTileBy = async (page: Page, dx: number, dy: number) => {
+  const tile = page.locator(".codap-component").filter({ has: page.locator(".codap-web-view-iframe") });
+  const box = await tile.boundingBox();
+  if (!box) throw new Error("The plugin tile is not visible");
+  await page.mouse.move(box.x + box.width - 4, box.y + box.height - 4);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 4 + dx, box.y + box.height - 4 + dy, { steps: 10 });
+  await page.mouse.up();
+};
+
+// The graph area's and the plot's sizes, and the plot's offsets from the area's edges, in whole pixels
+const plotLayout = async (plugin: FrameLocator) => {
+  const area = await plugin.getByTestId("graph-area").boundingBox();
+  const square = await plot(plugin).boundingBox();
+  if (!area || !square) throw new Error("The plot is not visible");
+  return {
+    area: { width: Math.round(area.width), height: Math.round(area.height) },
+    plot: { width: Math.round(square.width), height: Math.round(square.height) },
+    left: Math.round(square.x - area.x), right: Math.round(area.x + area.width - square.x - square.width),
+    top: Math.round(square.y - area.y), bottom: Math.round(area.y + area.height - square.y - square.height)
+  };
+};
+
+test("keeps the plot square and centered when the tile is resized", async ({ page }) => {
+  const plugin = await openPlot(page, "label");
+  const expectSquareAndCentered = async () => {
+    const { area, plot: square, left, right, top, bottom } = await plotLayout(plugin);
+    expect(square.width).toBe(square.height);
+    expect(square.width).toBe(Math.min(area.width, area.height));
+    expect(Math.abs(left - right)).toBeLessThanOrEqual(1);
+    expect(Math.abs(top - bottom)).toBeLessThanOrEqual(1);
+    return { left, top };
+  };
+  expect(await expectSquareAndCentered()).toEqual({ left: 0, top: 0 });
+
+  // Wider: bands on the left and right
+  await resizeTileBy(page, 200, 0);
+  await expect.poll(async () => (await plotLayout(plugin)).left).toBeGreaterThan(50);
+  await expectSquareAndCentered();
+  expect(await plugin.getByTestId("graph-area").evaluate(area => getComputedStyle(area).backgroundColor))
+    .toBe("rgb(247, 247, 247)");
+  expect(await plot(plugin).evaluate(svg => getComputedStyle(svg).backgroundColor)).toBe("rgb(255, 255, 255)");
+
+  // Back to the default width, and taller: bands above and below
+  await resizeTileBy(page, -200, 150);
+  await expect.poll(async () => (await plotLayout(plugin)).top).toBeGreaterThan(50);
+  expect((await expectSquareAndCentered()).left).toBe(0);
+});

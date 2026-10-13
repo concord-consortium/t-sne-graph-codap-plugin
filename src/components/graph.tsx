@@ -62,7 +62,12 @@ export const Graph = observer(() => {
   const svgRef = useRef<SVGSVGElement>(null);
   const helpId = useId();
   const pointRefs = useRef(new Map<string, SVGGElement>());
-  const size = useElementSize(containerRef);
+  const area = useElementSize(containerRef);
+  // A square centered in the area, at whole pixels so the grid lines stay sharp; the bands around it
+  // are the area's background
+  const side = Math.floor(Math.min(area.width, area.height));
+  const size = { width: side, height: side };
+  const offset = { left: Math.floor((area.width - side) / 2), top: Math.floor((area.height - side) / 2) };
 
   // Remembered while a recompute empties the plot, so focus can return to the same case
   const [activeCaseId, setActiveCaseId] = useState<string>();
@@ -177,12 +182,13 @@ export const Graph = observer(() => {
   const gridY = (i: number) => Math.round(i * size.height / kGridCells) + 0.5;
 
   return (
-    <div className="graph" ref={containerRef}>
+    <div className="graph" data-testid="graph-area" ref={containerRef}>
       <svg
         ref={svgRef}
         className="graph-plot"
         width={size.width}
         height={size.height}
+        style={offset}
         role="group"
         aria-label={label}
         aria-describedby={hasPoints ? helpId : undefined}

@@ -163,19 +163,42 @@ describe("Graph", () => {
       expect(plot()).toHaveAccessibleName("t-SNE plot");
     });
 
-    it("keeps dot sizes and moves the points when the plot is resized", () => {
+    describe("when the area is resized", () => {
       let resize: ResizeCallback | undefined;
-      (globalThis as ResizeGlobal).ResizeObserver = jest.fn((callback: ResizeCallback) => {
-        resize = callback;
-        return { observe: jest.fn(), disconnect: jest.fn() };
+      beforeEach(() => {
+        (globalThis as ResizeGlobal).ResizeObserver = jest.fn((callback: ResizeCallback) => {
+          resize = callback;
+          return { observe: jest.fn(), disconnect: jest.fn() };
+        });
       });
-      renderGraph(store);
-      act(() => resize?.([{ contentRect: { width: 500, height: 200 } }]));
-      expect(plot()).toHaveAttribute("width", "500");
-      expect(point("a dog ran")).toHaveAttribute("transform", "translate(488 12)");
-      expect(within(point("a dog ran")).getByTestId("dot")).toHaveAttribute("r", "6");
-      expect(screen.getAllByTestId("grid-line")[0]).toHaveAttribute("x1", "63.5");
-      delete (globalThis as ResizeGlobal).ResizeObserver;
+      afterEach(() => {
+        delete (globalThis as ResizeGlobal).ResizeObserver;
+      });
+
+      it("keeps the plot square, centered across a wide area, with the same dot sizes", () => {
+        renderGraph(store);
+        act(() => resize?.([{ contentRect: { width: 500, height: 200 } }]));
+        expect(plot()).toHaveAttribute("width", "200");
+        expect(plot()).toHaveAttribute("height", "200");
+        expect(plot()).toHaveStyle({ left: "150px", top: "0px" });
+        expect(point("a dog ran")).toHaveAttribute("transform", "translate(188 12)");
+        expect(within(point("a dog ran")).getByTestId("dot")).toHaveAttribute("r", "6");
+        expect(screen.getAllByTestId("grid-line")[0]).toHaveAttribute("x1", "25.5");
+      });
+
+      it("centers the square down a tall area", () => {
+        renderGraph(store);
+        act(() => resize?.([{ contentRect: { width: 200, height: 500 } }]));
+        expect(plot()).toHaveAttribute("width", "200");
+        expect(plot()).toHaveStyle({ left: "0px", top: "150px" });
+      });
+
+      it("keeps the square and its position on whole pixels", () => {
+        renderGraph(store);
+        act(() => resize?.([{ contentRect: { width: 301.5, height: 250.7 } }]));
+        expect(plot()).toHaveAttribute("width", "250");
+        expect(plot()).toHaveStyle({ left: "25px", top: "0px" });
+      });
     });
   });
 
@@ -213,6 +236,14 @@ describe("Graph", () => {
       await user.keyboard("{Shift>}");
       await user.click(point("a dog ran"));
       expect(selectPoint).toHaveBeenCalledWith(store, "2", true);
+    });
+
+    it("does nothing on a click in the bands around the plot", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await user.click(screen.getByTestId("graph-area"));
+      expect(clearCodapSelection).not.toHaveBeenCalled();
+      expect(selectPoint).not.toHaveBeenCalled();
     });
 
     it("clears the selection on a click on empty space, but not on a shift-click", async () => {
