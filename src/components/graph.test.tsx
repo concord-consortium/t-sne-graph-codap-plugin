@@ -316,6 +316,22 @@ describe("Graph", () => {
         expect(clearCodapSelection).toHaveBeenCalledTimes(1);
       });
 
+    it("keeps the first finger's drag when a second finger touches the plot", () => {
+      renderGraph(store);
+      const touch = { pointerType: "touch" };
+      press(100, 100, touch);
+      move(110, 100, touch);
+      press(200, 200, { ...touch, pointerId: 2 });
+      move(120, 100, touch);
+      expect(store.view.centerX).toBeCloseTo(0.5 - 20 / kInner, 12);
+      fireEvent.pointerUp(plot(), { pointerId: 2, clientX: 200, clientY: 200 });
+      expect(plot()).toHaveAttribute("data-dragging", "true");
+      move(130, 100, touch);
+      expect(store.view.centerX).toBeCloseTo(0.5 - 30 / kInner, 12);
+      fireEvent.pointerUp(plot(), { pointerId: 1, clientX: 130, clientY: 100 });
+      expect(plot()).not.toHaveAttribute("data-dragging");
+    });
+
     it("ignores another pointer during a drag", () => {
       renderGraph(store);
       press(100, 100);

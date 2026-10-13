@@ -217,6 +217,8 @@ export const Graph = observer(() => {
   // Drags start only on the background; a press on a point is a click on it
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0 || (event.target as Element).closest(".point")) return;
+    // A second finger during a drag doesn't take it over
+    if (drag.current) return;
     // In case the last drag's click never came
     ignoreClick.current = false;
     const { pointerId, clientX, clientY } = event;
