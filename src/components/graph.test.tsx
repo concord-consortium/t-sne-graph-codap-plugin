@@ -11,6 +11,20 @@ import { kPlotSymbolExtents, symbolReach } from "./phrase-symbol";
 jest.mock("../models/selection-sync",
   () => ({ clearCodapSelection: jest.fn(), selectPoint: jest.fn(), selectTestPhrase: jest.fn() }));
 
+// jsdom has no PointerEvent, so fireEvent would send a plain Event with no pointer or position
+class TestPointerEvent extends MouseEvent {
+  pointerId: number;
+  pointerType: string;
+  constructor(type: string, init: PointerEventInit = {}) {
+    super(type, init);
+    this.pointerId = init.pointerId ?? 0;
+    this.pointerType = init.pointerType ?? "mouse";
+  }
+}
+if (typeof window.PointerEvent === "undefined") {
+  Object.defineProperty(window, "PointerEvent", { configurable: true, value: TestPointerEvent });
+}
+
 const kCases: CaseInfo[] = [
   { caseId: "1", values: { phrase: "the cat sat", label: "Similar" } },
   { caseId: "2", values: { phrase: "a dog ran", label: "Opposite" } },
@@ -207,6 +221,163 @@ describe("Graph", () => {
         act(() => resize?.([{ contentRect: { width: 301.5, height: 250.7 } }]));
         expect(plot()).toHaveAttribute("width", "250");
         expect(plot()).toHaveStyle({ left: "25px", top: "0px" });
+      });
+    });
+  });
+
+  describe("panning", () => {
+    // 276px padded width and height at 300 × 300
+    const kInner = 276;
+    const translation = (element: HTMLElement) => {
+      const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(element.getAttribute("transform") ?? "") ?? [];
+      return { x: Number(x), y: Number(y) };
+    };
+    const press = (x: number, y: number, init: PointerEventInit = {}) =>
+      fireEvent.pointerDown(plot(), { pointerId: 1, button: 0, clientX: x, clientY: y, ...init });
+    const move = (x: number, y: number, init: PointerEventInit = {}) =>
+      fireEvent.pointerMove(plot(), { pointerId: 1, clientX: x, clientY: y, ...init });
+    const release = (x: number, y: number) => {
+      fireEvent.pointerUp(plot(), { pointerId: 1, clientX: x, clientY: y });
+      fireEvent.click(plot(), { clientX: x, clientY: y });
+    };
+
+    it("treats a move under 3px as a click, which clears the selection", () => {
+      renderGraph(store);
+      press(100, 100);
+      move(102, 100);
+      release(102, 100);
+      expect(store.isFitView).toBe(true);
+      expect(clearCodapSelection).toHaveBeenCalledWith(store);
+    });
+
+    it("moves the view with a drag past 3px, keeping the dots under the pointer, and keeps the selection", () => {
+      renderGraph(store);
+      press(100, 100);
+      move(104, 100);
+      move(110, 110);
+      expect(store.view.centerX).toBeCloseTo(0.5 - 10 / kInner, 12);
+      // Dragging down shows more of the top
+      expect(store.view.centerY).toBeCloseTo(0.5 + 10 / kInner, 12);
+      const { x, y } = translation(point("the bird sang"));
+      expect(x).toBeCloseTo(160, 9);
+      expect(y).toBeCloseTo(160, 9);
+      release(110, 110);
+      expect(clearCodapSelection).not.toHaveBeenCalled();
+      // Only the drag's own click is ignored
+      fireEvent.click(plot());
+      expect(clearCodapSelection).toHaveBeenCalledTimes(1);
+    });
+
+    it("scales the drag by the zoom", () => {
+      store.zoomIn();
+      renderGraph(store);
+      press(100, 100);
+      move(130, 100);
+      expect(store.view.centerX).toBeCloseTo(0.5 - 30 / (kInner * 1.5), 12);
+    });
+
+    it("keeps the center in [0, 1]", () => {
+      renderGraph(store);
+      press(100, 100);
+      move(-2000, 3000);
+      expect(store.view).toEqual({ zoomLevel: 0, centerX: 1, centerY: 1 });
+    });
+
+    it("captures the pointer, and shows the grabbing cursor only while dragging", () => {
+      const capture = jest.fn();
+      Object.defineProperty(SVGElement.prototype, "setPointerCapture", { configurable: true, value: capture });
+      try {
+        renderGraph(store);
+        expect(plot()).not.toHaveAttribute("data-dragging");
+        press(100, 100);
+        expect(capture).toHaveBeenCalledWith(1);
+        expect(plot()).not.toHaveAttribute("data-dragging");
+        move(110, 100);
+        expect(plot()).toHaveAttribute("data-dragging", "true");
+        release(110, 100);
+        expect(plot()).not.toHaveAttribute("data-dragging");
+      } finally {
+        delete (SVGElement.prototype as { setPointerCapture?: unknown }).setPointerCapture;
+      }
+    });
+
+    it.each(["pointerCancel", "lostPointerCapture"] as const)("ends a drag on %s, and a later move changes nothing",
+      eventName => {
+        renderGraph(store);
+        press(100, 100);
+        move(110, 100);
+        fireEvent[eventName](plot(), { pointerId: 1 });
+        expect(plot()).not.toHaveAttribute("data-dragging");
+        const { centerX, centerY } = store.view;
+        move(200, 200);
+        expect(store.view).toEqual({ zoomLevel: 0, centerX, centerY });
+        // No drag click to ignore
+        fireEvent.click(plot());
+        expect(clearCodapSelection).toHaveBeenCalledTimes(1);
+      });
+
+    it("ignores another pointer during a drag", () => {
+      renderGraph(store);
+      press(100, 100);
+      move(110, 100);
+      const { centerX } = store.view;
+      move(300, 100, { pointerId: 2 });
+      expect(store.view.centerX).toBe(centerX);
+    });
+
+    // touch-action: none, which stops the document scrolling, is in graph.scss; Playwright checks it
+    it("drags with a finger like a mouse", () => {
+      renderGraph(store);
+      press(100, 100, { pointerType: "touch" });
+      move(90, 100, { pointerType: "touch" });
+      expect(store.view.centerX).toBeCloseTo(0.5 + 10 / kInner, 12);
+    });
+
+    it("does not drag from a point, or with another button", () => {
+      renderGraph(store);
+      fireEvent.pointerDown(within(point("the bird sang")).getByTestId("dot"),
+        { pointerId: 1, button: 0, clientX: 150, clientY: 150 });
+      move(200, 150);
+      press(100, 100, { button: 2 });
+      move(200, 150);
+      expect(store.isFitView).toBe(true);
+    });
+
+    describe("focus", () => {
+      it("moves the view to show a point off the plot reached with the arrow keys", async () => {
+        const user = userEvent.setup();
+        for (let i = 0; i < 3; i++) store.zoomIn();
+        renderGraph(store);
+        // (0, 0) is far off the bottom left at level 3
+        expect(translation(point("the cat sat")).x).toBeLessThan(0);
+        await tabToPlot(user);
+        await user.keyboard("{ArrowRight}");
+        expect(point("the cat sat")).toHaveFocus();
+        const { x, y } = translation(point("the cat sat"));
+        expect(x).toBeCloseTo(12, 6);
+        expect(y).toBeCloseTo(288, 6);
+      });
+
+      it("leaves the view alone for a point already showing", () => {
+        store.zoomIn();
+        renderGraph(store);
+        act(() => point("the bird sang").focus());
+        expect(store.view).toEqual({ zoomLevel: 1, centerX: 0.5, centerY: 0.5 });
+      });
+
+      it("brings a symbol the ring search pushed past the edge fully inside", () => {
+        store.setTestPhrase(0, "the cat");
+        store.setTestPhrasePoints(
+          [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "3", direction: { dx: 1, dy: 0 } }], { 0: "placed" });
+        store.zoomIn();
+        // Case 3 is drawn on the padded edge, at x = 288; its symbol 18px past it
+        store.panTo(1 / 6, 0.5);
+        renderGraph(store);
+        const symbol = screen.getByRole("button", { name: "Square test phrase: the cat" });
+        expect(translation(symbol).x).toBeCloseTo(306, 6);
+        act(() => symbol.focus());
+        expect(translation(symbol).x).toBeCloseTo(288, 6);
+        expect(translation(point("the bird sang")).x).toBeCloseTo(270, 6);
       });
     });
   });

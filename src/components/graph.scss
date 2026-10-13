@@ -13,11 +13,22 @@
   display: block;
   outline: none;
   position: absolute;
+  // A finger drag pans the plot instead of scrolling the document
+  touch-action: none;
 
   // The plot is the Tab stop until a point is focused; points draw their own rings
   &:focus-visible {
     outline: 2px solid $focus-color;
     outline-offset: -2px;
+  }
+
+  // Only while dragging; the cursor is unchanged otherwise
+  &[data-dragging] {
+    cursor: grabbing;
+
+    .point {
+      cursor: grabbing;
+    }
   }
 
   .grid line {

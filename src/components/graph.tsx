@@ -1,12 +1,13 @@
 import React, {
-  KeyboardEvent, MouseEvent, useEffect, useId, useLayoutEffect, useMemo, useRef, useState
+  KeyboardEvent, MouseEvent, PointerEvent, useEffect, useId, useLayoutEffect, useMemo, useRef, useState
 } from "react";
 import { observer } from "mobx-react-lite";
 import { Point, TestPhrasePoint } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
 import {
-  applyView, directionToPixels, gridLines, IPosition, ISize, IView, offsetFromNeighbor, toPixels, worldBounds
+  applyView, directionToPixels, gridLines, IPosition, ISize, IView, offsetFromNeighbor, paddedBounds, panToInclude,
+  toPixels, worldBounds
 } from "../tsne/layout";
 import { kPlotSymbolExtents, kTestPhraseColor, symbolName, symbolPath, symbolReach } from "./phrase-symbol";
 import { ZoomControls } from "./zoom-controls";
@@ -28,6 +29,18 @@ const kSymbolFocusOuterWidth = 12;
 
 // Every drawn position goes through the view; sizes don't
 const viewPixels = (point: IPosition, view: IView, size: ISize) => toPixels(applyView(point, view), size);
+
+// A smaller move is still a click
+const kDragThresholdPx = 3;
+
+interface IDrag {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  lastX: number;
+  lastY: number;
+  isDragging: boolean;
+}
 
 const caseKey = (caseId: string) => `case:${caseId}`;
 const slotKey = (slot: number) => `slot:${slot}`;
@@ -93,6 +106,11 @@ export const Graph = observer(() => {
   const focusWithin = useRef(false);
   // Set when a recompute removed the focused point, until focus is back on a point
   const restoringFocus = useRef(false);
+  // Cleared by pointerup, pointercancel and lostpointercapture, so a drag can't be left running
+  const drag = useRef<IDrag | undefined>(undefined);
+  // The click that ends a drag is not a background click
+  const ignoreClick = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
 
   const { computeStatus } = store;
   const { zoomLevel, centerX, centerY } = store.view;
@@ -188,8 +206,53 @@ export const Graph = observer(() => {
   };
 
   const handleBackgroundClick = (event: MouseEvent<SVGSVGElement>) => {
+    if (ignoreClick.current) {
+      ignoreClick.current = false;
+      return;
+    }
     // A Shift-click on empty space adds nothing
     if (!event.shiftKey) clearCodapSelection(store);
+  };
+
+  // Drags start only on the background; a press on a point is a click on it
+  const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
+    if (event.button !== 0 || (event.target as Element).closest(".point")) return;
+    // In case the last drag's click never came
+    ignoreClick.current = false;
+    const { pointerId, clientX, clientY } = event;
+    drag.current = { pointerId, startX: clientX, startY: clientY, lastX: clientX, lastY: clientY, isDragging: false };
+    // Keeps the drag going outside the plot. jsdom has no pointer capture.
+    svgRef.current?.setPointerCapture?.(pointerId);
+  };
+
+  const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
+    const current = drag.current;
+    if (event.pointerId !== current?.pointerId) return;
+    const { clientX, clientY } = event;
+    if (!current.isDragging) {
+      if (Math.hypot(clientX - current.startX, clientY - current.startY) < kDragThresholdPx) return;
+      current.isDragging = true;
+      setIsDragging(true);
+    }
+    // From the last position, which starts at the press, so the dots stay under the pointer
+    const { left, top, right, bottom } = paddedBounds(size);
+    const scale = store.scale;
+    const { centerX: x, centerY: y } = store.view;
+    store.panTo(
+      right > left ? x - (clientX - current.lastX) / ((right - left) * scale) : x,
+      // y is flipped: dragging down shows more of the top
+      bottom > top ? y + (clientY - current.lastY) / ((bottom - top) * scale) : y);
+    current.lastX = clientX;
+    current.lastY = clientY;
+  };
+
+  // A cancel or a lost capture gets no click, so it ignores none
+  const endDrag = (event: PointerEvent<SVGSVGElement>, isRelease: boolean) => {
+    const current = drag.current;
+    if (event.pointerId !== current?.pointerId) return;
+    if (isRelease && current.isDragging) ignoreClick.current = true;
+    drag.current = undefined;
+    setIsDragging(false);
   };
 
   const handlePointClick = (event: MouseEvent<SVGGElement>, key: string) => {
@@ -225,6 +288,19 @@ export const Graph = observer(() => {
     return placed;
   }, [store.points, store.testPhrasePoints, size, view]);
 
+  // A keyboard user can reach every point: one drawn outside the padded area moves the view the
+  // least amount that shows it. Drawn, not raw: the ring search can move a symbol 18px.
+  const handlePointFocus = (key: string) => {
+    setActiveKey(key);
+    const slot = slotFromKey(key);
+    const caseId = key.slice("case:".length);
+    const casePoint = slot === undefined ? store.points.find(point => point.caseId === caseId) : undefined;
+    const pixel = slot !== undefined ? testPointPixels.get(slot) : casePoint && viewPixels(casePoint, view, size);
+    if (!pixel) return;
+    const panned = panToInclude(view, pixel, size);
+    if (panned !== view) store.panTo(panned.centerX, panned.centerY);
+  };
+
   // A test phrase is drawn after the case points, so only a case point needs drawing again on top
   const activePoint = activeExists ? points.find(point => caseKey(point.caseId) === activeKey) : undefined;
   const activePixels = activePoint && toPixels(activePoint, size);
@@ -257,8 +333,14 @@ export const Graph = observer(() => {
         // One Tab stop: the plot until a point is focused. An empty plot leaves the Tab order but
         // can still take focus.
         tabIndex={hasPoints && !activeExists ? 0 : -1}
+        data-dragging={isDragging || undefined}
         onKeyDown={handleKeyDown}
         onClick={handleBackgroundClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={event => endDrag(event, true)}
+        onPointerCancel={event => endDrag(event, false)}
+        onLostPointerCapture={event => endDrag(event, false)}
         onFocus={() => { focusWithin.current = true; }}
         onBlur={event => {
           // A focused point that is removed blurs with no relatedTarget; that isn't leaving
@@ -292,7 +374,7 @@ export const Graph = observer(() => {
               aria-pressed={selected}
               tabIndex={key === activeKey ? 0 : -1}
               onClick={event => handlePointClick(event, key)}
-              onFocus={() => setActiveKey(key)}
+              onFocus={() => handlePointFocus(key)}
             >
               <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
               <PointMarks color={store.colorForCase(point.caseId)} selected={selected} />
@@ -333,7 +415,7 @@ export const Graph = observer(() => {
               data-symbol={symbol}
               data-testid="test-phrase-point"
               onClick={event => handlePointClick(event, key)}
-              onFocus={() => setActiveKey(key)}
+              onFocus={() => handlePointFocus(key)}
             >
               <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
               {selected && <path className="selection-edge" data-testid="selection-edge" d={path}
