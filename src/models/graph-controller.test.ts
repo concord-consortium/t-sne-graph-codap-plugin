@@ -367,6 +367,74 @@ describe("startGraphController", () => {
     expect(store.computeStatus).toBe("idle");
   });
 
+  describe("the view", () => {
+    const kZoomed = { zoomLevel: 2, centerX: 0.3, centerY: 0.6 };
+    const zoom = () => {
+      store.zoomIn();
+      store.zoomIn();
+      store.panTo(kZoomed.centerX, kZoomed.centerY);
+    };
+    const finishLayout = () =>
+      lastWorker().reply({ type: "done", requestId: lastWorker().lastRequest.requestId, positions: kPositions });
+
+    it("resets when a phrase edit in the table replaces the shown layout", () => {
+      stop = startGraphController(store);
+      finishLayout();
+      zoom();
+      store.setCases(kCases.map((c, i) => i === 0 ? { ...c, values: { ...c.values, phrase: "the cat slept" } } : c));
+      expect(lastWorker().requests).toHaveLength(2);
+      expect(store.isFitView).toBe(true);
+    });
+
+    it("resets when a progress layout is showing", () => {
+      stop = startGraphController(store);
+      lastWorker().reply({ type: "progress", requestId: lastWorker().lastRequest.requestId, step: 50,
+        positions: kPositions });
+      zoom();
+      store.setCases(kCases.slice(1));
+      expect(store.isFitView).toBe(true);
+    });
+
+    it("resets when the seed changes with the layout shown", () => {
+      stop = startGraphController(store);
+      finishLayout();
+      zoom();
+      applySnapshot(store, { ...getSnapshot(store), tsneSeed: 7 });
+      expect(store.isFitView).toBe(true);
+    });
+
+    it("keeps the saved view through the first layout after a restore", () => {
+      store = PluginStore.create({ dataContextName: "Phrases", phraseAttributeName: "phrase",
+        labelAttributeName: "label", tsneSeed: 42, view: kZoomed });
+      store.setCases(kCases);
+      stop = startGraphController(store);
+      expect(lastWorker().requests).toHaveLength(1);
+      finishLayout();
+      expect(store.view).toEqual(kZoomed);
+    });
+
+    it("keeps the view on a Label Column change", () => {
+      stop = startGraphController(store);
+      finishLayout();
+      zoom();
+      store.setLabelAttribute(undefined);
+      expect(lastWorker().requests).toHaveLength(1);
+      expect(store.view).toEqual(kZoomed);
+    });
+
+    it("is fit after the Phrase Column is cleared, the view zoomed, and another column chosen", () => {
+      stop = startGraphController(store);
+      finishLayout();
+      store.setPhraseAttribute(undefined);
+      expect(store.points).toEqual([]);
+      zoom();
+      // No points are showing, so the controller leaves the view alone; the store action resets it
+      store.setPhraseAttribute("label");
+      expect(lastWorker().requests).toHaveLength(2);
+      expect(store.isFitView).toBe(true);
+    });
+  });
+
   it("stops the worker and stops reacting when stopped", () => {
     stop = startGraphController(store);
     const worker = lastWorker();
