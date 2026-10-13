@@ -217,6 +217,16 @@ const keyEntries = (plugin: FrameLocator) =>
     buttons.map(button => button.getAttribute("aria-label")));
 const positions = (plugin: FrameLocator) => plugin.locator(".graph-plot .point").evaluateAll(points =>
   Object.fromEntries(points.map(p => [p.getAttribute("aria-label"), p.getAttribute("transform")])));
+// Shift+Tab from the first dropdown reaches the plot by keyboard, which shows :focus-visible styles
+const tabToPlot = async (plugin: FrameLocator) => {
+  await dropdown(plugin, "Data Table").focus();
+  await dropdown(plugin, "Data Table").press("Shift+Tab");
+  await expect(plot(plugin)).toBeFocused();
+};
+const plotOutline = (plugin: FrameLocator) => plot(plugin).evaluate(svg => {
+  const { outlineStyle, outlineWidth, outlineColor } = getComputedStyle(svg);
+  return { outlineStyle, outlineWidth, outlineColor };
+});
 const dotFill = (plugin: FrameLocator, phrase: string) =>
   point(plugin, phrase).locator(".dot").evaluate(dot => getComputedStyle(dot).fill);
 const pressedPhrases = (plugin: FrameLocator) =>
@@ -368,9 +378,13 @@ test("mirrors the selection between the plot, the Key and CODAP's table", async 
 
 test("selects with the keyboard: arrow to a point, Enter selects, Escape clears", async ({ page }) => {
   const plugin = await openPlot(page, "label");
-  await plot(plugin).focus();
-  await plot(plugin).press("ArrowRight");
+  await tabToPlot(plugin);
+  expect(await plotOutline(plugin))
+    .toEqual({ outlineStyle: "solid", outlineWidth: "2px", outlineColor: "rgb(9, 87, 208)" });
+  await page.keyboard.press("ArrowRight");
   await expect(point(plugin, "the cat sat on the mat")).toBeFocused();
+  // Focus is on the point now, so the plot's outline is gone
+  expect((await plotOutline(plugin)).outlineStyle).toBe("none");
   await page.keyboard.press("ArrowRight");
   await expect(point(plugin, "a cat rested on a rug")).toBeFocused();
   await page.keyboard.press("Enter");
@@ -430,6 +444,9 @@ test("keeps the plot's and the Key's colors, rings and focus visible in forced-c
   await similar.press("Tab");
   await expect(plugin.locator(".key-entry[data-focus-visible]")).toHaveCount(1);
   expect(await style(".key-entry[data-focus-visible]", "outline-style")).toBe("solid");
+
+  await tabToPlot(plugin);
+  expect((await plotOutline(plugin)).outlineStyle).toBe("solid");
 });
 
 // Dropping a column header on the table's left drop zone makes it a parent collection, which

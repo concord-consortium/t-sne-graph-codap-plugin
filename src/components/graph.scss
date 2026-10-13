@@ -9,8 +9,13 @@
 
 .graph-plot {
   display: block;
-  // Points draw their own focus rings
   outline: none;
+
+  // The plot is the Tab stop until a point is focused; points draw their own rings
+  &:focus-visible {
+    outline: 2px solid $focus-color;
+    outline-offset: -2px;
+  }
 
   .grid line {
     stroke: $separator-color;
@@ -66,5 +71,12 @@
 
   &:empty {
     @include visually-hidden;
+  }
+}
+
+// Highlight, as on the dropdowns
+@media (forced-colors: active) {
+  .graph-plot:focus-visible {
+    outline-color: Highlight;
   }
 }
