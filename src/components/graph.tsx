@@ -5,11 +5,12 @@ import { observer } from "mobx-react-lite";
 import { Point, TestPhrasePoint } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
-import { directionToPixels, IPosition, ISize, offsetFromNeighbor, paddedBounds, toPixels } from "../tsne/layout";
+import {
+  applyView, directionToPixels, gridLines, IPosition, ISize, IView, offsetFromNeighbor, toPixels, worldBounds
+} from "../tsne/layout";
 import { kPlotSymbolExtents, kTestPhraseColor, symbolName, symbolPath, symbolReach } from "./phrase-symbol";
 import "./graph.scss";
 
-const kGridCells = 8;
 // Radii of the outline and rings described in _variables.scss, then the focus ring outside them
 const kPointRadius = 6;
 const kHitRadius = 12;
@@ -23,6 +24,9 @@ const kSymbolOutlineWidth = 2;
 const kSymbolRingWidth = 6;
 const kSymbolEdgeWidth = 8;
 const kSymbolFocusOuterWidth = 12;
+
+// Every drawn position goes through the view; sizes don't
+const viewPixels = (point: IPosition, view: IView, size: ISize) => toPixels(applyView(point, view), size);
 
 const caseKey = (caseId: string) => `case:${caseId}`;
 const slotKey = (slot: number) => `slot:${slot}`;
@@ -90,6 +94,9 @@ export const Graph = observer(() => {
   const restoringFocus = useRef(false);
 
   const { computeStatus } = store;
+  const { zoomLevel, centerX, centerY } = store.view;
+  const view = useMemo<IView>(() => ({ zoomLevel, centerX, centerY }), [zoomLevel, centerX, centerY]);
+
   // Table order for drawing and the arrow keys; the layout uses its own fixed order
   const points = useMemo(() => {
     const byCaseId = new Map(store.points.map(point => [point.caseId, point]));
@@ -196,13 +203,14 @@ export const Graph = observer(() => {
   };
 
   // In slot order: each symbol keeps clear of every dot and of the lower slots' symbols. Includes the
-  // hidden slot being edited, so the others don't move into its place meanwhile.
+  // hidden slot being edited, so the others don't move into its place meanwhile. The bounds are the
+  // whole layout's, not the plot's, so a symbol whose neighbor is off-screen is off-screen with it.
   const testPointPixels = useMemo(() => {
-    const bounds = paddedBounds(size);
-    const casePixels = store.points.map(point => ({ caseId: point.caseId, ...toPixels(point, size) }));
+    const bounds = worldBounds(size, view);
+    const casePixels = store.points.map(point => ({ caseId: point.caseId, ...viewPixels(point, view, size) }));
     const placed = new Map<number, IPosition>();
     store.testPhrasePoints.slice().sort((a, b) => a.slot - b.slot).forEach((point: TestPhrasePoint) => {
-      const pixels = toPixels(point, size);
+      const pixels = viewPixels(point, view, size);
       const neighbor = casePixels.find(({ caseId }) => caseId === point.neighborCaseId);
       if (!neighbor) {
         placed.set(point.slot, { x: Math.min(bounds.right, Math.max(bounds.left, pixels.x)),
@@ -214,7 +222,7 @@ export const Graph = observer(() => {
         offsetFromNeighbor(neighbor, pixels, directionToPixels(point.direction, size), bounds, others));
     });
     return placed;
-  }, [store.points, store.testPhrasePoints, size]);
+  }, [store.points, store.testPhrasePoints, size, view]);
 
   // A test phrase is drawn after the case points, so only a case point needs drawing again on top
   const activePoint = activeExists ? points.find(point => caseKey(point.caseId) === activeKey) : undefined;
@@ -230,10 +238,8 @@ export const Graph = observer(() => {
     return hasLabels ? `${phrase}, ${store.labelForCase(caseId)}` : phrase;
   };
   const message = computeStatus === "too-few" ? kTooFewMessage : computeStatus === "error" ? kErrorMessage : "";
-  // Interior lines, on half pixels so they render as one sharp pixel
-  const gridLines = Array.from({ length: kGridCells - 1 }, (_value, i) => i + 1);
-  const gridX = (i: number) => Math.round(i * size.width / kGridCells) + 0.5;
-  const gridY = (i: number) => Math.round(i * size.height / kGridCells) + 0.5;
+  // Moves with the dots; on half pixels so each line renders as one sharp pixel
+  const grid = gridLines(size, view);
 
   return (
     <div className="graph" data-testid="graph-area" ref={containerRef}>
@@ -264,13 +270,13 @@ export const Graph = observer(() => {
         }}
       >
         <g className="grid" data-testid="grid" aria-hidden="true">
-          {gridLines.map(i =>
-            <line key={`x${i}`} data-testid="grid-line" x1={gridX(i)} x2={gridX(i)} y1={0} y2={size.height} />)}
-          {gridLines.map(i =>
-            <line key={`y${i}`} data-testid="grid-line" x1={0} x2={size.width} y1={gridY(i)} y2={gridY(i)} />)}
+          {grid.x.map(x =>
+            <line key={`x${x}`} data-testid="grid-line" x1={x} x2={x} y1={0} y2={size.height} />)}
+          {grid.y.map(y =>
+            <line key={`y${y}`} data-testid="grid-line" x1={0} x2={size.width} y1={y} y2={y} />)}
         </g>
         {points.map(point => {
-          const { x, y } = toPixels(point, size);
+          const { x, y } = viewPixels(point, view, size);
           const selected = store.isSelected(point.caseId);
           const key = caseKey(point.caseId);
           return (

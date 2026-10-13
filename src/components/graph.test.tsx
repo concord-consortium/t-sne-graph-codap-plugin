@@ -206,6 +206,40 @@ describe("Graph", () => {
     });
   });
 
+  describe("view", () => {
+    const gridLineCount = () => screen.getAllByTestId("grid-line").length;
+
+    it("spreads the points out from the center when zoomed in, keeping dot sizes", () => {
+      store.setPoints([{ caseId: "1", x: 0.75, y: 0.5 }, ...kPoints.slice(1)]);
+      store.zoomIn();
+      renderGraph(store);
+      // 12 + 0.875 × 276
+      expect(point("the cat sat")).toHaveAttribute("transform", "translate(253.5 150)");
+      expect(point("the bird sang")).toHaveAttribute("transform", "translate(150 150)");
+      expect(within(point("the cat sat")).getByTestId("dot")).toHaveAttribute("r", "6");
+    });
+
+    it("moves the points when the view changes after drawing", () => {
+      renderGraph(store);
+      expect(point("a dog ran")).toHaveAttribute("transform", "translate(288 12)");
+      act(() => store.panTo(0.6, 0.5));
+      // 0.1 of the 276px padded width to the left
+      expect(point("a dog ran")).toHaveAttribute("transform", "translate(260.4 12)");
+      act(() => store.fitAll());
+      expect(point("a dog ran")).toHaveAttribute("transform", "translate(288 12)");
+    });
+
+    it("draws fewer grid lines zoomed in and more zoomed out", () => {
+      renderGraph(store);
+      expect(gridLineCount()).toBe(14);
+      act(() => store.zoomIn());
+      expect(gridLineCount()).toBeLessThan(14);
+      act(() => store.zoomOut());
+      act(() => store.zoomOut());
+      expect(gridLineCount()).toBeGreaterThan(14);
+    });
+  });
+
   describe("status", () => {
     it.each([
       ["too-few", kTooFewMessage],
@@ -541,6 +575,16 @@ describe("Graph", () => {
         store.setTestPhrasePoints([testPoint(2, 1.2, 0.5, "3")], { 2: "placed" });
         renderGraph(store);
         expect(symbolPoint("Diamond test phrase: a bird")).toHaveAttribute("transform", "translate(288 150)");
+      });
+
+      it("draws a symbol whose neighbor is off-screen so the symbol is off-screen too, not at the plot's edge", () => {
+        // Case 4, at (1, 0), is drawn at (460.5, 460.5) at level 2
+        store.setTestPhrasePoints([testPoint(4, 1, 0, "4", -1, 0)], { 4: "placed" });
+        store.zoomIn();
+        store.zoomIn();
+        renderGraph(store);
+        expect(point("a fish swam")).toHaveAttribute("transform", "translate(460.5 460.5)");
+        expect(symbolPoint("Star test phrase: a fish")).toHaveAttribute("transform", "translate(442.5 460.5)");
       });
 
       it("keeps a symbol clear of another phrase's dot", () => {
