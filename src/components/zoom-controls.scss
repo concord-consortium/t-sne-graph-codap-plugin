@@ -1,23 +1,23 @@
 @use "../styles/variables" as *;
 
-// The back shows 2px around and between the buttons, as a gray frame and dividers
+// The back shows 2px around the buttons and 1px between them, as a gray frame and dividers
 .zoom-controls {
   background-color: $zoom-controls-back;
   border-radius: $zoom-controls-radius;
   display: flex;
   flex-direction: column;
-  gap: $zoom-controls-inset;
+  gap: $zoom-button-gap;
   left: $zoom-controls-offset;
   padding: $zoom-controls-inset;
   position: absolute;
   top: $zoom-controls-offset;
 }
 
-// Inset box-shadow focus border, so the icon doesn't shift
+// Inset box-shadow focus border, so the icon doesn't shift. Only the set's outer corners are round.
 .zoom-button {
   background-color: white;
   border: none;
-  border-radius: $zoom-button-radius;
+  border-radius: 0;
   box-sizing: border-box;
   color: $zoom-icon-color;
   cursor: pointer;
@@ -26,6 +26,16 @@
   outline: none;
   padding: 0;
   width: $zoom-button-size;
+
+  // Of type: the announcement after the buttons is a <p>
+  &:first-of-type {
+    border-top-left-radius: $zoom-button-radius;
+    border-top-right-radius: $zoom-button-radius;
+  }
+  &:last-of-type {
+    border-bottom-left-radius: $zoom-button-radius;
+    border-bottom-right-radius: $zoom-button-radius;
+  }
 
   // Pressed overrides hover; focus adds its border
   &[data-hovered] {
