@@ -2,7 +2,7 @@ import React, { KeyboardEvent, MouseEvent, useEffect, useLayoutEffect, useMemo, 
 import { observer } from "mobx-react-lite";
 import { Point } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
-import { clearCodapSelection, selectInCodap } from "../models/selection-sync";
+import { clearCodapSelection, selectPoint } from "../models/selection-sync";
 import { ISize, toPixels } from "../tsne/layout";
 import "./graph.scss";
 
@@ -129,7 +129,7 @@ export const Graph = observer(() => {
       case " ":
         // These keys on the plot itself select nothing
         if (event.target === svgRef.current || !activeExists) return;
-        selectInCodap(store, [activeCaseId], event.shiftKey);
+        selectPoint(store, activeCaseId, event.shiftKey);
         break;
       case "Escape":
         clearCodapSelection(store);
@@ -149,7 +149,7 @@ export const Graph = observer(() => {
   const handlePointClick = (event: MouseEvent<SVGGElement>, caseId: string) => {
     event.stopPropagation();
     setActiveCaseId(caseId);
-    selectInCodap(store, [caseId], event.shiftKey);
+    selectPoint(store, caseId, event.shiftKey);
   };
 
   const activePoint = activeExists ? points.find(point => point.caseId === activeCaseId) : undefined;

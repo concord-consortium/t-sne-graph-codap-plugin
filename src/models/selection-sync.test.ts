@@ -1,7 +1,7 @@
 import * as codapApi from "@concord-consortium/codap-plugin-api";
 import { ClientHandler, IResult } from "@concord-consortium/codap-plugin-api";
 import { CaseInfo, IPluginStore, PluginStore } from "./plugin-store";
-import { clearCodapSelection, selectInCodap, startSelectionSync } from "./selection-sync";
+import { clearCodapSelection, selectInCodap, selectPoint, startSelectionSync } from "./selection-sync";
 
 jest.mock("@concord-consortium/codap-plugin-api", () => ({
   addCasesToSelection: jest.fn(),
@@ -221,6 +221,57 @@ describe("selection-sync", () => {
       api.selectCases.mockRejectedValueOnce(new Error("timeout"));
       await selectInCodap(store, ["100"]);
       expect(consoleError).toHaveBeenCalledWith("Unable to select cases in", "Phrases", "timeout");
+    });
+  });
+
+  describe("selecting a point, as CODAP's graph does", () => {
+    beforeEach(() => {
+      store.setCases(kCases);
+    });
+
+    it("selects only an unselected point on a plain click", async () => {
+      store.setSelectedCaseIds(["101"]);
+      await selectPoint(store, "100", false);
+      expect(api.selectCases).toHaveBeenCalledWith("Phrases", ["100"]);
+    });
+
+    it("adds an unselected point on a shift-click", async () => {
+      store.setSelectedCaseIds(["101"]);
+      await selectPoint(store, "100", true);
+      expect(api.addCasesToSelection).toHaveBeenCalledWith("Phrases", ["100"]);
+    });
+
+    it("leaves the selection alone on a plain click on a selected point", async () => {
+      store.setSelectedCaseIds(["100", "102"]);
+      await selectPoint(store, "100", false);
+      expect(api.selectCases).not.toHaveBeenCalled();
+      expect(api.addCasesToSelection).not.toHaveBeenCalled();
+    });
+
+    it("removes a selected point on a shift-click, keeping the other selected leaf cases", async () => {
+      store.setSelectedCaseIds(["100", "102"]);
+      await selectPoint(store, "100", true);
+      expect(api.selectCases).toHaveBeenCalledWith("Phrases", ["102"]);
+    });
+
+    it("leaves out parent IDs, which would select all their children again", async () => {
+      // CODAP lists a selected parent with all its children
+      store.setSelectedCaseIds(["10", "100", "101"]);
+      await selectPoint(store, "101", true);
+      expect(api.selectCases).toHaveBeenCalledWith("Phrases", ["100"]);
+    });
+
+    it("keeps selected cases that have no point, such as a blank phrase", async () => {
+      store.setCases([...kCases, { caseId: "103", values: { group: "Opposite", phrase: "" } }]);
+      store.setSelectedCaseIds(["100", "103"]);
+      await selectPoint(store, "100", true);
+      expect(api.selectCases).toHaveBeenCalledWith("Phrases", ["103"]);
+    });
+
+    it("clears the selection when the last selected point is removed", async () => {
+      store.setSelectedCaseIds(["100"]);
+      await selectPoint(store, "100", true);
+      expect(api.selectCases).toHaveBeenCalledWith("Phrases", []);
     });
   });
 });

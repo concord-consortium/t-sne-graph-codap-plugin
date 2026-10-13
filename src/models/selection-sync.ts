@@ -57,5 +57,17 @@ export const selectInCodap = async (store: IPluginStore, caseIds: string[], exte
   }
 };
 
+/** Follows CODAP's graph: a selected point stays selected on a plain click, and Shift removes it. */
+export const selectPoint = (store: IPluginStore, caseId: string, extend: boolean) => {
+  if (!store.isSelected(caseId)) return selectInCodap(store, [caseId], extend);
+  if (!extend) return;
+  // The API can only replace or add, so replace with the other selected leaf cases. Parent IDs are
+  // left out: CODAP would select all their children again.
+  const others = store.cases
+    .filter(({ caseId: id }) => id !== caseId && store.isSelected(id))
+    .map(({ caseId: id }) => id);
+  return selectInCodap(store, others);
+};
+
 /** Parent-case selections are cleared too. */
 export const clearCodapSelection = (store: IPluginStore) => selectInCodap(store, []);

@@ -3,11 +3,11 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CaseInfo, IPluginStore, Point, PluginStore } from "../models/plugin-store";
 import { StoreProvider } from "../models/store-context";
-import { clearCodapSelection, selectInCodap } from "../models/selection-sync";
+import { clearCodapSelection, selectPoint } from "../models/selection-sync";
 import { kLabelColors, kUnlabeledColor } from "../tsne/labels";
 import { Graph, kErrorMessage, kTooFewMessage } from "./graph";
 
-jest.mock("../models/selection-sync", () => ({ clearCodapSelection: jest.fn(), selectInCodap: jest.fn() }));
+jest.mock("../models/selection-sync", () => ({ clearCodapSelection: jest.fn(), selectPoint: jest.fn() }));
 
 const kCases: CaseInfo[] = [
   { caseId: "1", values: { phrase: "the cat sat", label: "Similar" } },
@@ -42,7 +42,7 @@ describe("Graph", () => {
   let store: IPluginStore;
 
   beforeEach(() => {
-    jest.mocked(selectInCodap).mockReset();
+    jest.mocked(selectPoint).mockReset();
     jest.mocked(clearCodapSelection).mockReset();
     // jsdom has no layout
     jest.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
@@ -175,20 +175,20 @@ describe("Graph", () => {
   });
 
   describe("mouse", () => {
-    it("selects a clicked point in place of the selection", async () => {
+    it("passes a clicked point to selectPoint", async () => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.click(point("a dog ran"));
-      expect(selectInCodap).toHaveBeenCalledWith(store, ["2"], false);
+      expect(selectPoint).toHaveBeenCalledWith(store, "2", false);
       expect(clearCodapSelection).not.toHaveBeenCalled();
     });
 
-    it("adds a shift-clicked point to the selection", async () => {
+    it("passes a shift-clicked point to selectPoint, extending", async () => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.keyboard("{Shift>}");
       await user.click(point("a dog ran"));
-      expect(selectInCodap).toHaveBeenCalledWith(store, ["2"], true);
+      expect(selectPoint).toHaveBeenCalledWith(store, "2", true);
     });
 
     it("clears the selection on a click on empty space, but not on a shift-click", async () => {
@@ -200,7 +200,7 @@ describe("Graph", () => {
       await user.keyboard("{/Shift}");
       await user.click(plot());
       expect(clearCodapSelection).toHaveBeenCalledWith(store);
-      expect(selectInCodap).not.toHaveBeenCalled();
+      expect(selectPoint).not.toHaveBeenCalled();
     });
 
     it("makes a clicked point the one the arrow keys move from", async () => {
@@ -292,20 +292,20 @@ describe("Graph", () => {
       expect(point("a fish swam")).toHaveFocus();
     });
 
-    it.each(["{Enter}", " "])("selects the focused point with %p, in place of the selection", async key => {
+    it.each(["{Enter}", " "])("passes the focused point to selectPoint with %p", async key => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.tab();
       await user.keyboard(`{ArrowRight}{ArrowRight}${key}`);
-      expect(selectInCodap).toHaveBeenCalledWith(store, ["2"], false);
+      expect(selectPoint).toHaveBeenCalledWith(store, "2", false);
     });
 
-    it.each(["{Enter}", " "])("adds the focused point to the selection with Shift+%p", async key => {
+    it.each(["{Enter}", " "])("passes the focused point to selectPoint, extending, with Shift+%p", async key => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.tab();
       await user.keyboard(`{ArrowRight}{Shift>}${key}{/Shift}`);
-      expect(selectInCodap).toHaveBeenCalledWith(store, ["1"], true);
+      expect(selectPoint).toHaveBeenCalledWith(store, "1", true);
     });
 
     it("selects nothing when Enter or Space is pressed on the plot itself", async () => {
@@ -313,7 +313,7 @@ describe("Graph", () => {
       renderGraph(store);
       await user.tab();
       await user.keyboard("{Enter} ");
-      expect(selectInCodap).not.toHaveBeenCalled();
+      expect(selectPoint).not.toHaveBeenCalled();
     });
 
     it("clears the selection with Escape, from the plot or from a point", async () => {

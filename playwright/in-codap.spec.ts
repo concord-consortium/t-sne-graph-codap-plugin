@@ -362,6 +362,12 @@ test("mirrors the selection between the plot, the Key and CODAP's table", async 
   await expect.poll(() => selectedInTable(page)).toEqual(["Similar", ...kFixturePhrases.Similar]);
   await expect(plugin.getByRole("button", { name: /^Similar, 3 points/ })).toHaveAttribute("aria-pressed", "true");
 
+  // As in CODAP's graph: a plain click on a selected point changes nothing, and a Shift-click removes
+  // it. Had the plain click narrowed the selection, the Shift-click would leave nothing selected.
+  await point(plugin, "the cat sat on the mat").click();
+  await point(plugin, "the cat sat on the mat").click({ modifiers: ["Shift"] });
+  await expect.poll(() => selectedInTable(page)).toEqual(["a cat rested on a rug", "the kitten lay on the carpet"]);
+
   // A parent row → all its points
   await tableCell(page, "Sideways").click();
   await expect.poll(() => pressedPhrases(plugin)).toEqual(kFixturePhrases.Sideways);
@@ -393,6 +399,13 @@ test("selects with the keyboard: arrow to a point, Enter selects, Escape clears"
   await page.keyboard.press("Enter");
   await expect.poll(() => selectedInTable(page)).toEqual(["a cat rested on a rug"]);
   await expect(point(plugin, "a cat rested on a rug")).toHaveAttribute("aria-pressed", "true");
+
+  // Shift+Enter adds a point, and removes it again
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("Shift+Enter");
+  await expect.poll(() => selectedInTable(page)).toEqual(["the cat sat on the mat", "a cat rested on a rug"]);
+  await page.keyboard.press("Shift+Enter");
+  await expect.poll(() => selectedInTable(page)).toEqual(["a cat rested on a rug"]);
 
   await page.keyboard.press("Escape");
   await expect.poll(() => selectedInTable(page)).toEqual([]);
