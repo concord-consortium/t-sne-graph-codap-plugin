@@ -584,13 +584,19 @@ const plotLayout = async (plugin: FrameLocator) => {
 
 test("keeps the plot square and centered when the tile is resized", async ({ page }) => {
   const plugin = await openPlot(page, "label");
+  // Retried, because the area and the plot are measured one after the other while CODAP may still
+  // be sizing the tile
   const expectSquareAndCentered = async () => {
-    const { area, plot: square, left, right, top, bottom } = await plotLayout(plugin);
-    expect(square.width).toBe(square.height);
-    expect(square.width).toBe(Math.min(area.width, area.height));
-    expect(Math.abs(left - right)).toBeLessThanOrEqual(1);
-    expect(Math.abs(top - bottom)).toBeLessThanOrEqual(1);
-    return { left, top };
+    let offsets = { left: 0, top: 0 };
+    await expect(async () => {
+      const { area, plot: square, left, right, top, bottom } = await plotLayout(plugin);
+      expect(square.width).toBe(square.height);
+      expect(square.width).toBe(Math.min(area.width, area.height));
+      expect(Math.abs(left - right)).toBeLessThanOrEqual(1);
+      expect(Math.abs(top - bottom)).toBeLessThanOrEqual(1);
+      offsets = { left, top };
+    }).toPass();
+    return offsets;
   };
   expect(await expectSquareAndCentered()).toEqual({ left: 0, top: 0 });
 
