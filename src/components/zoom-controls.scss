@@ -1,0 +1,90 @@
+@use "../styles/variables" as *;
+
+// The back shows 2px around and between the buttons, as a gray frame and dividers
+.zoom-controls {
+  background-color: $zoom-controls-back;
+  border-radius: $zoom-controls-radius;
+  display: flex;
+  flex-direction: column;
+  gap: $zoom-controls-inset;
+  left: $zoom-controls-offset;
+  padding: $zoom-controls-inset;
+  position: absolute;
+  top: $zoom-controls-offset;
+}
+
+// Inset box-shadow focus border, so the icon doesn't shift
+.zoom-button {
+  background-color: white;
+  border: none;
+  border-radius: $zoom-button-radius;
+  box-sizing: border-box;
+  color: $zoom-icon-color;
+  cursor: pointer;
+  display: block;
+  height: $zoom-button-size;
+  outline: none;
+  padding: 0;
+  width: $zoom-button-size;
+
+  // Pressed overrides hover; focus adds its border
+  &[data-hovered] {
+    background-color: $key-entry-fill-hover;
+  }
+  &[data-pressed] {
+    background-color: $key-entry-fill-pressed;
+  }
+  &[data-focus-visible] {
+    background-color: $key-entry-fill-hover;
+    box-shadow: inset 0 0 0 2px $focus-color;
+  }
+
+  // After the fills, so it removes them; still in the Tab order, so the focus border stays
+  &[aria-disabled="true"] {
+    background-color: white;
+    cursor: default;
+
+    .zoom-icon {
+      opacity: $disabled-opacity;
+    }
+  }
+}
+
+.zoom-button-face {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  width: 100%;
+}
+
+.zoom-icon {
+  display: block;
+  flex: none;
+}
+
+// Forced colors drop box-shadows and replace colors, hiding the back, fills and focus border
+@media (forced-colors: active) {
+  .zoom-controls {
+    border: 1px solid ButtonText;
+  }
+
+  .zoom-button {
+    background-color: ButtonFace;
+    color: ButtonText;
+
+    &[data-hovered],
+    &[data-pressed] {
+      background-color: Highlight;
+      color: HighlightText;
+    }
+    &[data-focus-visible] {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+    &[aria-disabled="true"] {
+      background-color: ButtonFace;
+      color: GrayText;
+    }
+  }
+}

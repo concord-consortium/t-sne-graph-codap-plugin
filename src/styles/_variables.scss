@@ -60,3 +60,12 @@ $test-phrase-placeholder-color: #767676;
 // Violets of the test-phrase symbol's hue
 $test-phrase-no-words-border: #5a1fd1;
 $test-phrase-no-words-fill: #f1ebfc;
+
+// Zoom controls: three 24px buttons, 2px apart and 2px inside a translucent back
+$zoom-controls-offset: 8px;
+$zoom-controls-inset: 2px;
+$zoom-controls-back: rgba(0, 0, 0, 0.2);
+$zoom-controls-radius: 4px;
+$zoom-button-size: 24px;
+$zoom-button-radius: 2px;
+$zoom-icon-color: #006c8e;

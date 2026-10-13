@@ -36,11 +36,16 @@ const graphStore = () => {
 
 const renderGraph = (store: IPluginStore) => render(<StoreProvider store={store}><Graph /></StoreProvider>);
 
-const plot = () => screen.getByRole("group");
+// Not the zoom controls' group
+const plot = () => screen.getByRole("group", { name: /^t-SNE plot/ });
 // A point's name is its phrase, then its label when there is a Label Column
 const point = (phrase: string) =>
-  screen.getByRole("button", { name: name => name === phrase || name.startsWith(`${phrase}, `) });
-const pointNames = () => screen.queryAllByRole("button").map(button => button.getAttribute("aria-label"));
+  within(plot()).getByRole("button", { name: name => name === phrase || name.startsWith(`${phrase}, `) });
+// Tab reaches the three zoom buttons first
+const tabToPlot = async (user: ReturnType<typeof userEvent.setup>) => {
+  for (let i = 0; i < 4; i++) await user.tab();
+};
+const pointNames = () => within(plot()).queryAllByRole("button").map(button => button.getAttribute("aria-label"));
 const pointPhrases = () => pointNames().map(name => name?.split(", ")[0]);
 
 describe("Graph", () => {
@@ -118,7 +123,7 @@ describe("Graph", () => {
       renderGraph(store);
       expect(screen.queryByTestId("active-point")).toBeNull();
 
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}");
       expect(point("the bird sang")).toHaveFocus();
       const copy = screen.getByTestId("active-point");
@@ -313,6 +318,10 @@ describe("Graph", () => {
       expect(plot()).toHaveAttribute("tabindex", "0");
       expect(kPhrases.map(phrase => point(phrase).getAttribute("tabindex"))).toEqual(["-1", "-1", "-1", "-1"]);
 
+      for (const name of ["Zoom in", "Zoom out", "Fit all"]) {
+        await user.tab();
+        expect(screen.getByRole("button", { name })).toHaveFocus();
+      }
       await user.tab();
       expect(plot()).toHaveFocus();
       await user.keyboard("{ArrowRight}");
@@ -330,7 +339,7 @@ describe("Graph", () => {
     it("moves to the next point with Right or Down, and to the previous with Left or Up", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowRight}{ArrowDown}");
       expect(point("a dog ran")).toHaveFocus();
       await user.keyboard("{ArrowRight}");
@@ -344,7 +353,7 @@ describe("Graph", () => {
     it("stops at the first and last points", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowRight}{ArrowUp}");
       expect(point("the cat sat")).toHaveFocus();
       await user.keyboard("{End}{ArrowDown}");
@@ -354,7 +363,7 @@ describe("Graph", () => {
     it("moves to the first point with Home and the last with End", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{End}");
       expect(point("a fish swam")).toHaveFocus();
       await user.keyboard("{Home}");
@@ -366,7 +375,7 @@ describe("Graph", () => {
     store.setPoints(kPoints.slice().reverse());
     renderGraph(store);
     expect(pointPhrases()).toEqual(kPhrases);
-    await user.tab();
+    await tabToPlot(user);
     await user.keyboard("{ArrowRight}");
     expect(point("the cat sat")).toHaveFocus();
     // Sorting the table changes the order, not the positions
@@ -380,7 +389,7 @@ describe("Graph", () => {
   it("starts from the last point when Left or Up is pressed on the plot", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowLeft}");
       expect(point("a fish swam")).toHaveFocus();
     });
@@ -388,7 +397,7 @@ describe("Graph", () => {
     it.each(["{Enter}", " "])("passes the focused point to selectPoint with %p", async key => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard(`{ArrowRight}{ArrowRight}${key}`);
       expect(selectPoint).toHaveBeenCalledWith(store, "2", false);
     });
@@ -396,7 +405,7 @@ describe("Graph", () => {
     it.each(["{Enter}", " "])("passes the focused point to selectPoint, extending, with Shift+%p", async key => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard(`{ArrowRight}{Shift>}${key}{/Shift}`);
       expect(selectPoint).toHaveBeenCalledWith(store, "1", true);
     });
@@ -404,7 +413,7 @@ describe("Graph", () => {
     it("selects nothing when Enter or Space is pressed on the plot itself", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{Enter} ");
       expect(selectPoint).not.toHaveBeenCalled();
     });
@@ -412,7 +421,7 @@ describe("Graph", () => {
     it("clears the selection with Escape, from the plot or from a point", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{Escape}{ArrowRight}{Escape}");
       expect(clearCodapSelection).toHaveBeenCalledTimes(2);
     });
@@ -430,7 +439,7 @@ describe("Graph", () => {
     it("ignores a held Enter or Space, which would select over and over", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowRight}");
       expect(fireEvent.keyDown(point("the cat sat"), { key: "Enter", repeat: true })).toBe(false);
       expect(fireEvent.keyDown(point("the cat sat"), { key: " ", repeat: true, shiftKey: true })).toBe(false);
@@ -477,7 +486,7 @@ describe("Graph", () => {
     it("leaves focus on the plot after a click on empty space", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowRight}");
       expect(point("the cat sat")).toHaveFocus();
       await user.click(plot());
@@ -712,7 +721,7 @@ describe("Graph", () => {
       it.each(["{Enter}", " "])("selects the focused symbol with %p, and adds it with Shift", async key => {
         const user = userEvent.setup();
         renderGraph(store);
-        await user.tab();
+        await tabToPlot(user);
         await user.keyboard(`{End}${key}`);
         expect(selectTestPhrase).toHaveBeenLastCalledWith(store, 4, false);
         await user.keyboard(`{Shift>}${key}{/Shift}`);
@@ -722,7 +731,7 @@ describe("Graph", () => {
       it("clears everything with Escape from a symbol", async () => {
         const user = userEvent.setup();
         renderGraph(store);
-        await user.tab();
+        await tabToPlot(user);
         await user.keyboard("{End}{Escape}");
         expect(clearCodapSelection).toHaveBeenCalledWith(store);
       });
@@ -732,7 +741,7 @@ describe("Graph", () => {
       it("moves from the last case point to the symbols, in slot order", async () => {
         const user = userEvent.setup();
         renderGraph(store);
-        await user.tab();
+        await tabToPlot(user);
         await user.keyboard("{ArrowLeft}");
         expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
         await user.keyboard("{Home}{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}");
@@ -746,7 +755,7 @@ describe("Graph", () => {
       it("keeps the keyboard position on a symbol whose slot is edited from outside the plot", async () => {
         const user = userEvent.setup();
         renderGraph(store);
-        await user.tab();
+        await tabToPlot(user);
         await user.keyboard("{End}");
         expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
         // Leave the plot, as for editing the slot's field
@@ -765,7 +774,7 @@ describe("Graph", () => {
       it("moves focus to the first point when the focused symbol's slot is edited", async () => {
         const user = userEvent.setup();
         renderGraph(store);
-        await user.tab();
+        await tabToPlot(user);
         await user.keyboard("{End}");
         expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
         act(() => store.setEditingSlot(4));

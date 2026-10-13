@@ -9,6 +9,7 @@ import {
   applyView, directionToPixels, gridLines, IPosition, ISize, IView, offsetFromNeighbor, toPixels, worldBounds
 } from "../tsne/layout";
 import { kPlotSymbolExtents, kTestPhraseColor, symbolName, symbolPath, symbolReach } from "./phrase-symbol";
+import { ZoomControls } from "./zoom-controls";
 import "./graph.scss";
 
 // Radii of the outline and rings described in _variables.scss, then the focus ring outside them
@@ -243,6 +244,7 @@ export const Graph = observer(() => {
 
   return (
     <div className="graph" data-testid="graph-area" ref={containerRef}>
+      <ZoomControls />
       <svg
         ref={svgRef}
         className="graph-plot"
