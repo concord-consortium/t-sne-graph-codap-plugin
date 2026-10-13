@@ -1,5 +1,7 @@
 import { Instance, SnapshotIn, types } from "mobx-state-tree";
-import { IDirection, IPosition } from "../tsne/layout";
+import {
+  clampView, IDirection, IPosition, IView, kFitView, kMaxZoomLevel, kMinZoomLevel, scaleForLevel
+} from "../tsne/layout";
 import { groupLabels, ILabelEntry, kUnlabeled, kUnlabeledColor } from "../tsne/labels";
 import { randomSeed } from "../tsne/random";
 
@@ -80,6 +82,20 @@ const normalizeTestPhrases = (phrases: unknown) => Array.isArray(phrases)
   })
   : emptyTestPhrases();
 
+// Whatever a saved document holds: a value that isn't a number becomes the fit view's
+const normalizeView = (view: unknown): IView => {
+  const { zoomLevel, centerX, centerY } = (view && typeof view === "object" ? view : {}) as Record<string, unknown>;
+  const toNumber = (value: unknown) => typeof value === "number" ? value : NaN;
+  return clampView({ zoomLevel: toNumber(zoomLevel), centerX: toNumber(centerX), centerY: toNumber(centerY) });
+};
+
+// The part of the plot shown; see IView
+const View = types.model("View", {
+  zoomLevel: types.optional(types.integer, kFitView.zoomLevel),
+  centerX: types.optional(types.number, kFitView.centerX),
+  centerY: types.optional(types.number, kFitView.centerY)
+});
+
 export interface LabelEntry extends ILabelEntry {
   // All of the label's rows are selected
   isSelected: boolean;
@@ -104,12 +120,15 @@ export const PluginStore = types
     // Same seed, same picture when the document is reopened
     tsneSeed: types.maybe(types.number),
     // Survive table changes: they belong to the document
-    testPhrases: types.optional(types.array(types.string), emptyTestPhrases)
+    testPhrases: types.optional(types.array(types.string), emptyTestPhrases),
+    view: types.optional(View, {})
   })
   // Input normalization, not a version migration
-  .preProcessSnapshot(snapshot => snapshot && "testPhrases" in snapshot
-    ? { ...snapshot, testPhrases: normalizeTestPhrases(snapshot.testPhrases) }
-    : snapshot)
+  .preProcessSnapshot(snapshot => snapshot && {
+    ...snapshot,
+    ...("testPhrases" in snapshot ? { testPhrases: normalizeTestPhrases(snapshot.testPhrases) } : {}),
+    view: normalizeView(snapshot.view)
+  })
   .volatile(() => ({
     dataContexts: [] as DataContextInfo[],
     attributes: [] as AttributeInfo[],
@@ -167,6 +186,19 @@ export const PluginStore = types
     },
     symbolForSlot(slot: number): PhraseSymbol {
       return kPhraseSymbols[slot];
+    },
+    get scale() {
+      return scaleForLevel(self.view.zoomLevel);
+    },
+    get isFitView() {
+      const { zoomLevel, centerX, centerY } = self.view;
+      return zoomLevel === kFitView.zoomLevel && centerX === kFitView.centerX && centerY === kFitView.centerY;
+    },
+    get canZoomIn() {
+      return self.view.zoomLevel < kMaxZoomLevel;
+    },
+    get canZoomOut() {
+      return self.view.zoomLevel > kMinZoomLevel;
     }
   }))
   .views(self => ({
@@ -217,8 +249,17 @@ export const PluginStore = types
     const ensureTsneSeed = () => {
       if (self.tsneSeed === undefined) self.tsneSeed = randomSeed();
     };
+    const setView = (view: IView) => {
+      const { zoomLevel, centerX, centerY } = clampView(view);
+      self.view.zoomLevel = zoomLevel;
+      self.view.centerX = centerX;
+      self.view.centerY = centerY;
+    };
+    // An old view of a different picture is never kept
+    const resetView = () => setView(kFitView);
     const idOf = (name: string | undefined) => self.attributes.find(attr => attr.name === name)?.id;
     const setPhraseAttribute = (name: string | undefined) => {
+      if (name !== self.phraseAttributeName) resetView();
       self.phraseAttributeName = name;
       self.phraseAttributeId = idOf(name);
       if (name === undefined) {
@@ -235,6 +276,17 @@ export const PluginStore = types
 
     return {
       ensureTsneSeed,
+      resetView,
+      zoomIn() {
+        setView({ ...self.view, zoomLevel: self.view.zoomLevel + 1 });
+      },
+      zoomOut() {
+        setView({ ...self.view, zoomLevel: self.view.zoomLevel - 1 });
+      },
+      fitAll: resetView,
+      panTo(centerX: number, centerY: number) {
+        setView({ ...self.view, centerX, centerY });
+      },
       // Choosing a different table resets both column selections and the plot data
       setDataContext(name: string | undefined) {
         if (name === self.dataContextName) return;
@@ -246,6 +298,7 @@ export const PluginStore = types
         clearLayout();
         self.cases = [];
         self.selectedCaseIds = new Set();
+        resetView();
       },
       setPhraseAttribute,
       setLabelAttribute,

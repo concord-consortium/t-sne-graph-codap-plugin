@@ -164,7 +164,7 @@ describe("startCodapSync", () => {
     await started;
     expect(stateHandler()()).toEqual({
       success: true, values: { version: 1, ...savedSelections, phraseAttributeId: "2", labelAttributeId: "1",
-        testPhrases: ["", "", "", "", ""] }
+        testPhrases: ["", "", "", "", ""], view: { zoomLevel: 0, centerX: 0.5, centerY: 0.5 } }
     });
   });
 
