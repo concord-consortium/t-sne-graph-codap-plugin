@@ -38,6 +38,21 @@ const useElementSize = (ref: React.RefObject<HTMLElement | null>) => {
   return size;
 };
 
+interface IPointMarksProps {
+  color: string;
+  selected: boolean;
+}
+
+const PointMarks = ({ color, selected }: IPointMarksProps) => (
+  <>
+    <circle className="dot" data-testid="dot" r={kPointRadius} fill={color} />
+    <circle className="dot-outline" data-testid="dot-outline" r={kOutlineRadius} />
+    {selected && <circle className="selection-ring" data-testid="selection-ring" r={kSelectionRingRadius} />}
+    {selected && <circle className="selection-edge" data-testid="selection-edge" r={kSelectionEdgeRadius} />}
+    <circle className="focus-ring" r={kFocusRingRadius} />
+  </>
+);
+
 /** One Tab stop; the arrow keys move between points. */
 export const Graph = observer(() => {
   const store = useStore();
@@ -49,6 +64,8 @@ export const Graph = observer(() => {
   // Remembered while a recompute empties the graph, so focus can return to the same case
   const [activeCaseId, setActiveCaseId] = useState<string>();
   const focusWithin = useRef(false);
+  // Set when a recompute removed the focused point, until focus is back on a point
+  const restoringFocus = useRef(false);
 
   const { computeStatus } = store;
   // Table order for drawing and the arrow keys; the layout uses its own fixed order
@@ -72,11 +89,16 @@ export const Graph = observer(() => {
     }
   }, [activeCaseId, caseIds]);
 
-  // Keep focus in the plot as points change: on the active point if shown, else on the plot
+  // When a recompute removes the focused point, hold focus on the plot, then return it to the
+  // active point. Focus the user put on the plot stays there.
   useLayoutEffect(() => {
-    if (!focusWithin.current) return;
-    const target = activeExists ? pointRefs.current.get(activeCaseId) : svgRef.current;
+    const svg = svgRef.current;
+    if (!focusWithin.current || !svg) return;
+    const focusLost = !svg.contains(document.activeElement);
+    if (!focusLost && !restoringFocus.current) return;
+    const target = activeExists ? pointRefs.current.get(activeCaseId) : svg;
     if (target && document.activeElement !== target) target.focus();
+    restoringFocus.current = !activeExists;
   });
 
   const moveTo = (caseId: string | undefined) => {
@@ -130,6 +152,8 @@ export const Graph = observer(() => {
     selectInCodap(store, [caseId], event.shiftKey);
   };
 
+  const activePoint = activeExists ? points.find(point => point.caseId === activeCaseId) : undefined;
+  const activePixels = activePoint && toPixels(activePoint, size);
   const hasPoints = points.length > 0;
   const label = hasPoints
     ? `t-SNE plot of ${plural(points.length, "phrase")} in ${plural(store.labelEntries.length, "label")}`
@@ -160,7 +184,10 @@ export const Graph = observer(() => {
           const leaving = event.relatedTarget
             ? !svgRef.current?.contains(event.relatedTarget as Node)
             : (event.target as Element).isConnected;
-          if (leaving) focusWithin.current = false;
+          if (leaving) {
+            focusWithin.current = false;
+            restoringFocus.current = false;
+          }
         }}
       >
         <g className="grid" data-testid="grid" aria-hidden="true">
@@ -189,14 +216,19 @@ export const Graph = observer(() => {
               onFocus={() => setActiveCaseId(point.caseId)}
             >
               <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
-              <circle className="dot" data-testid="dot" r={kPointRadius} fill={store.colorForCase(point.caseId)} />
-              <circle className="dot-outline" data-testid="dot-outline" r={kOutlineRadius} />
-              {selected && <circle className="selection-ring" data-testid="selection-ring" r={kSelectionRingRadius} />}
-              {selected && <circle className="selection-edge" data-testid="selection-edge" r={kSelectionEdgeRadius} />}
-              <circle className="focus-ring" r={kFocusRingRadius} />
+              <PointMarks color={store.colorForCase(point.caseId)} selected={selected} />
             </g>
           );
         })}
+        {/* The active point drawn again on top of its neighbors. Moving the point itself to the end
+            would make React move a focused element, which drops its focus. */}
+        {activePoint && activePixels && (
+          <g className="active-point" data-testid="active-point" aria-hidden="true"
+            transform={`translate(${activePixels.x} ${activePixels.y})`}>
+            <PointMarks color={store.colorForCase(activePoint.caseId)}
+              selected={store.isSelected(activePoint.caseId)} />
+          </g>
+        )}
       </svg>
       <p className="graph-status" role="status" aria-live="polite">{message}</p>
     </div>

@@ -385,6 +385,9 @@ test("selects with the keyboard: arrow to a point, Enter selects, Escape clears"
   await expect(point(plugin, "the cat sat on the mat")).toBeFocused();
   // Focus is on the point now, so the plot's outline is gone
   expect((await plotOutline(plugin)).outlineStyle).toBe("none");
+  // The copy of the active point drawn on top shows the focus ring too
+  expect(await plugin.locator(".active-point .focus-ring")
+    .evaluate(ring => getComputedStyle(ring).visibility)).toBe("visible");
   await page.keyboard.press("ArrowRight");
   await expect(point(plugin, "a cat rested on a rug")).toBeFocused();
   await page.keyboard.press("Enter");

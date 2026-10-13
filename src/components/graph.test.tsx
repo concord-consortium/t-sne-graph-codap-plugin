@@ -105,6 +105,31 @@ describe("Graph", () => {
       expect(within(point("the cat sat")).getByTestId("dot")).toHaveAttribute("fill", kUnlabeledColor);
     });
 
+    it("draws the active point again on top, out of the reading order", async () => {
+      const user = userEvent.setup();
+      store.setSelectedCaseIds(["3"]);
+      renderGraph(store);
+      expect(screen.queryByTestId("active-point")).toBeNull();
+
+      await user.tab();
+      await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}");
+      expect(point("the bird sang")).toHaveFocus();
+      const copy = screen.getByTestId("active-point");
+      // After every point, so none covers it
+      kPhrases.forEach(phrase =>
+        expect(point(phrase).compareDocumentPosition(copy)).toBe(Node.DOCUMENT_POSITION_FOLLOWING));
+      expect(copy).toHaveAttribute("transform", point("the bird sang").getAttribute("transform"));
+      expect(copy).toHaveAttribute("aria-hidden", "true");
+      expect(within(copy).getByTestId("selection-ring")).toBeInTheDocument();
+      // Still four buttons for assistive technology
+      expect(pointNames()).toEqual(kPhrases);
+
+      await user.keyboard("{ArrowRight}");
+      expect(screen.getByTestId("active-point"))
+        .toHaveAttribute("transform", point("a fish swam").getAttribute("transform"));
+      expect(within(screen.getByTestId("active-point")).queryByTestId("selection-ring")).toBeNull();
+    });
+
     it("summarizes the plot in its label", () => {
       renderGraph(store);
       expect(plot()).toHaveAccessibleName("t-SNE plot of 4 phrases in 3 labels");
@@ -334,6 +359,19 @@ describe("Graph", () => {
       focusPoint("the bird sang");
       act(() => store.setPoints(kPoints.map(p => ({ ...p, x: 1 - p.x }))));
       expect(point("the bird sang")).toHaveFocus();
+    });
+
+    it("leaves focus on the plot after a click on empty space", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await user.tab();
+      await user.keyboard("{ArrowRight}");
+      expect(point("the cat sat")).toHaveFocus();
+      await user.click(plot());
+      expect(plot()).toHaveFocus();
+      // Any re-render, such as CODAP's selection arriving
+      act(() => store.setSelectedCaseIds([]));
+      expect(plot()).toHaveFocus();
     });
 
     it("doesn't take focus when focus is elsewhere", () => {

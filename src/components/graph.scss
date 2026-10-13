@@ -53,8 +53,13 @@
     visibility: hidden;
   }
 
-  .point:focus-visible .focus-ring {
+  .point:focus-visible .focus-ring,
+  &:has(.point:focus-visible) .active-point .focus-ring {
     visibility: visible;
+  }
+
+  .active-point {
+    pointer-events: none;
   }
 }
 
