@@ -1,4 +1,5 @@
 @use "sass:color";
+@use "sass:math";
 @use "../styles/variables" as *;
 
 // The spec's CSS: a 1px white outline; selected adds a 2px ring and a 1px white edge; hover
@@ -34,9 +35,9 @@ $hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.
 }
 
 // Sized to its content, so the hover and focus boxes hug it. The focus border is an inset
-// box-shadow, so the content doesn't shift.
+// box-shadow, so the content doesn't shift. A one-line entry is $key-entry-height tall.
 .key-entry {
-  align-items: center;
+  align-items: flex-start;
   background: none;
   border: none;
   border-radius: $key-entry-radius;
@@ -46,10 +47,12 @@ $hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.
   display: inline-flex;
   font: inherit;
   gap: 8px;
-  height: $key-entry-height;
+  line-height: $key-line-height;
   max-width: 100%;
+  min-height: $key-entry-height;
   outline: none;
-  padding: 0 6px;
+  padding: math.div($key-entry-height - $key-line-height, 2) 6px;
+  text-align: left;
 
   // Pressed overrides hover; focus adds its border
   &[data-hovered] {
@@ -69,6 +72,8 @@ $hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.
   box-shadow: $outline;
   flex: none;
   height: $key-dot-size;
+  // Centered on the first line
+  margin-top: math.div($key-line-height - $key-dot-size, 2);
   width: $key-dot-size;
 
   // Before the selected rule, so a selected entry keeps its full ring on hover
@@ -81,10 +86,14 @@ $hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.
   }
 }
 
+// Wraps to at most two lines, then ends with an ellipsis
 .key-label {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: $key-label-max-lines;
+  display: -webkit-box;
+  line-clamp: $key-label-max-lines;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 // Forced colors drop box-shadows and replace colors, hiding the dots, rings and focus border

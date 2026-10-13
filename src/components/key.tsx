@@ -30,7 +30,7 @@ export const Key = observer(() => {
               >
                 <span className="key-dot" data-testid="key-dot" aria-hidden="true"
                   style={{ backgroundColor: entry.color }} />
-                {/* Long labels are cut short; the title shows the whole */}
+                {/* Labels past two lines are cut short; the title shows the whole */}
                 <span className="key-label" title={entry.label}>{entry.label}</span>
               </Button>
             </li>

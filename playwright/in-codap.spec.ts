@@ -509,3 +509,27 @@ test("keeps the plot in place when the table is regrouped", async ({ page }) => 
   await expect(secondPoint).toHaveAttribute("aria-label", "All people everywhere feel the same, Similar");
   expect(await positions(plugin)).toEqual(before);
 });
+
+test("wraps a long Key label to two lines, then cuts it short", async ({ page }) => {
+  const plugin = await openPlot(page, "label");
+  const entry = (name: RegExp) => plugin.getByRole("button", { name });
+  const height = async (name: RegExp) => Math.round((await entry(name).boundingBox())?.height ?? 0);
+  // Whether the label's text runs past what is shown
+  const isCut = (name: RegExp) => entry(name).locator(".key-label")
+    .evaluate(label => label.scrollHeight > label.clientHeight);
+  expect(await height(/^Similar,/)).toBe(24);
+
+  await editCell(page, "Sideways", "a somewhat longer label");
+  await expect(entry(/^a somewhat longer label,/)).toBeVisible();
+  expect(await height(/^a somewhat longer label,/)).toBe(40);
+  expect(await isCut(/^a somewhat longer label,/)).toBe(false);
+
+  const tooLong = "a label that is far too long to fit on two lines of the Key";
+  await editCell(page, "a somewhat longer label", tooLong);
+  await expect(entry(/^a label that is far too long/)).toBeVisible();
+  expect(await height(/^a label that is far too long/)).toBe(40);
+  expect(await isCut(/^a label that is far too long/)).toBe(true);
+  await expect(entry(/^a label that is far too long/).locator(".key-label")).toHaveAttribute("title", tooLong);
+  // The other entries keep their height
+  expect(await height(/^Similar,/)).toBe(24);
+});
