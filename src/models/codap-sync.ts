@@ -8,6 +8,7 @@ import {
   getCollectionList,
   getListOfDataContexts,
   IConfig,
+  IResult,
   sendMessage
 } from "@concord-consortium/codap-plugin-api";
 import { AttributeInfo, CaseInfo, DataContextInfo, IPluginStore } from "./plugin-store";
@@ -43,6 +44,12 @@ interface IAllCasesItem {
 }
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+// Throws CODAP's reason for a failed reply, for the caller's catch to log
+const checkSuccess = (...results: IResult[]) => {
+  const failed = results.find(result => !result.success);
+  if (failed) throw new Error(String(failed.values?.error ?? "request failed"));
+};
 
 /**
  * Connects to CODAP, restores the saved selections, and keeps the tables, columns and cases current.
@@ -105,12 +112,14 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
     }
     try {
       const collectionsResult = await getCollectionList(dataContextName);
-      if (request !== attributesRequest || !collectionsResult.success) return;
+      if (request !== attributesRequest) return;
+      checkSuccess(collectionsResult);
       const collections: INamedItem[] = collectionsResult.values;
       const attributeResults = await Promise.all(
         collections.map(collection => getAttributeList(dataContextName, collection.name))
       );
-      if (request !== attributesRequest || attributeResults.some(result => !result.success)) return;
+      if (request !== attributesRequest) return;
+      checkSuccess(...attributeResults);
 
       // Collections are listed parent first, so the last one is the leaf
       const attributes: AttributeInfo[] = [];
@@ -146,11 +155,13 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
     }
     try {
       const collectionsResult = await getCollectionList(dataContextName);
-      if (request !== casesRequest || !collectionsResult.success) return;
+      if (request !== casesRequest) return;
+      checkSuccess(collectionsResult);
       const collections: INamedItem[] = collectionsResult.values;
       const caseResults = await Promise.all(collections.map(collection =>
         sendMessage("get", `dataContext[${dataContextName}].collection[${collection.name}].allCases`)));
-      if (request !== casesRequest || caseResults.some(result => !result.success)) return;
+      if (request !== casesRequest) return;
+      checkSuccess(...caseResults);
 
       const valuesById = new Map<string, Record<string, unknown>>();
       let leafCases: CaseInfo[] = [];
@@ -199,7 +210,8 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
     const request = ++dataContextsRequest;
     try {
       const result = await getListOfDataContexts();
-      if (request !== dataContextsRequest || !result.success) return;
+      if (request !== dataContextsRequest) return;
+      checkSuccess(result);
       const dataContexts: DataContextInfo[] = (result.values as INamedItem[]).map(dc => ({
         name: dc.name,
         title: dc.title || dc.name

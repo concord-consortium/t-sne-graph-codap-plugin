@@ -161,7 +161,7 @@ describe("selection-sync", () => {
       expect(store.selectedCaseIds.size).toBe(0);
     });
 
-    it("keeps the selection when a read fails, and logs an error when it throws", async () => {
+    it("keeps the selection, and logs an error, when a read fails or throws", async () => {
       codapSelection = [leaf(100)];
       stop = startSelectionSync(store);
       store.setCases(kCases);
@@ -171,6 +171,7 @@ describe("selection-sync", () => {
       notifySelect("Phrases");
       await flush();
       expect(Array.from(store.selectedCaseIds)).toEqual(["100"]);
+      expect(consoleError).toHaveBeenCalledWith("Unable to get the selection of", "Phrases", "busy");
 
       api.getSelectionList.mockRejectedValueOnce(new Error("timeout"));
       notifySelect("Phrases");

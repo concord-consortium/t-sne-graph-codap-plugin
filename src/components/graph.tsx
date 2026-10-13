@@ -113,6 +113,8 @@ export const Graph = observer(() => {
   };
 
   const handleKeyDown = (event: KeyboardEvent<SVGSVGElement>) => {
+    // Leave shortcuts such as Alt+Arrow to the browser
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
     const index = activeExists ? caseIds.indexOf(activeCaseId) : -1;
     const last = caseIds.length - 1;
     switch (event.key) {
@@ -132,6 +134,8 @@ export const Graph = observer(() => {
         break;
       case "Enter":
       case " ":
+        // A held key would select, or with Shift add and remove, over and over
+        if (event.repeat) break;
         // These keys on the plot itself select nothing
         if (event.target === svgRef.current || !activeExists) return;
         selectPoint(store, activeCaseId, event.shiftKey);

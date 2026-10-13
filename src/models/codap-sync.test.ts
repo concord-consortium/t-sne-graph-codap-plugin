@@ -282,7 +282,7 @@ describe("startCodapSync", () => {
     expect(store.attributes).toEqual([]);
   });
 
-  it("keeps the column list when a refresh for the same table fails", async () => {
+  it("keeps the column list, and logs CODAP's reason, when a refresh for the same table fails", async () => {
     api.codapInterface.init.mockResolvedValue(savedSelections);
     await startCodapSync(store);
     const columns = store.attributes;
@@ -292,6 +292,7 @@ describe("startCodapSync", () => {
     await flush();
     expect(store.attributes).toEqual(columns);
     expect(store.phraseAttributeName).toBe("phrase");
+    expect(consoleError).toHaveBeenCalledWith("Unable to get the columns of", "Phrases", "busy");
   });
 
   it("ignores a table list that arrives after a newer one", async () => {
@@ -539,7 +540,7 @@ describe("startCodapSync", () => {
       expect(store.cases).toHaveLength(2);
     });
 
-    it("keeps the cases when a refetch for the same table fails", async () => {
+    it("keeps the cases, and logs CODAP's reason, when a refetch for the same table fails", async () => {
       api.codapInterface.init.mockResolvedValue(savedSelections);
       await startCodapSync(store);
       api.sendMessage.mockResolvedValueOnce({ success: false, values: { error: "busy" } });
@@ -547,6 +548,7 @@ describe("startCodapSync", () => {
       notify(tableListener("Phrases"), "updateCases");
       await flush();
       expect(store.cases).toEqual(kPhrasesCases);
+      expect(consoleError).toHaveBeenCalledWith("Unable to get the cases of", "Phrases", "busy");
     });
 
     it("logs an error and keeps the cases when a fetch throws", async () => {

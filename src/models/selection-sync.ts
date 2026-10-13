@@ -28,7 +28,8 @@ export const startSelectionSync = (store: IPluginStore) => {
     }
     try {
       const result = await getSelectionList(dataContextName);
-      if (request !== selectionRequest || !result.success) return;
+      if (request !== selectionRequest) return;
+      if (!result.success) throw new Error(String(result.values?.error ?? "request failed"));
       store.setSelectedCaseIds((result.values as ISelectionItem[]).map(item => String(item.caseID)));
     } catch (error) {
       console.error("Unable to get the selection of", dataContextName, errorMessage(error));

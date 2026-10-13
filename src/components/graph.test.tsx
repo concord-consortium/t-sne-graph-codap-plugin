@@ -348,6 +348,26 @@ describe("Graph", () => {
       expect(clearCodapSelection).toHaveBeenCalledTimes(2);
     });
 
+    it("leaves keys pressed with Alt, Ctrl or Meta to the browser", () => {
+      renderGraph(store);
+      ["altKey", "ctrlKey", "metaKey"].forEach(modifier => {
+        expect(fireEvent.keyDown(plot(), { key: "ArrowDown", [modifier]: true })).toBe(true);
+        expect(fireEvent.keyDown(plot(), { key: "Escape", [modifier]: true })).toBe(true);
+      });
+      kPhrases.forEach(phrase => expect(point(phrase)).not.toHaveFocus());
+      expect(clearCodapSelection).not.toHaveBeenCalled();
+    });
+
+    it("ignores a held Enter or Space, which would select over and over", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await user.tab();
+      await user.keyboard("{ArrowRight}");
+      expect(fireEvent.keyDown(point("the cat sat"), { key: "Enter", repeat: true })).toBe(false);
+      expect(fireEvent.keyDown(point("the cat sat"), { key: " ", repeat: true, shiftKey: true })).toBe(false);
+      expect(selectPoint).not.toHaveBeenCalled();
+    });
+
     it("keeps the arrow keys and Space from scrolling, and lets other keys through", () => {
       renderGraph(store);
       // fireEvent returns false when the event's default action was prevented

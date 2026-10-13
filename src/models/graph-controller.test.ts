@@ -4,7 +4,7 @@ import { createTsneWorker } from "../tsne/create-tsne-worker";
 import { startGraphController } from "./graph-controller";
 import { CaseInfo, IPluginStore, PluginStore } from "./plugin-store";
 
-// The factory keeps the real module, which uses import.meta, from loading
+// Each test supplies a fake worker
 jest.mock("../tsne/create-tsne-worker", () => ({ createTsneWorker: jest.fn() }));
 
 // Records requests; tests send its replies
