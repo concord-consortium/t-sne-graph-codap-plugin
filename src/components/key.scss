@@ -1,0 +1,109 @@
+@use "sass:color";
+@use "sass:math";
+@use "../styles/variables" as *;
+
+// The outline and rings described in _variables.scss; hover previews the ring at half strength
+$outline: 0 0 0 1px $dot-outline-color;
+$selected-rings: $outline, 0 0 0 3px $selection-ring-color, 0 0 0 4px $dot-outline-color;
+$hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.5);
+
+.key {
+  font-size: 14px;
+  min-width: 0;
+}
+
+.key-heading {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 16px;
+  margin: 0 0 6px;
+}
+
+.key-list {
+  display: flex;
+  flex-direction: column;
+  gap: $key-entry-gap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  // No line-box space below the button
+  > li {
+    display: flex;
+  }
+}
+
+// Sized to its content, so the hover and focus boxes hug it. The focus border is an inset
+// box-shadow, so the content doesn't shift. A one-line entry is $key-entry-height tall.
+.key-entry {
+  align-items: flex-start;
+  background: none;
+  border: none;
+  border-radius: $key-entry-radius;
+  box-sizing: border-box;
+  color: $text-color;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 8px;
+  line-height: $key-line-height;
+  max-width: 100%;
+  min-height: $key-entry-height;
+  outline: none;
+  padding: math.div($key-entry-height - $key-line-height, 2) 6px;
+  text-align: left;
+
+  // Pressed overrides hover; focus overrides both and adds its border
+  &[data-hovered] {
+    background-color: $key-entry-fill-hover;
+  }
+  &[data-pressed] {
+    background-color: $key-entry-fill-pressed;
+  }
+  &[data-focus-visible] {
+    background-color: $key-entry-fill-hover;
+    box-shadow: inset 0 0 0 2px $focus-color;
+  }
+}
+
+.key-dot {
+  border-radius: 50%;
+  box-shadow: $outline;
+  flex: none;
+  height: $key-dot-size;
+  // Centered on the first line
+  margin-top: math.div($key-line-height - $key-dot-size, 2);
+  width: $key-dot-size;
+
+  // Before the selected rule, so a selected entry keeps its full ring on hover
+  .key-entry[data-hovered] & {
+    box-shadow: $hover-rings;
+  }
+  .key-entry[data-pressed] &,
+  .key-entry[aria-pressed="true"] & {
+    box-shadow: $selected-rings;
+  }
+}
+
+// Wraps to at most two lines, then ends with an ellipsis
+.key-label {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: $key-label-max-lines;
+  display: -webkit-box;
+  line-clamp: $key-label-max-lines;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+// Forced colors drop box-shadows and replace colors, hiding the dots, rings and focus border
+@media (forced-colors: active) {
+  // The dot's color identifies its label
+  .key-dot {
+    forced-color-adjust: none;
+  }
+
+  .key-entry[data-focus-visible] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}

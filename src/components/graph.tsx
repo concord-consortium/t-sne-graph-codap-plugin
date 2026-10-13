@@ -1,0 +1,256 @@
+import React, {
+  KeyboardEvent, MouseEvent, useEffect, useId, useLayoutEffect, useMemo, useRef, useState
+} from "react";
+import { observer } from "mobx-react-lite";
+import { Point } from "../models/plugin-store";
+import { useStore } from "../models/store-context";
+import { clearCodapSelection, selectPoint } from "../models/selection-sync";
+import { ISize, toPixels } from "../tsne/layout";
+import "./graph.scss";
+
+const kGridCells = 8;
+// Radii of the outline and rings described in _variables.scss, then the focus ring outside them
+const kPointRadius = 6;
+const kHitRadius = 12;
+const kOutlineRadius = kPointRadius + 0.5;
+const kSelectionRingRadius = kPointRadius + 2;
+const kSelectionEdgeRadius = kPointRadius + 3.5;
+const kFocusRingRadius = kPointRadius + 5;
+
+export const kTooFewMessage = "Add at least 4 phrases to see the plot.";
+export const kErrorMessage = "Something went wrong while making the plot.";
+export const kKeyboardHelp =
+  "Arrow keys, Home and End move between phrases. Enter selects; Shift+Enter adds or removes; Escape clears.";
+
+const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
+
+const useElementSize = (ref: React.RefObject<HTMLElement | null>) => {
+  const [size, setSize] = useState<ISize>({ width: 0, height: 0 });
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const { width, height } = element.getBoundingClientRect();
+    setSize({ width, height });
+    if (typeof ResizeObserver === "undefined") return;
+    const resizeObserver = new ResizeObserver(([entry]) => {
+      setSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+    });
+    resizeObserver.observe(element);
+    return () => resizeObserver.disconnect();
+  }, [ref]);
+  return size;
+};
+
+interface IPointMarksProps {
+  color: string;
+  selected: boolean;
+}
+
+const PointMarks = ({ color, selected }: IPointMarksProps) => (
+  <>
+    <circle className="dot" data-testid="dot" r={kPointRadius} fill={color} />
+    <circle className="dot-outline" data-testid="dot-outline" r={kOutlineRadius} />
+    {selected && <circle className="selection-ring" data-testid="selection-ring" r={kSelectionRingRadius} />}
+    {selected && <circle className="selection-edge" data-testid="selection-edge" r={kSelectionEdgeRadius} />}
+    <circle className="focus-ring" r={kFocusRingRadius} />
+  </>
+);
+
+export const Graph = observer(() => {
+  const store = useStore();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const helpId = useId();
+  const pointRefs = useRef(new Map<string, SVGGElement>());
+  const area = useElementSize(containerRef);
+  // A square centered in the area, at whole pixels so the grid lines stay sharp; the bands around it
+  // are the area's background
+  const side = Math.floor(Math.min(area.width, area.height));
+  const size = { width: side, height: side };
+  const offset = { left: Math.floor((area.width - side) / 2), top: Math.floor((area.height - side) / 2) };
+
+  // Remembered while a recompute empties the plot, so focus can return to the same case
+  const [activeCaseId, setActiveCaseId] = useState<string>();
+  const focusWithin = useRef(false);
+  // Set when a recompute removed the focused point, until focus is back on a point
+  const restoringFocus = useRef(false);
+
+  const { computeStatus } = store;
+  // Table order for drawing and the arrow keys; the layout uses its own fixed order
+  const points = useMemo(() => {
+    const byCaseId = new Map(store.points.map(point => [point.caseId, point]));
+    const ordered: Point[] = [];
+    store.rows.forEach(row => {
+      const point = byCaseId.get(row.caseId);
+      if (point) ordered.push(point);
+    });
+    return ordered;
+  }, [store.points, store.rows]);
+  const caseIds = useMemo(() => points.map(point => point.caseId), [points]);
+  const phrases = useMemo(() => new Map(store.rows.map(row => [row.caseId, row.phrase])), [store.rows]);
+  const activeExists = activeCaseId !== undefined && caseIds.includes(activeCaseId);
+
+  // If the remembered case is gone, use the first point
+  useEffect(() => {
+    if (activeCaseId !== undefined && caseIds.length > 0 && !caseIds.includes(activeCaseId)) {
+      setActiveCaseId(caseIds[0]);
+    }
+  }, [activeCaseId, caseIds]);
+
+  // When a recompute removes the focused point, hold focus on the plot, then return it to the
+  // active point. Focus the user put on the plot stays there.
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    if (!focusWithin.current || !svg) return;
+    const focusLost = !svg.contains(document.activeElement);
+    if (!focusLost && !restoringFocus.current) return;
+    const target = activeExists ? pointRefs.current.get(activeCaseId) : svg;
+    if (target && document.activeElement !== target) target.focus();
+    restoringFocus.current = !activeExists;
+  });
+
+  const moveTo = (caseId: string | undefined) => {
+    if (caseId === undefined) return;
+    setActiveCaseId(caseId);
+    pointRefs.current.get(caseId)?.focus();
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<SVGSVGElement>) => {
+    // Leave shortcuts such as Alt+Arrow to the browser
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const index = activeExists ? caseIds.indexOf(activeCaseId) : -1;
+    const last = caseIds.length - 1;
+    switch (event.key) {
+      case "ArrowRight":
+      case "ArrowDown":
+        moveTo(caseIds[index < 0 ? 0 : Math.min(index + 1, last)]);
+        break;
+      case "ArrowLeft":
+      case "ArrowUp":
+        moveTo(caseIds[index < 0 ? last : Math.max(index - 1, 0)]);
+        break;
+      case "Home":
+        moveTo(caseIds[0]);
+        break;
+      case "End":
+        moveTo(caseIds[last]);
+        break;
+      case "Enter":
+      case " ":
+        // A held key would select, or with Shift add and remove, over and over
+        if (event.repeat) break;
+        // These keys on the plot itself select nothing
+        if (event.target === svgRef.current || !activeExists) return;
+        selectPoint(store, activeCaseId, event.shiftKey);
+        break;
+      case "Escape":
+        clearCodapSelection(store);
+        break;
+      default:
+        return;
+    }
+    // Arrows and Space would scroll
+    event.preventDefault();
+  };
+
+  const handleBackgroundClick = (event: MouseEvent<SVGSVGElement>) => {
+    // A Shift-click on empty space adds nothing
+    if (!event.shiftKey) clearCodapSelection(store);
+  };
+
+  const handlePointClick = (event: MouseEvent<SVGGElement>, caseId: string) => {
+    event.stopPropagation();
+    setActiveCaseId(caseId);
+    selectPoint(store, caseId, event.shiftKey);
+  };
+
+  const activePoint = activeExists ? points.find(point => point.caseId === activeCaseId) : undefined;
+  const activePixels = activePoint && toPixels(activePoint, size);
+  const hasPoints = points.length > 0;
+  const hasLabels = store.labelAttributeName !== undefined;
+  const label = !hasPoints ? "t-SNE plot"
+    : hasLabels ? `t-SNE plot of ${plural(points.length, "phrase")} in ${plural(store.labelEntries.length, "label")}`
+    : `t-SNE plot of ${plural(points.length, "phrase")}`;
+  const pointName = (caseId: string) => {
+    const phrase = phrases.get(caseId) ?? caseId;
+    return hasLabels ? `${phrase}, ${store.labelForCase(caseId)}` : phrase;
+  };
+  const message = computeStatus === "too-few" ? kTooFewMessage : computeStatus === "error" ? kErrorMessage : "";
+  // Interior lines, on half pixels so they render as one sharp pixel
+  const gridLines = Array.from({ length: kGridCells - 1 }, (_value, i) => i + 1);
+  const gridX = (i: number) => Math.round(i * size.width / kGridCells) + 0.5;
+  const gridY = (i: number) => Math.round(i * size.height / kGridCells) + 0.5;
+
+  return (
+    <div className="graph" data-testid="graph-area" ref={containerRef}>
+      <svg
+        ref={svgRef}
+        className="graph-plot"
+        width={size.width}
+        height={size.height}
+        style={offset}
+        role="group"
+        aria-label={label}
+        aria-describedby={hasPoints ? helpId : undefined}
+        // One Tab stop: the plot until a point is focused. An empty plot leaves the Tab order but
+        // can still take focus.
+        tabIndex={hasPoints && !activeExists ? 0 : -1}
+        onKeyDown={handleKeyDown}
+        onClick={handleBackgroundClick}
+        onFocus={() => { focusWithin.current = true; }}
+        onBlur={event => {
+          // A focused point that is removed blurs with no relatedTarget; that isn't leaving
+          const leaving = event.relatedTarget
+            ? !svgRef.current?.contains(event.relatedTarget as Node)
+            : (event.target as Element).isConnected;
+          if (leaving) {
+            focusWithin.current = false;
+            restoringFocus.current = false;
+          }
+        }}
+      >
+        <g className="grid" data-testid="grid" aria-hidden="true">
+          {gridLines.map(i =>
+            <line key={`x${i}`} data-testid="grid-line" x1={gridX(i)} x2={gridX(i)} y1={0} y2={size.height} />)}
+          {gridLines.map(i =>
+            <line key={`y${i}`} data-testid="grid-line" x1={0} x2={size.width} y1={gridY(i)} y2={gridY(i)} />)}
+        </g>
+        {points.map(point => {
+          const { x, y } = toPixels(point, size);
+          const selected = store.isSelected(point.caseId);
+          return (
+            <g
+              key={point.caseId}
+              ref={element => {
+                if (element) pointRefs.current.set(point.caseId, element);
+                else pointRefs.current.delete(point.caseId);
+              }}
+              className="point"
+              transform={`translate(${x} ${y})`}
+              role="button"
+              aria-label={pointName(point.caseId)}
+              aria-pressed={selected}
+              tabIndex={point.caseId === activeCaseId ? 0 : -1}
+              onClick={event => handlePointClick(event, point.caseId)}
+              onFocus={() => setActiveCaseId(point.caseId)}
+            >
+              <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
+              <PointMarks color={store.colorForCase(point.caseId)} selected={selected} />
+            </g>
+          );
+        })}
+        {/* The active point drawn again on top of its neighbors. Moving the point itself to the end
+            would make React move a focused element, which drops its focus. */}
+        {activePoint && activePixels && (
+          <g className="active-point" data-testid="active-point" aria-hidden="true"
+            transform={`translate(${activePixels.x} ${activePixels.y})`}>
+            <PointMarks color={store.colorForCase(activePoint.caseId)}
+              selected={store.isSelected(activePoint.caseId)} />
+          </g>
+        )}
+      </svg>
+      <p className="visually-hidden" id={helpId}>{kKeyboardHelp}</p>
+      <p className="graph-status" role="status" aria-live="polite">{message}</p>
+    </div>
+  );
+});

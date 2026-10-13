@@ -18,7 +18,7 @@ interface IProps {
   className?: string;
 }
 
-// Option ids are strings, so a number key can't collide with one
+// Option IDs are strings, so a number key can't collide with one
 const kClearKey = -1;
 
 export const Dropdown = (props: IProps) => {

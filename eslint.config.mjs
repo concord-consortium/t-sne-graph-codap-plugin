@@ -23,7 +23,9 @@ export default defineConfig(
       "node_modules/",
       ".vscode/",
       "playwright-report/",
-      "test-results/"
+      "test-results/",
+      "coverage/",
+      "top-test/"
     ]
   },
   {

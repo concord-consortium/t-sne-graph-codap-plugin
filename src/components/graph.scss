@@ -1,0 +1,90 @@
+@use "../styles/variables" as *;
+@use "../styles/mixins" as *;
+
+.graph {
+  background-color: $plot-band-color;
+  height: 100%;
+  position: relative;
+  width: 100%;
+}
+
+.graph-plot {
+  background-color: white;
+  display: block;
+  outline: none;
+  position: absolute;
+
+  // The plot is the Tab stop until a point is focused; points draw their own rings
+  &:focus-visible {
+    outline: 2px solid $focus-color;
+    outline-offset: -2px;
+  }
+
+  .grid line {
+    stroke: $separator-color;
+    stroke-width: 1;
+  }
+
+  .point {
+    cursor: pointer;
+    outline: none;
+  }
+
+  // Transparent but painted, so it takes clicks
+  .hit-area {
+    fill: transparent;
+  }
+
+  .dot-outline,
+  .selection-edge {
+    fill: none;
+    stroke: $dot-outline-color;
+    stroke-width: 1;
+  }
+
+  .selection-ring {
+    fill: none;
+    stroke: $selection-ring-color;
+    stroke-width: 2;
+  }
+
+  .focus-ring {
+    fill: none;
+    pointer-events: none;
+    stroke: $focus-color;
+    stroke-width: 2;
+    visibility: hidden;
+  }
+
+  .point:focus-visible .focus-ring,
+  &:has(.point:focus-visible) .active-point .focus-ring {
+    visibility: visible;
+  }
+
+  .active-point {
+    pointer-events: none;
+  }
+}
+
+.graph-status {
+  color: $text-color;
+  font-size: 14px;
+  left: 50%;
+  margin: 0;
+  max-width: calc(100% - 24px);
+  position: absolute;
+  text-align: center;
+  top: 50%;
+  transform: translate(-50%, -50%);
+
+  &:empty {
+    @include visually-hidden;
+  }
+}
+
+// Highlight, as on the dropdowns
+@media (forced-colors: active) {
+  .graph-plot:focus-visible {
+    outline-color: Highlight;
+  }
+}
