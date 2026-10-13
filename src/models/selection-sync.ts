@@ -19,6 +19,19 @@ interface ISelectCasesNotice {
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
+// The one notice the plugin recognizes as its own: removing a point replaces CODAP's selection, and
+// that notice looks like a table click, which would unselect the test phrases. selectPoint records
+// the leaf cases it asked for; the next replacing notice uses the record up.
+const expectedRemovals = new WeakMap<IPluginStore, Set<string>>();
+
+const isExpectedRemoval = (store: IPluginStore, expected: Set<string> | undefined, caseIds: string[]) => {
+  if (!expected) return false;
+  // CODAP adds a parent whose children are all selected, so compare leaf cases only
+  const leafIds = new Set(store.cases.map(({ caseId }) => caseId));
+  const selectedLeaves = caseIds.filter(id => leafIds.has(id));
+  return selectedLeaves.length === expected.size && selectedLeaves.every(id => expected.has(id));
+};
+
 /** Mirrors CODAP's selection into the store. The returned function stops only the reads after
  * case fetches; the notice listener can't be removed. */
 export const startSelectionSync = (store: IPluginStore) => {
@@ -28,6 +41,8 @@ export const startSelectionSync = (store: IPluginStore) => {
   // `replacing`: after a non-extending notice
   const refreshSelection = async (replacing = false) => {
     const request = ++selectionRequest;
+    const expected = replacing ? expectedRemovals.get(store) : undefined;
+    if (replacing) expectedRemovals.delete(store);
     // Slots selected during the read are a later action, so keep them. setSelectedSlots always
     // stores a new Set.
     const slotsAtStart = store.selectedSlots;
@@ -43,7 +58,10 @@ export const startSelectionSync = (store: IPluginStore) => {
       const caseIds = (result.values as ISelectionItem[]).map(item => String(item.caseID));
       store.setSelectedCaseIds(caseIds);
       // A slot select leaves CODAP empty, so a non-empty replacement came after it
-      if (replacing && caseIds.length > 0 && store.selectedSlots === slotsAtStart) store.setSelectedSlots([]);
+      if (replacing && caseIds.length > 0 && store.selectedSlots === slotsAtStart &&
+        !isExpectedRemoval(store, expected, caseIds)) {
+        store.setSelectedSlots([]);
+      }
     } catch (error) {
       console.error("Unable to get the selection of", dataContextName, errorMessage(error));
     }
@@ -87,18 +105,25 @@ export const selectPoint = (store: IPluginStore, caseId: string, extend: boolean
   const others = store.cases
     .filter(({ caseId: id }) => id !== caseId && store.isSelected(id))
     .map(({ caseId: id }) => id);
-  return selectInCodap(store, others);
+  // A removal keeps the test phrases, as Shift does elsewhere
+  if (store.selectedSlots.size > 0 && others.length > 0) expectedRemovals.set(store, new Set(others));
+  return requestCodapSelection(store, others, false);
 };
 
 /** Test phrases and parent cases too. */
 export const clearCodapSelection = (store: IPluginStore) => selectInCodap(store, []);
 
-/** Plain: this slot alone, no cases. `extend` adds the slot without asking CODAP. */
+/** Follows selectPoint: a selected slot stays selected on a plain select, and `extend` removes it.
+ * Otherwise a plain select is this slot alone, no cases, and `extend` adds it. `extend` never asks
+ * CODAP. */
 export const selectTestPhrase = async (store: IPluginStore, slot: number, extend = false) => {
+  const selected = store.isSlotSelected(slot);
   if (extend) {
-    store.setSelectedSlots([...store.selectedSlots, slot]);
+    const others = [...store.selectedSlots].filter(other => other !== slot);
+    store.setSelectedSlots(selected ? others : [...others, slot]);
     return;
   }
+  if (selected) return;
   store.setSelectedSlots([slot]);
   await requestCodapSelection(store, [], false);
 };

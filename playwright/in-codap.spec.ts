@@ -760,6 +760,15 @@ test("selects test phrases with the symbol button and on the plot, together with
   await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow, `Square: ${kTestPhrases[0].text}`]);
   await expect.poll(() => tableSelectionCount(page)).toBe(1);
 
+  // Shift-click removes a selected case point and keeps the test phrase, through CODAP's notice
+  const otherRow = "Nobody anywhere feels this way";
+  await point(plugin, otherRow).click({ modifiers: ["Shift"] });
+  await expect.poll(() => pressedPhrases(plugin))
+    .toEqual([caseRow, otherRow, `Square: ${kTestPhrases[0].text}`]);
+  await point(plugin, caseRow).click({ modifiers: ["Shift"] });
+  await expect.poll(() => pressedPhrases(plugin)).toEqual([otherRow, `Square: ${kTestPhrases[0].text}`]);
+  await expect.poll(() => tableSelectionCount(page)).toBe(1);
+
   // Empty space clears both
   await plot(plugin).click({ position: await emptySpot(plugin) });
   await expect.poll(() => pressedPhrases(plugin)).toEqual([]);

@@ -298,6 +298,22 @@ describe("selection-sync", () => {
       expect(api.selectCases).not.toHaveBeenCalled();
       expect(api.addCasesToSelection).not.toHaveBeenCalled();
     });
+
+    it("leaves everything alone on a plain select of a selected slot, as for a point", async () => {
+      store.setSelectedSlots([1, 3]);
+      const selected = store.selectedSlots;
+      await selectTestPhrase(store, 3);
+      expect(store.selectedSlots).toBe(selected);
+      expect(api.selectCases).not.toHaveBeenCalled();
+    });
+
+    it("removes a selected slot when extending, without asking CODAP", async () => {
+      store.setSelectedSlots([1, 3]);
+      await selectTestPhrase(store, 3, true);
+      expect(Array.from(store.selectedSlots)).toEqual([1]);
+      expect(api.selectCases).not.toHaveBeenCalled();
+      expect(api.addCasesToSelection).not.toHaveBeenCalled();
+    });
   });
 
   describe("test-phrase (slot) selection with CODAP's notices", () => {
@@ -477,6 +493,58 @@ describe("selection-sync", () => {
       slow.resolve(ok([leaf(101)]));
       await flush();
       expect(slots()).toEqual([]);
+    });
+
+    describe("removing a case point with Shift", () => {
+      // Cases 100 and 101 are selected with slot 2
+      beforeEach(async () => {
+        codapSelection = [leaf(100), leaf(101)];
+        notifySelect("Phrases", true);
+        await flush();
+      });
+
+      it("keeps the test phrases through CODAP's notice for the removal", async () => {
+        await selectPoint(store, "101", true);
+        expect(api.selectCases).toHaveBeenCalledWith("Phrases", ["100"]);
+        expect(slots()).toEqual([2]);
+        codapSelection = [leaf(100)];
+        notifySelect("Phrases", false);
+        await flush();
+        expect(slots()).toEqual([2]);
+        expect(Array.from(store.selectedCaseIds)).toEqual(["100"]);
+      });
+
+      it("keeps them when CODAP adds the parent of the cases left", async () => {
+        codapSelection = [leaf(100), leaf(101), leaf(102)];
+        notifySelect("Phrases", true);
+        await flush();
+        await selectPoint(store, "102", true);
+        // 100 and 101 are all of parent 10's children
+        codapSelection = [parent(10), leaf(100), leaf(101)];
+        notifySelect("Phrases", false);
+        await flush();
+        expect(slots()).toEqual([2]);
+      });
+
+      it("still clears them for a table click that lands before the removal's notice", async () => {
+        await selectPoint(store, "101", true);
+        codapSelection = [leaf(102)];
+        notifySelect("Phrases", false);
+        await flush();
+        expect(slots()).toEqual([]);
+      });
+
+      it("recognizes only the next replacing notice", async () => {
+        await selectPoint(store, "101", true);
+        codapSelection = [leaf(100)];
+        notifySelect("Phrases", false);
+        await flush();
+        expect(slots()).toEqual([2]);
+        // A later table click with the same result is a table click
+        notifySelect("Phrases", false);
+        await flush();
+        expect(slots()).toEqual([]);
+      });
     });
 
     it("does not clear the slots when the cases are fetched again", async () => {
