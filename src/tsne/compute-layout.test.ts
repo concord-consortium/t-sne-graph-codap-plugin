@@ -47,10 +47,6 @@ describe("computeLayout", () => {
     expect(responses.map(response => response.type)).toEqual(["done"]);
   });
 
-  it("gives the same layout for the same phrases and seed", () => {
-    expect(finalPositions(run({ progressInterval: 0 }))).toEqual(finalPositions(run({})));
-  });
-
   it("never calls Math.exp or Math.log, which differ in the last bit between engines", () => {
     // Their last-bit differences between engines grow into different layouts
     const mathExp = jest.spyOn(Math, "exp");
@@ -71,6 +67,10 @@ describe("computeLayout", () => {
       [0.3447929418646023, 1], [0.16446901553795717, 0.4696658296835533]
     ];
     expect(finalPositions(run({ progressInterval: 0 }))?.map(({ x, y }) => [x, y])).toEqual(kExpected);
+  });
+
+  it("gives the same final layout with or without progress messages", () => {
+    expect(finalPositions(run({ progressInterval: 0 }))).toEqual(finalPositions(run({})));
   });
 
   it("gives a different layout for a different seed", () => {

@@ -88,7 +88,7 @@ describe("Tsne", () => {
     expect(tsne.iteration).toBe(2);
   });
 
-  it("lays out the smallest allowed data set, 4 points", () => {
+  it("stays finite at the lowest perplexity, 1 (4 points)", () => {
     const X = clusters.slice(0, 4);
     const layout = run(X, 42, kTsneSettings.steps);
     expect(layout).toHaveLength(4);

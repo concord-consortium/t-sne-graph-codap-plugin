@@ -3,12 +3,7 @@
 // (Node 22.18 or later runs TypeScript files directly.)
 // Node needs the extension to import a TypeScript file
 import { buildFixture, type ICheck, type IRequest, names, same } from "./fixture-builder.ts";
-
-const phrases: Record<string, string[]> = {
-  Similar: ["the cat sat on the mat", "a cat rested on a rug", "the kitten lay on the carpet"],
-  Opposite: ["the dog ran from the house", "a dog sprinted outside", "the puppy fled the yard"],
-  Sideways: ["the bird sang in the tree", "a bird chirped on a branch", "the sparrow called at dawn"]
-};
+import { kHierarchicalPhrases as phrases } from "./hierarchical-phrases.ts";
 const items: Record<string, string>[] = [];
 Object.entries(phrases).forEach(([label, list]) =>
   list.forEach((phrase, i) => items.push({ label, phrase, notes: `note ${label} ${i + 1}` })));

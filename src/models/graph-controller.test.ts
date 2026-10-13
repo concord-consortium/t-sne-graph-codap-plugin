@@ -287,6 +287,18 @@ describe("startGraphController", () => {
     expect(store.computeStatus).toBe("computing");
   });
 
+  it("only logs a failure from a worker that was already replaced", () => {
+    stop = startGraphController(store);
+    const oldWorker = lastWorker();
+    store.setCases(kCases.slice(1));   // the busy old worker is replaced
+    const newWorker = lastWorker();
+
+    oldWorker.fail("late failure");
+    expect(consoleError).toHaveBeenCalledWith("The t-SNE worker failed:", "late failure");
+    expect(store.computeStatus).toBe("computing");
+    expect(newWorker.terminated).toBe(false);
+  });
+
   it("drops the points and goes idle when the Phrase Column is cleared", () => {
     stop = startGraphController(store);
     const worker = lastWorker();

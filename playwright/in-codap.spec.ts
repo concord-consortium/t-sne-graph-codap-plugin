@@ -4,6 +4,7 @@ import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type FrameLocator, type Page } from "@playwright/test";
 import { exposeCodapDocument, saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
+import { kHierarchicalPhrases as kFixturePhrases } from "./fixtures/hierarchical-phrases";
 
 const kPluginUrl = "https://localhost:8080";
 const kCodapUrl = "https://codap3.concord.org/?mouseSensor&noEntryModal";
@@ -202,12 +203,6 @@ test("keeps borders and keyboard focus visible in forced-colors mode", async ({ 
 
 // ---- The plot and the Key ----
 
-// The hierarchical fixture's phrases by label, in table order
-const kFixturePhrases: Record<string, string[]> = {
-  Similar: ["the cat sat on the mat", "a cat rested on a rug", "the kitten lay on the carpet"],
-  Opposite: ["the dog ran from the house", "a dog sprinted outside", "the puppy fled the yard"],
-  Sideways: ["the bird sang in the tree", "a bird chirped on a branch", "the sparrow called at dawn"]
-};
 const kAllPhrases = Object.values(kFixturePhrases).flat();
 
 const plot = (plugin: FrameLocator) => plugin.getByRole("group", { name: /^t-SNE plot/ });

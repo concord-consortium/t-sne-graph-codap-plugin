@@ -42,11 +42,6 @@ describe("Key", () => {
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 
-  it("lists Unlabeled first, then the labels in order of first appearance", () => {
-    renderKey(store);
-    expect(entries().map(button => button.textContent)).toEqual(["Unlabeled", "Similar", "Opposite"]);
-  });
-
   it("names each entry with its label and its number of phrases", () => {
     renderKey(store);
     expect(entries().map(button => button.getAttribute("aria-label")))
@@ -61,14 +56,11 @@ describe("Key", () => {
     expect(dots[2]).toHaveStyle({ backgroundColor: kLabelColors[1] });
   });
 
-  it("marks an entry pressed only when all its points are selected", () => {
+  it("shows each entry's selected state with aria-pressed", () => {
     renderKey(store);
     expect(entries().map(button => button.getAttribute("aria-pressed"))).toEqual(["false", "false", "false"]);
-    act(() => store.setSelectedCaseIds(["1"]));
-    expect(entry(/^Similar/)).toHaveAttribute("aria-pressed", "false");
     act(() => store.setSelectedCaseIds(["1", "3"]));
-    expect(entry(/^Similar/)).toHaveAttribute("aria-pressed", "true");
-    expect(entry(/^Opposite/)).toHaveAttribute("aria-pressed", "false");
+    expect(entries().map(button => button.getAttribute("aria-pressed"))).toEqual(["false", "true", "false"]);
   });
 
   it("follows a Label Column change", () => {

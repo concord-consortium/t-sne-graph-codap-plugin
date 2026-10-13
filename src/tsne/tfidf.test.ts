@@ -74,6 +74,11 @@ describe("fitTfidf", () => {
     expect(Array.from(vocabulary.keys())).toEqual(["\uF900a", "\u{10428}a"]);
   });
 
+  it("sorts a word before longer words that start with it", () => {
+    const { vocabulary } = fitTfidf(["cats catalog", "cat"]);
+    expect(Array.from(vocabulary.keys())).toEqual(["cat", "catalog", "cats"]);
+  });
+
   it("handles no phrases", () => {
     expect(fitTfidf([])).toEqual({ vocabulary: new Map(), idf: [], matrix: [] });
   });
