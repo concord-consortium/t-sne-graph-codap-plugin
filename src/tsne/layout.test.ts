@@ -52,7 +52,7 @@ describe("toPixels", () => {
     expect(toPixels({ x: 0.5, y: 0.5 }, size)).toEqual({ x: 150, y: 150 });
   });
 
-  it("fills each side of a graph that is not square", () => {
+  it("fills each side of a plot that is not square", () => {
     expect(toPixels({ x: 1, y: 0 }, { width: 500, height: 300 })).toEqual({ x: 488, y: 288 });
   });
 

@@ -2,8 +2,7 @@
 @use "sass:math";
 @use "../styles/variables" as *;
 
-// The spec's CSS: a 1px white outline; selected adds a 2px ring and a 1px white edge; hover
-// previews the ring at half strength
+// The outline and rings described in _variables.scss; hover previews the ring at half strength
 $outline: 0 0 0 1px $dot-outline-color;
 $selected-rings: $outline, 0 0 0 3px $selection-ring-color, 0 0 0 4px $dot-outline-color;
 $hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.5);
@@ -54,7 +53,7 @@ $hover-rings: $outline, 0 0 0 3px color.change($selection-ring-color, $alpha: 0.
   padding: math.div($key-entry-height - $key-line-height, 2) 6px;
   text-align: left;
 
-  // Pressed overrides hover; focus adds its border
+  // Pressed overrides hover; focus overrides both and adds its border
   &[data-hovered] {
     background-color: $key-entry-fill-hover;
   }

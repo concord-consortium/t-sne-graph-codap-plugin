@@ -47,7 +47,7 @@ export const startSelectionSync = (store: IPluginStore) => {
   return reaction(() => store.cases, () => { refreshSelection(); });
 };
 
-/** Adds to the selection when `extend` is true. The store follows CODAP's notice. */
+/** Adds to the selection when `extend` is true. */
 export const selectInCodap = async (store: IPluginStore, caseIds: string[], extend = false) => {
   const dataContextName = store.dataContextName;
   if (!dataContextName) return;

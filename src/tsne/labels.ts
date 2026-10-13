@@ -8,7 +8,7 @@ export const kLabelColors = [
   "#d81b60", "#795548", "#827717", "#455a64"
 ];
 
-// At 37% lightness every hue has at least 3:1 contrast with white.
+// At 60% saturation and 37% lightness every hue has at least 3:1 contrast with white.
 const kGeneratedSaturation = 0.6;
 const kGeneratedLightness = 0.37;
 // Golden-angle steps spread hues evenly for any count; the first avoids the fixed blue and orange.

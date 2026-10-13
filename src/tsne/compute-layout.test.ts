@@ -47,8 +47,7 @@ describe("computeLayout", () => {
     expect(responses.map(response => response.type)).toEqual(["done"]);
   });
 
-  it("never calls Math.exp or Math.log, which differ in the last bit between engines", () => {
-    // Their last-bit differences between engines grow into different layouts
+  it("never calls Math.exp or Math.log, which can differ in the last bit between engines", () => {
     const mathExp = jest.spyOn(Math, "exp");
     const mathLog = jest.spyOn(Math, "log");
     run({ progressInterval: 0 });
@@ -59,7 +58,7 @@ describe("computeLayout", () => {
   });
 
   it("gives exactly this layout for these phrases and seed, to the last bit", () => {
-    // The same in Chromium, Firefox and WebKit. If this changes, saved documents reopen differently.
+    // Checked once against Chromium, Firefox and WebKit. If this changes, saved documents reopen differently.
     const kExpected = [
       [0.6594446699256002, 0.5206976031892093], [0.8355309844620429, 0.40660784320865145],
       [0.7029595963086366, 0.660742507011833], [0.43070083602575204, 0.20615942346039517],

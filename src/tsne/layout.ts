@@ -30,7 +30,7 @@ export const normalizeLayout = (solution: readonly (readonly number[])[]): IPosi
   return solution.map(([x, y]) => ({ x: offsetX + (x - minX) / range, y: offsetY + (y - minY) / range }));
 };
 
-/** Each axis fills its side, so a non-square graph stretches the layout. y = 1 is at the top. */
+/** Each axis fills its side, so a non-square plot stretches the layout. y = 1 is at the top. */
 export const toPixels = ({ x, y }: IPosition, { width, height }: ISize, padding = kGraphPadding): IPosition => {
   // Too small for the padding: center the points
   const innerWidth = Math.max(0, width - 2 * padding);

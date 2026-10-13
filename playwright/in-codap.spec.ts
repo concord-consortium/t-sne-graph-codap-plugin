@@ -101,8 +101,7 @@ test("restores the selections after the document is saved and reopened", async (
   await expect(dropdown(reopened, "Label Column")).toHaveText("Attribute Name");
 });
 
-// A fixture document with a plugin tile added. CODAP ignores `di` when `url` opens a document, so
-// the plugin has to be in the document itself.
+// A fixture document with a plugin tile added
 const documentWithPlugin = (file: string) => {
   const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", file), "utf8"));
   const pluginTileId = "WEBVtsnePlugin";
@@ -265,7 +264,7 @@ const openPlot = async (page: Page, labelColumn?: string) => {
   return plugin;
 };
 
-// At least 20px from every point
+// More than 20px from every point
 const emptySpot = async (plugin: FrameLocator) => {
   const centers = await plugin.locator(".graph-plot .point").evaluateAll(points => points.map(p => {
     const [, x, y] = /translate\(([\d.]+) ([\d.]+)\)/.exec(p.getAttribute("transform") ?? "") ?? [];
@@ -423,7 +422,7 @@ test("lays out a 40-phrase table quickly", async ({ page }) => {
   const started = Date.now();
   await choose(plugin, "Phrase Column", "phrase");
   await expect(plugin.locator(".graph-plot .point")).toHaveCount(40);
-  // Target: final layout within ~3 s, fetch included
+  // Target: final layout within ~3 s of choosing the Phrase Column
   expect(Date.now() - started).toBeLessThan(3000);
 
   await choose(plugin, "Label Column", "label");
@@ -441,8 +440,7 @@ test("has no accessibility violations with a plot, a Key and a selection", async
   expect(await axeViolations(page)).toEqual([]);
 });
 
-// Forced colors replace backgrounds and drop box-shadows, which the Key's dots, rings and focus
-// border use. SVG colors are left alone.
+// See the forced-colors rules in key.scss
 test("keeps the plot's and the Key's colors, rings and focus visible in forced-colors mode", async ({ page }) => {
   await page.emulateMedia({ forcedColors: "active" });
   const plugin = await openPlot(page, "label");

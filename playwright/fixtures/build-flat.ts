@@ -1,6 +1,6 @@
 // Builds and checks flat.codap: one collection of 40 phrases, 13 each Similar, Opposite and
 // Sideways, and one unlabeled.
-// Usage, from the project directory (Node 22.18 or later): node playwright/fixtures/build-flat.ts
+// Usage (see README.md): node playwright/fixtures/build-flat.ts
 // Node needs the extension to import a TypeScript file
 import { buildFixture, type ICheck, type IRequest, names, same } from "./fixture-builder.ts";
 

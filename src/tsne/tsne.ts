@@ -26,7 +26,7 @@
 import { exp, log } from "./portable-math";
 import { gaussian, RandomFn } from "./random";
 
-// The original scikit-learn page's settings
+// The settings of the AI_and_ELA page this plugin replaces, not scikit-learn's defaults
 export const kTsneSettings = { perplexity: 40, epsilon: 100, steps: 1000 };
 
 /** At most (n - 1) / 3; 0 below 4 points. */

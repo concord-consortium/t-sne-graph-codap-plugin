@@ -9,8 +9,7 @@ import { ISize, toPixels } from "../tsne/layout";
 import "./graph.scss";
 
 const kGridCells = 8;
-// Outside the dot, per the spec's box-shadow: a 1px white outline; when selected, a 2px ring and
-// a 1px white edge; then the focus ring.
+// Radii of the outline and rings described in _variables.scss, then the focus ring outside them
 const kPointRadius = 6;
 const kHitRadius = 12;
 const kOutlineRadius = kPointRadius + 0.5;
@@ -57,7 +56,6 @@ const PointMarks = ({ color, selected }: IPointMarksProps) => (
   </>
 );
 
-/** One Tab stop; the arrow keys move between points. */
 export const Graph = observer(() => {
   const store = useStore();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -66,7 +64,7 @@ export const Graph = observer(() => {
   const pointRefs = useRef(new Map<string, SVGGElement>());
   const size = useElementSize(containerRef);
 
-  // Remembered while a recompute empties the graph, so focus can return to the same case
+  // Remembered while a recompute empties the plot, so focus can return to the same case
   const [activeCaseId, setActiveCaseId] = useState<string>();
   const focusWithin = useRef(false);
   // Set when a recompute removed the focused point, until focus is back on a point

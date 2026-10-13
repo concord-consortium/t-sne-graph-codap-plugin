@@ -1,6 +1,5 @@
 // Builds and checks hierarchical.codap: Labels > Phrases, 9 phrases in 3 labels.
-// Usage, from the project directory: node playwright/fixtures/build-hierarchical.ts
-// (Node 22.18 or later runs TypeScript files directly.)
+// Usage (see README.md): node playwright/fixtures/build-hierarchical.ts
 // Node needs the extension to import a TypeScript file
 import { buildFixture, type ICheck, type IRequest, names, same } from "./fixture-builder.ts";
 import { kHierarchicalPhrases as phrases } from "./hierarchical-phrases.ts";

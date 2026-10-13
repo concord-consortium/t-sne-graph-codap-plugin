@@ -76,7 +76,7 @@ describe("PluginStore", () => {
     expect(store.labelAttributes.map(attr => attr.name)).toEqual(["group", "phrase", "label"]);
   });
 
-  it("leaves the lists fetched from CODAP and the graph data out of the snapshot", () => {
+  it("leaves the lists fetched from CODAP and the plot data out of the snapshot", () => {
     const store = selectedStore();
     store.setDataContexts([{ name: "Phrases", title: "Phrases" }]);
     store.setAttributes(kAttributes);
@@ -218,7 +218,7 @@ describe("PluginStore rows", () => {
   });
 });
 
-describe("PluginStore graph data", () => {
+describe("PluginStore plot data", () => {
   const graphStore = () => {
     const store = selectedStore();
     store.setCases(kCases);
@@ -238,7 +238,7 @@ describe("PluginStore graph data", () => {
     expect(store.selectedCaseIds.size).toBe(0);
   });
 
-  it("keeps the graph data when the same table is selected again", () => {
+  it("keeps the plot data when the same table is selected again", () => {
     const store = graphStore();
     store.setDataContext("Phrases");
     expect(store.rows).toHaveLength(4);
@@ -261,7 +261,7 @@ describe("PluginStore graph data", () => {
     expect(store.points).toHaveLength(4);
   });
 
-  it("has a graph only while there are points", () => {
+  it("has a plot only while there are points", () => {
     const store = graphStore();
     expect(store.hasGraph).toBe(true);
     store.setPoints([]);
@@ -285,7 +285,7 @@ describe("PluginStore graph data", () => {
     expect(store.labelEntries.find(entry => entry.key === "similar")?.isSelected).toBe(true);
   });
 
-  it("gives each case its label's color, and grey for an unknown case", () => {
+  it("gives each case its label's color, and gray for an unknown case", () => {
     const store = graphStore();
     expect(kCaseIds.map(caseId => store.colorForCase(caseId))).toEqual(
       [kLabelColors[0], kLabelColors[1], kLabelColors[0], kUnlabeledColor]);

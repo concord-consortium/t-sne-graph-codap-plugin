@@ -104,7 +104,7 @@ export const startGraphController = (store: IPluginStore) => {
     worker.postMessage(request);
   };
 
-  // Compared by value, so a label change or a reorder starts no new layout
+  // Compared by value, so a label change starts no new layout
   const stopReaction = reaction(
     () => ({ phrases: layoutOrder(store.rows).map(row => [row.caseId, row.phrase]), seed: store.tsneSeed }),
     compute,

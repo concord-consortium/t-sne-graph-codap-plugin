@@ -47,7 +47,7 @@ export interface LabelEntry extends ILabelEntry {
 // snapshots can't load into.
 export const kStoreVersion = 1;
 
-// Labels are text even in numeric columns
+// Values are read as text, even from numeric columns
 const toText = (value: unknown) => value == null ? "" : String(value);
 
 // Inputs are saved in the CODAP document; data fetched or computed is volatile and never saved
@@ -149,7 +149,7 @@ export const PluginStore = types
 
     return {
       ensureTsneSeed,
-      // Choosing a different table resets both column selections and the graph data
+      // Choosing a different table resets both column selections and the plot data
       setDataContext(name: string | undefined) {
         if (name === self.dataContextName) return;
         self.dataContextName = name;

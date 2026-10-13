@@ -34,7 +34,6 @@ interface INamedItem {
   title?: string;
 }
 
-// IDs are numbers
 interface IAllCasesItem {
   case: {
     id: number | string;
@@ -52,7 +51,8 @@ const checkSuccess = (...results: IResult[]) => {
 };
 
 /**
- * Connects to CODAP, restores the saved selections, and keeps the tables, columns and cases current.
+ * Connects to CODAP, restores the saved table and column choices, and keeps the tables, columns and
+ * cases current.
  * Resolves to false if every init attempt fails, in which case nothing else is started.
  */
 export const startCodapSync = async (store: IPluginStore, config = kPluginConfig): Promise<boolean> => {
@@ -144,8 +144,8 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
     }
   };
 
-  // One record per leaf case, with its parents' values merged in. Collections are listed parent
-  // first, so parents are read before their children.
+  // Collections come parent first: each parent's values are merged before its children are read,
+  // and the last collection's cases are the leaves.
   const refreshCases = async () => {
     const request = ++casesRequest;
     const dataContextName = store.dataContextName;
@@ -174,7 +174,6 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
           return { caseId, values: merged };
         });
       });
-      // The last collection holds the leaves
       store.setCases(leafCases);
     } catch (error) {
       console.error("Unable to get the cases of", dataContextName, errorMessage(error));

@@ -79,7 +79,7 @@ describe("groupLabels", () => {
     expect(groupLabels(["  big   Idea ", "BIG IDEA"]).entries[0].label).toBe("big Idea");
   });
 
-  it("puts Unlabeled first, in grey, for blank labels", () => {
+  it("puts Unlabeled first, in gray, for blank labels", () => {
     const { entries, rowKeys } = groupLabels(["Similar", "", "  ", "Opposite"]);
     expect(entries).toEqual([
       { key: "", label: kUnlabeled, color: kUnlabeledColor, count: 2 },
