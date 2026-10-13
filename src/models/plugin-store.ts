@@ -203,9 +203,15 @@ export const PluginStore = types
         if (phrase && self.phraseAttributeName) newNames.set(self.phraseAttributeName, phrase.name);
         if (label && self.labelAttributeName) newNames.set(self.labelAttributeName, label.name);
         if ([...newNames].some(([oldName, newName]) => oldName !== newName)) {
+          // A key that already has a new name belongs to a column whose name has moved, so it is dropped
+          const targets = new Set(newNames.values());
           self.cases = self.cases.map(({ caseId, values }) => {
             const renamed: Record<string, unknown> = {};
-            Object.keys(values).forEach(key => { renamed[newNames.get(key) ?? key] = values[key]; });
+            Object.keys(values).forEach(key => {
+              const newKey = newNames.get(key);
+              if (newKey !== undefined) renamed[newKey] = values[key];
+              else if (!targets.has(key)) renamed[key] = values[key];
+            });
             return { caseId, values: renamed };
           });
         }

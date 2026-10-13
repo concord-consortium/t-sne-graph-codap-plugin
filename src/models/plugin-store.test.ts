@@ -133,6 +133,17 @@ describe("PluginStore column choices", () => {
     expect(store.rows).toEqual(rows);
   });
 
+  it("follows a column given the name of another column that was renamed", () => {
+    const store = choicesStore();
+    const rows = store.rows;
+    // "phrase" and "label" swap names
+    store.setAttributes(rename(rename(kAttributes, "2", "label"), "3", "phrase"));
+    store.updateAttributeChoices();
+    expect(store.phraseAttributeName).toBe("label");
+    expect(store.cases[0].values).toEqual({ group: "A", label: "the cat sat", notes: "first" });
+    expect(store.rows).toEqual(rows);
+  });
+
   it("finds a choice saved without an ID by its name, and saves the ID", () => {
     const store = PluginStore.create({ dataContextName: "Phrases", phraseAttributeName: "phrase" });
     store.setAttributes(kAttributes);
