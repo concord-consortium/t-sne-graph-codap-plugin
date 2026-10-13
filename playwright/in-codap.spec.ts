@@ -645,12 +645,14 @@ const distancesToNeighbors = (plugin: FrameLocator) =>
       const [, x, y] = /translate\(([\d.-]+) ([\d.-]+)\)/.exec(element?.getAttribute("transform") ?? "") ?? [];
       return { x: Number(x), y: Number(y) };
     };
-    const byLabel = (label: string) => svg.querySelector(`.point[aria-label="${label}"]`);
+    // A case point's name ends with ", <label>"
+    const byPhrase = (phrase: string) => Array.from(svg.querySelectorAll(".point:not(.test-phrase-point)"))
+      .find(dot => (dot.getAttribute("aria-label") ?? "").replace(/, [^,]*$/, "") === phrase);
     return Array.from(svg.querySelectorAll(".test-phrase-point")).map(symbol => {
       const text = symbol.getAttribute("aria-label")?.replace(/^\w+: /, "");
       const neighbor = testPhrases.find(phrase => phrase.text === text)?.neighbor ?? "";
       const a = center(symbol);
-      const b = center(byLabel(neighbor));
+      const b = center(byPhrase(neighbor) ?? null);
       return Math.hypot(a.x - b.x, a.y - b.y);
     });
   }, kTestPhrases);
@@ -675,19 +677,6 @@ const openFlatPlot = async (page: Page, document: object = documentWithPlugin("f
   await choose(plugin, "Label Column", "label");
   await expect(plugin.locator(".graph-plot .point:not(.test-phrase-point)")).toHaveCount(40);
   return plugin;
-};
-
-// Drags the plugin tile's bottom-right corner by (dx, dy)
-const resizeTile = async (page: Page, dx: number, dy: number) => {
-  const tile = page.locator(".free-tile-component").filter({ has: page.locator(".codap-web-view-iframe") });
-  const corner = await tile.locator(".codap-component-corner.bottom-right").boundingBox();
-  if (!corner) throw new Error("The plugin tile's resize corner is not visible");
-  const x = corner.x + corner.width / 2;
-  const y = corner.y + corner.height / 2;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  await page.mouse.move(x + dx, y + dy, { steps: 20 });
-  await page.mouse.up();
 };
 
 test("places a test phrase beside its nearest phrase, hides it while editing, and removes it when cleared",
@@ -741,7 +730,7 @@ test("restores the test phrases and their points after the document is saved and
 
   // A smaller tile moves the points, but each symbol stays at least 18px from its neighbor. The
   // plot is 300 × 300 at first; the panel keeps its 380px, and the tile loses 120 × 60.
-  await resizeTile(page, -120, -60);
+  await resizeTileBy(page, -120, -60);
   await expect(plot(reopened)).toHaveAttribute("width", "180");
   await expect(plot(reopened)).toHaveAttribute("height", "180");
   const distances = await distancesToNeighbors(reopened);

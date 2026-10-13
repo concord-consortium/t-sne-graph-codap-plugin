@@ -1,7 +1,9 @@
 import * as codapApi from "@concord-consortium/codap-plugin-api";
 import { ClientHandler, IResult } from "@concord-consortium/codap-plugin-api";
 import { CaseInfo, IPluginStore, PluginStore } from "./plugin-store";
-import { clearCodapSelection, selectInCodap, selectPoint, selectTestPhrase, startSelectionSync } from "./selection-sync";
+import {
+  clearCodapSelection, selectInCodap, selectPoint, selectTestPhrase, startSelectionSync
+} from "./selection-sync";
 
 jest.mock("@concord-consortium/codap-plugin-api", () => ({
   addCasesToSelection: jest.fn(),

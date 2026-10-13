@@ -80,7 +80,7 @@ export const Graph = observer(() => {
   // A square centered in the area, at whole pixels so the grid lines stay sharp; the bands around it
   // are the area's background
   const side = Math.floor(Math.min(area.width, area.height));
-  const size = { width: side, height: side };
+  const size = useMemo(() => ({ width: side, height: side }), [side]);
   const offset = { left: Math.floor((area.width - side) / 2), top: Math.floor((area.height - side) / 2) };
 
   // Kept while a recompute empties the plot, so focus can return
