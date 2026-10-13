@@ -17,9 +17,9 @@ const createStore = () => {
   return store;
 };
 const kPhraseAttributes = [
-  { name: "group", title: "Group", collectionName: "Groups", isLeaf: false },
-  { name: "phrase", title: "Phrase", collectionName: "Cases", isLeaf: true },
-  { name: "label", title: "Label", collectionName: "Cases", isLeaf: true }
+  { id: "1", name: "group", title: "Group", collectionName: "Groups", isLeaf: false },
+  { id: "2", name: "phrase", title: "Phrase", collectionName: "Cases", isLeaf: true },
+  { id: "3", name: "label", title: "Label", collectionName: "Cases", isLeaf: true }
 ];
 
 // While a list is open, React Aria hides the rest of the page from screen readers

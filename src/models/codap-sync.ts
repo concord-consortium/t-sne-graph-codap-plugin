@@ -34,6 +34,10 @@ interface INamedItem {
   title?: string;
 }
 
+interface IAttributeItem extends INamedItem {
+  id: number | string;
+}
+
 interface IAllCasesItem {
   case: {
     id: number | string;
@@ -124,7 +128,8 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
       // Collections are listed parent first, so the last one is the leaf
       const attributes: AttributeInfo[] = [];
       collections.forEach((collection, index) => {
-        (attributeResults[index].values as INamedItem[]).forEach(attr => attributes.push({
+        (attributeResults[index].values as IAttributeItem[]).forEach(attr => attributes.push({
+          id: String(attr.id),
           name: attr.name,
           title: attr.title || attr.name,
           collectionName: collection.name,
@@ -132,13 +137,7 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
         }));
       });
       store.setAttributes(attributes);
-      // Clear any selection its dropdown no longer offers
-      if (!store.phraseAttributes.some(attr => attr.name === store.phraseAttributeName)) {
-        store.setPhraseAttribute(undefined);
-      }
-      if (!store.labelAttributes.some(attr => attr.name === store.labelAttributeName)) {
-        store.setLabelAttribute(undefined);
-      }
+      store.updateAttributeChoices();
     } catch (error) {
       console.error("Unable to get the columns of", dataContextName, errorMessage(error));
     }
@@ -198,9 +197,9 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
       if (kCaseOperations.has(operation)) {
         refreshCases();
       } else {
-        // E.g. a renamed column or a new formula can change the values read from the cases
-        refreshAttributes();
-        refreshCases();
+        // E.g. a renamed column or a new formula can change the values read from the cases. The
+        // columns come first, so a renamed choice is followed before cases with the new name arrive.
+        refreshAttributes().then(refreshCases);
       }
     });
   };

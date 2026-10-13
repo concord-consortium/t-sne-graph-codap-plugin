@@ -11,6 +11,7 @@ export interface DataContextInfo {
 
 // An attribute (column) of the selected table
 export interface AttributeInfo {
+  id: string;
   name: string;
   title: string;
   collectionName: string;
@@ -56,7 +57,9 @@ export const PluginStore = types
     version: types.optional(types.number, kStoreVersion),
     dataContextName: types.maybe(types.string),
     phraseAttributeName: types.maybe(types.string),
+    phraseAttributeId: types.maybe(types.string),
     labelAttributeName: types.maybe(types.string),
+    labelAttributeId: types.maybe(types.string),
     // Same seed, same picture when the document is reopened
     tsneSeed: types.maybe(types.number)
   })
@@ -146,6 +149,21 @@ export const PluginStore = types
     const ensureTsneSeed = () => {
       if (self.tsneSeed === undefined) self.tsneSeed = randomSeed();
     };
+    const idOf = (name: string | undefined) => self.attributes.find(attr => attr.name === name)?.id;
+    const setPhraseAttribute = (name: string | undefined) => {
+      self.phraseAttributeName = name;
+      self.phraseAttributeId = idOf(name);
+      if (name === undefined) {
+        // Keep the cases: same table
+        clearLayout();
+      } else {
+        ensureTsneSeed();
+      }
+    };
+    const setLabelAttribute = (name: string | undefined) => {
+      self.labelAttributeName = name;
+      self.labelAttributeId = idOf(name);
+    };
 
     return {
       ensureTsneSeed,
@@ -154,28 +172,56 @@ export const PluginStore = types
         if (name === self.dataContextName) return;
         self.dataContextName = name;
         self.phraseAttributeName = undefined;
+        self.phraseAttributeId = undefined;
         self.labelAttributeName = undefined;
+        self.labelAttributeId = undefined;
         clearLayout();
         self.cases = [];
         self.selectedCaseIds = new Set();
       },
-      setPhraseAttribute(name: string | undefined) {
-        self.phraseAttributeName = name;
-        if (name === undefined) {
-          // Keep the cases: same table
-          clearLayout();
-        } else {
-          ensureTsneSeed();
-        }
-      },
-      setLabelAttribute(name: string | undefined) {
-        self.labelAttributeName = name;
-      },
+      setPhraseAttribute,
+      setLabelAttribute,
       setDataContexts(dataContexts: DataContextInfo[]) {
         self.dataContexts = dataContexts;
       },
       setAttributes(attributes: AttributeInfo[]) {
         self.attributes = attributes;
+      },
+      /**
+       * Finds each chosen column in the column list by its ID, or by name if no ID was saved, and
+       * follows a rename. Clears a choice that its dropdown no longer offers.
+       */
+      updateAttributeChoices() {
+        const find = (offered: AttributeInfo[], name?: string, id?: string) => name === undefined
+          ? undefined
+          : offered.find(attr => id === undefined ? attr.name === name : attr.id === id);
+        const phrase = find(self.phraseAttributes, self.phraseAttributeName, self.phraseAttributeId);
+        const label = find(self.labelAttributes, self.labelAttributeName, self.labelAttributeId);
+
+        // Rename the keys in the cases already fetched, so the rows, and so the plot, stay the same
+        const newNames = new Map<string, string>();
+        if (phrase && self.phraseAttributeName) newNames.set(self.phraseAttributeName, phrase.name);
+        if (label && self.labelAttributeName) newNames.set(self.labelAttributeName, label.name);
+        if ([...newNames].some(([oldName, newName]) => oldName !== newName)) {
+          self.cases = self.cases.map(({ caseId, values }) => {
+            const renamed: Record<string, unknown> = {};
+            Object.keys(values).forEach(key => { renamed[newNames.get(key) ?? key] = values[key]; });
+            return { caseId, values: renamed };
+          });
+        }
+
+        if (phrase) {
+          self.phraseAttributeName = phrase.name;
+          self.phraseAttributeId = phrase.id;
+        } else {
+          setPhraseAttribute(undefined);
+        }
+        if (label) {
+          self.labelAttributeName = label.name;
+          self.labelAttributeId = label.id;
+        } else {
+          setLabelAttribute(undefined);
+        }
       },
       setCases(cases: CaseInfo[]) {
         self.cases = cases;

@@ -250,6 +250,32 @@ const editCell = async (page: Page, text: string, newText: string) => {
   await page.keyboard.press("Enter");
 };
 
+// Tracks the fewest points shown from now on
+const trackFewestPoints = async (page: Page) => {
+  const pluginPage = page.frames().find(frame => frame.url().startsWith(kPluginUrl))!;
+  await pluginPage.evaluate(() => {
+    const record = globalThis as unknown as { fewestPoints: number };
+    record.fewestPoints = document.querySelectorAll(".point").length;
+    new MutationObserver(() => {
+      record.fewestPoints = Math.min(record.fewestPoints, document.querySelectorAll(".point").length);
+    }).observe(document.body, { childList: true, subtree: true });
+  });
+  const fewestPoints = () =>
+    pluginPage.evaluate(() => (globalThis as unknown as { fewestPoints: number }).fewestPoints);
+  return { fewestPoints, pluginPage };
+};
+
+// The menu items are chosen with the keyboard, because a click on the header can start a drag
+const renameColumn = async (page: Page, name: string, newName: string) => {
+  await page.getByRole("button", { name: `Attribute ${name}, open menu`, exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("menuitem", { name: /Rename/ }).focus();
+  await page.keyboard.press("Enter");
+  const nameInput = page.locator(".codap-case-table [data-testid=column-name-input]");
+  await nameInput.fill(newName);
+  await nameInput.press("Enter");
+};
+
 // With reduced motion only the final layout shows, so visible points mean the layout is done.
 const openPlot = async (page: Page, labelColumn?: string) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -315,17 +341,7 @@ test("shows the same plot and Key after the document is saved and reopened", asy
 test("lays out again after a phrase edit, and only recolors after a label edit", async ({ page }) => {
   const plugin = await openPlot(page, "label");
   const before = await positions(plugin);
-  // Track the fewest points shown from here on
-  const pluginPage = page.frames().find(frame => frame.url().startsWith(kPluginUrl))!;
-  await pluginPage.evaluate(() => {
-    const record = globalThis as unknown as { fewestPoints: number };
-    record.fewestPoints = document.querySelectorAll(".point").length;
-    new MutationObserver(() => {
-      record.fewestPoints = Math.min(record.fewestPoints, document.querySelectorAll(".point").length);
-    }).observe(document.body, { childList: true, subtree: true });
-  });
-  const fewestPoints = () =>
-    pluginPage.evaluate(() => (globalThis as unknown as { fewestPoints: number }).fewestPoints);
+  const { fewestPoints, pluginPage } = await trackFewestPoints(page);
 
   // The edit must change which words the phrases share: swapping one unique word for another
   // gives the same TF-IDF numbers, so the same layout.
@@ -346,6 +362,21 @@ test("lays out again after a phrase edit, and only recolors after a label edit",
   await expect.poll(() => keyEntries(plugin))
     .toEqual(["Similar, 3 phrases", "Opposite, 3 phrases", "Aside, 3 phrases"]);
   expect(await positions(plugin)).toEqual(laidOut);
+  expect(await fewestPoints()).toBe(9);
+});
+
+test("keeps the plot and the column choices when the chosen columns are renamed", async ({ page }) => {
+  const plugin = await openPlot(page, "label");
+  const before = await positions(plugin);
+  const key = await keyEntries(plugin);
+  const { fewestPoints } = await trackFewestPoints(page);
+
+  await renameColumn(page, "phrase", "text");
+  await expect(dropdown(plugin, "Phrase Column")).toHaveText("text");
+  await renameColumn(page, "label", "category");
+  await expect(dropdown(plugin, "Label Column")).toHaveText("category");
+  expect(await positions(plugin)).toEqual(before);
+  expect(await keyEntries(plugin)).toEqual(key);
   expect(await fewestPoints()).toBe(9);
 });
 

@@ -1,5 +1,6 @@
 import * as codapApi from "@concord-consortium/codap-plugin-api";
 import { ClientHandler, IResult } from "@concord-consortium/codap-plugin-api";
+import { reaction } from "mobx";
 import { getSnapshot } from "mobx-state-tree";
 import { kMaxInitAttempts, startCodapSync } from "./codap-sync";
 import { IPluginStore, PluginStore } from "./plugin-store";
@@ -28,6 +29,24 @@ type FakeDocument = Record<string, {
   cases?: Record<string, IFakeCase[]>
 }>;
 let codapDocument: FakeDocument;
+// Column IDs by "table.column". A new name gets a new ID; renameColumn keeps the ID.
+let columnIds: Map<string, number>;
+const columnId = (dc: string, name: string) => {
+  const key = `${dc}.${name}`;
+  if (!columnIds.has(key)) columnIds.set(key, columnIds.size + 1);
+  return columnIds.get(key);
+};
+// Renames a leaf column in the table and in its cases, as CODAP does
+const renameColumn = (dc: string, oldName: string, newName: string) => {
+  columnIds.set(`${dc}.${newName}`, columnId(dc, oldName) as number);
+  const collections = codapDocument[dc].collections;
+  const leaf = Object.keys(collections).pop() as string;
+  collections[leaf] = collections[leaf].map(name => name === oldName ? newName : name);
+  codapDocument[dc].cases?.[leaf].forEach(c => {
+    const { [oldName]: value, ...rest } = c.values;
+    c.values = { ...rest, [newName]: value };
+  });
+};
 
 const kPhrases: FakeDocument = {
   Phrases: {
@@ -62,7 +81,7 @@ const fakeCodap = () => {
   api.getCollectionList.mockImplementation(async (dc) =>
     ok(Object.keys(codapDocument[dc].collections).map(name => ({ name, title: name, id: 2 }))));
   api.getAttributeList.mockImplementation(async (dc, coll) =>
-    ok(codapDocument[dc].collections[coll].map(name => ({ name, title: name.toUpperCase(), id: 3 }))));
+    ok(codapDocument[dc].collections[coll].map(name => ({ name, title: name.toUpperCase(), id: columnId(dc, name) }))));
   api.sendMessage.mockImplementation(async (action, resource) => {
     const [, dc, coll] = resource.match(kAllCases) ?? [];
     if (action !== "get" || !dc) return { success: false, values: { error: "unexpected request" } };
@@ -112,6 +131,7 @@ describe("startCodapSync", () => {
     jest.resetAllMocks();
     consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
     codapDocument = JSON.parse(JSON.stringify(kPhrases));
+    columnIds = new Map();
     fakeCodap();
     api.codapInterface.init.mockResolvedValue(undefined);
     store = PluginStore.create();
@@ -141,7 +161,9 @@ describe("startCodapSync", () => {
 
     init.resolve(savedSelections);
     await started;
-    expect(stateHandler()()).toEqual({ success: true, values: { version: 1, ...savedSelections } });
+    expect(stateHandler()()).toEqual({
+      success: true, values: { version: 1, ...savedSelections, phraseAttributeId: "2", labelAttributeId: "1" }
+    });
   });
 
   it("restores the saved state before fetching from CODAP", async () => {
@@ -223,9 +245,9 @@ describe("startCodapSync", () => {
     await startCodapSync(store);
 
     expect(store.attributes).toEqual([
-      { name: "group", title: "GROUP", collectionName: "Groups", isLeaf: false },
-      { name: "phrase", title: "PHRASE", collectionName: "Cases", isLeaf: true },
-      { name: "label", title: "LABEL", collectionName: "Cases", isLeaf: true }
+      { id: "1", name: "group", title: "GROUP", collectionName: "Groups", isLeaf: false },
+      { id: "2", name: "phrase", title: "PHRASE", collectionName: "Cases", isLeaf: true },
+      { id: "3", name: "label", title: "LABEL", collectionName: "Cases", isLeaf: true }
     ]);
     expect(store.phraseAttributes.map(attr => attr.name)).toEqual(["phrase", "label"]);
     expect(store.labelAttributes.map(attr => attr.name)).toEqual(["group", "phrase", "label"]);
@@ -480,19 +502,33 @@ describe("startCodapSync", () => {
         expect(api.getAttributeList).not.toHaveBeenCalled();
       });
 
-    it("refetches the columns and the cases on a column notice, such as a rename", async () => {
+    it("refetches the columns, then the cases, on a column notice, and follows a renamed choice", async () => {
       api.codapInterface.init.mockResolvedValue(savedSelections);
       await startCodapSync(store);
+      const rows = store.rows;
+      // Each time the rows change, record whether they are the same as before
+      const rowsKept: boolean[] = [];
+      reaction(() => store.rows, newRows => rowsKept.push(JSON.stringify(newRows) === JSON.stringify(rows)));
 
-      codapDocument.Phrases.collections.Cases = ["text", "label"];
-      codapDocument.Phrases.cases!.Cases.forEach(c => {
-        const { phrase, ...rest } = c.values;
-        c.values = { ...rest, text: phrase };
+      const columnsReply = deferred<void>();
+      const getAttributeList = api.getAttributeList.getMockImplementation()!;
+      api.getAttributeList.mockImplementation(async (dc, coll) => {
+        await columnsReply.promise;
+        return getAttributeList(dc, coll);
       });
+      api.sendMessage.mockClear();
+
+      renameColumn("Phrases", "phrase", "text");
       notify(tableListener("Phrases"), "updateAttributes");
       await flush();
-      expect(store.attributes.map(attr => attr.name)).toContain("text");
+      expect(api.sendMessage).not.toHaveBeenCalled();
+      columnsReply.resolve();
+      await flush();
+      expect(api.sendMessage).toHaveBeenCalled();
+      expect(store.phraseAttributeName).toBe("text");
       expect(store.cases[0].values).toEqual({ group: "Similar", text: "the cat sat", label: "a" });
+      expect(store.rows).toEqual(rows);
+      expect(rowsKept.every(Boolean)).toBe(true);
     });
 
     it("ignores case notices for a table that is not selected", async () => {

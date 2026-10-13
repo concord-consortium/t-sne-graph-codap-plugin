@@ -3,9 +3,9 @@ import { kLabelColors, kUnlabeledColor } from "../tsne/labels";
 import { AttributeInfo, CaseInfo, kStoreVersion, PluginStore } from "./plugin-store";
 
 const kAttributes: AttributeInfo[] = [
-  { name: "group", title: "Group", collectionName: "Groups", isLeaf: false },
-  { name: "phrase", title: "Phrase", collectionName: "Phrases", isLeaf: true },
-  { name: "label", title: "Label", collectionName: "Phrases", isLeaf: true }
+  { id: "1", name: "group", title: "Group", collectionName: "Groups", isLeaf: false },
+  { id: "2", name: "phrase", title: "Phrase", collectionName: "Phrases", isLeaf: true },
+  { id: "3", name: "label", title: "Label", collectionName: "Phrases", isLeaf: true }
 ];
 
 // "group" comes from the parent case
@@ -100,6 +100,61 @@ describe("PluginStore", () => {
     expect(store.dataContextName).toBe("Phrases");
     expect(store.phraseAttributeName).toBe("phrase");
     expect(store.labelAttributeName).toBe("label");
+  });
+});
+
+describe("PluginStore column choices", () => {
+  const choicesStore = () => {
+    const store = PluginStore.create();
+    store.setDataContext("Phrases");
+    store.setAttributes(kAttributes);
+    store.setPhraseAttribute("phrase");
+    store.setLabelAttribute("group");
+    store.setCases(kCases);
+    return store;
+  };
+  const rename = (attributes: AttributeInfo[], id: string, name: string) =>
+    attributes.map(attr => attr.id === id ? { ...attr, name } : attr);
+
+  it("saves the ID of each chosen column", () => {
+    expect(getSnapshot(choicesStore())).toMatchObject({
+      phraseAttributeName: "phrase", phraseAttributeId: "2", labelAttributeName: "group", labelAttributeId: "1"
+    });
+  });
+
+  it("follows renamed columns without changing the rows", () => {
+    const store = choicesStore();
+    const rows = store.rows;
+    store.setAttributes(rename(rename(kAttributes, "2", "text"), "1", "category"));
+    store.updateAttributeChoices();
+    expect(store.phraseAttributeName).toBe("text");
+    expect(store.labelAttributeName).toBe("category");
+    expect(store.cases[0].values).toEqual({ category: "A", text: "the cat sat", label: "Similar", notes: "first" });
+    expect(store.rows).toEqual(rows);
+  });
+
+  it("finds a choice saved without an ID by its name, and saves the ID", () => {
+    const store = PluginStore.create({ dataContextName: "Phrases", phraseAttributeName: "phrase" });
+    store.setAttributes(kAttributes);
+    store.updateAttributeChoices();
+    expect(store.phraseAttributeName).toBe("phrase");
+    expect(store.phraseAttributeId).toBe("2");
+  });
+
+  it("clears a choice whose column is gone, even if a new column has its name", () => {
+    const store = choicesStore();
+    store.setAttributes(kAttributes.map(attr => attr.id === "2" ? { ...attr, id: "4" } : attr));
+    store.updateAttributeChoices();
+    expect(store.phraseAttributeName).toBeUndefined();
+    expect(store.phraseAttributeId).toBeUndefined();
+    expect(store.labelAttributeName).toBe("group");
+  });
+
+  it("clears a Phrase Column that moves to a parent collection", () => {
+    const store = choicesStore();
+    store.setAttributes(kAttributes.map(attr => attr.id === "2" ? { ...attr, isLeaf: false } : attr));
+    store.updateAttributeChoices();
+    expect(store.phraseAttributeName).toBeUndefined();
   });
 });
 
