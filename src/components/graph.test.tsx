@@ -5,7 +5,7 @@ import { CaseInfo, IPluginStore, Point, PluginStore } from "../models/plugin-sto
 import { StoreProvider } from "../models/store-context";
 import { clearCodapSelection, selectPoint } from "../models/selection-sync";
 import { kLabelColors, kUnlabeledColor } from "../tsne/labels";
-import { Graph, kErrorMessage, kTooFewMessage } from "./graph";
+import { Graph, kErrorMessage, kKeyboardHelp, kTooFewMessage } from "./graph";
 
 jest.mock("../models/selection-sync", () => ({ clearCodapSelection: jest.fn(), selectPoint: jest.fn() }));
 
@@ -35,8 +35,11 @@ const graphStore = () => {
 const renderGraph = (store: IPluginStore) => render(<StoreProvider store={store}><Graph /></StoreProvider>);
 
 const plot = () => screen.getByRole("group");
-const point = (phrase: string) => screen.getByRole("button", { name: phrase });
+// A point's name is its phrase, then its label when there is a Label Column
+const point = (phrase: string) =>
+  screen.getByRole("button", { name: name => name === phrase || name.startsWith(`${phrase}, `) });
 const pointNames = () => screen.queryAllByRole("button").map(button => button.getAttribute("aria-label"));
+const pointPhrases = () => pointNames().map(name => name?.split(", ")[0]);
 
 describe("Graph", () => {
   let store: IPluginStore;
@@ -68,7 +71,7 @@ describe("Graph", () => {
 
     it("draws one 12px dot per point, in its label's color, inside the 12px padding", () => {
       renderGraph(store);
-      expect(pointNames()).toEqual(kPhrases);
+      expect(pointPhrases()).toEqual(kPhrases);
       // (0, 0) is the bottom left, inside the padding
       expect(kPhrases.map(phrase => point(phrase).getAttribute("transform")))
         .toEqual(["translate(12 288)", "translate(288 12)", "translate(150 150)", "translate(288 288)"]);
@@ -122,7 +125,7 @@ describe("Graph", () => {
       expect(copy).toHaveAttribute("aria-hidden", "true");
       expect(within(copy).getByTestId("selection-ring")).toBeInTheDocument();
       // Still four buttons for assistive technology
-      expect(pointNames()).toEqual(kPhrases);
+      expect(pointPhrases()).toEqual(kPhrases);
 
       await user.keyboard("{ArrowRight}");
       expect(screen.getByTestId("active-point"))
@@ -130,11 +133,32 @@ describe("Graph", () => {
       expect(within(screen.getByTestId("active-point")).queryByTestId("selection-ring")).toBeNull();
     });
 
+    it("names each point by its phrase and label", () => {
+      renderGraph(store);
+      expect(pointNames()).toEqual(
+        ["the cat sat, Similar", "a dog ran, Opposite", "the bird sang, Similar", "a fish swam, Unlabeled"]);
+    });
+
+    it("names each point by its phrase alone when there is no Label Column", () => {
+      store.setLabelAttribute(undefined);
+      renderGraph(store);
+      expect(pointNames()).toEqual(kPhrases);
+    });
+
+    it("describes the keys to use while there are points", () => {
+      renderGraph(store);
+      expect(plot()).toHaveAccessibleDescription(kKeyboardHelp);
+      act(() => store.setPoints([]));
+      expect(plot()).not.toHaveAccessibleDescription();
+    });
+
     it("summarizes the plot in its label", () => {
       renderGraph(store);
       expect(plot()).toHaveAccessibleName("t-SNE plot of 4 phrases in 3 labels");
       act(() => store.setPoints(kPoints.slice(0, 1)));
       expect(plot()).toHaveAccessibleName("t-SNE plot of 1 phrase in 3 labels");
+      act(() => store.setLabelAttribute(undefined));
+      expect(plot()).toHaveAccessibleName("t-SNE plot of 1 phrase");
       act(() => store.setPoints([]));
       expect(plot()).toHaveAccessibleName("t-SNE plot");
     });
@@ -272,13 +296,13 @@ describe("Graph", () => {
     const user = userEvent.setup();
     store.setPoints(kPoints.slice().reverse());
     renderGraph(store);
-    expect(pointNames()).toEqual(kPhrases);
+    expect(pointPhrases()).toEqual(kPhrases);
     await user.tab();
     await user.keyboard("{ArrowRight}");
     expect(point("the cat sat")).toHaveFocus();
     // Sorting the table changes the order, not the positions
     act(() => store.setCases(kCases.slice().reverse()));
-    expect(pointNames()).toEqual(kPhrases.slice().reverse());
+    expect(pointPhrases()).toEqual(kPhrases.slice().reverse());
     expect(point("the cat sat")).toHaveAttribute("transform", "translate(12 288)");
     await user.keyboard("{ArrowRight}");
     expect(point("the cat sat")).toHaveFocus();

@@ -211,12 +211,17 @@ const kFixturePhrases: Record<string, string[]> = {
 const kAllPhrases = Object.values(kFixturePhrases).flat();
 
 const plot = (plugin: FrameLocator) => plugin.getByRole("group", { name: /^t-SNE plot/ });
-const point = (plugin: FrameLocator, phrase: string) => plugin.getByRole("button", { name: phrase, exact: true });
+// A point's name is its phrase, then ", label" when there is a Label Column
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const point = (plugin: FrameLocator, phrase: string) =>
+  plugin.getByRole("button", { name: new RegExp(`^${escapeRegExp(phrase)}(, [^,]*)?$`) });
 const keyEntries = (plugin: FrameLocator) =>
   plugin.getByRole("region", { name: "Key" }).getByRole("button").evaluateAll(buttons =>
     buttons.map(button => button.getAttribute("aria-label")));
+// Each point's position, by phrase (its name without the label)
 const positions = (plugin: FrameLocator) => plugin.locator(".graph-plot .point").evaluateAll(points =>
-  Object.fromEntries(points.map(p => [p.getAttribute("aria-label"), p.getAttribute("transform")])));
+  Object.fromEntries(points.map(p =>
+    [(p.getAttribute("aria-label") ?? "").replace(/, [^,]*$/, ""), p.getAttribute("transform")])));
 // Shift+Tab from the first dropdown reaches the plot by keyboard, which shows :focus-visible styles
 const tabToPlot = async (plugin: FrameLocator) => {
   await dropdown(plugin, "Data Table").focus();
@@ -231,7 +236,7 @@ const dotFill = (plugin: FrameLocator, phrase: string) =>
   point(plugin, phrase).locator(".dot").evaluate(dot => getComputedStyle(dot).fill);
 const pressedPhrases = (plugin: FrameLocator) =>
   plugin.locator(".graph-plot .point[aria-pressed=true]").evaluateAll(points =>
-    points.map(p => p.getAttribute("aria-label")));
+    points.map(p => (p.getAttribute("aria-label") ?? "").replace(/, [^,]*$/, "")));
 // A row's text is its index, then its values: a parent row is just its label; a leaf row starts
 // with its phrase.
 const selectedInTable = async (page: Page) => {
@@ -281,14 +286,14 @@ const emptySpot = async (plugin: FrameLocator) => {
 
 test("plots the phrases, then colors them by label without moving them", async ({ page }) => {
   const plugin = await openPlot(page);
-  await expect(plot(plugin)).toHaveAccessibleName("t-SNE plot of 9 phrases in 1 label");
-  expect(await keyEntries(plugin)).toEqual(["Unlabeled, 9 points"]);
+  await expect(plot(plugin)).toHaveAccessibleName("t-SNE plot of 9 phrases");
+  expect(await keyEntries(plugin)).toEqual(["Unlabeled, 9 phrases"]);
   expect(await dotFill(plugin, "the cat sat on the mat")).toBe("rgb(148, 148, 148)");
   const before = await positions(plugin);
 
   await choose(plugin, "Label Column", "label");
   await expect.poll(() => keyEntries(plugin))
-    .toEqual(["Similar, 3 points", "Opposite, 3 points", "Sideways, 3 points"]);
+    .toEqual(["Similar, 3 phrases", "Opposite, 3 phrases", "Sideways, 3 phrases"]);
   // Spec colors, in order of first appearance
   expect(await dotFill(plugin, "the cat sat on the mat")).toBe("rgb(81, 105, 255)");
   expect(await dotFill(plugin, "a dog sprinted outside")).toBe("rgb(178, 28, 0)");
@@ -344,7 +349,8 @@ test("lays out again after a phrase edit, and only recolors after a label edit",
     (globalThis as unknown as { fewestPoints: number }).fewestPoints = document.querySelectorAll(".point").length;
   });
   await editCell(page, "Sideways", "Aside");
-  await expect.poll(() => keyEntries(plugin)).toEqual(["Similar, 3 points", "Opposite, 3 points", "Aside, 3 points"]);
+  await expect.poll(() => keyEntries(plugin))
+    .toEqual(["Similar, 3 phrases", "Opposite, 3 phrases", "Aside, 3 phrases"]);
   expect(await positions(plugin)).toEqual(laidOut);
   expect(await fewestPoints()).toBe(9);
 });
@@ -358,9 +364,9 @@ test("mirrors the selection between the plot, the Key and CODAP's table", async 
   await expect.poll(() => pressedPhrases(plugin)).toEqual(["a dog sprinted outside"]);
 
   // A Key label → all its rows (CODAP then selects their parent row too)
-  await plugin.getByRole("button", { name: /^Similar, 3 points/ }).click();
+  await plugin.getByRole("button", { name: /^Similar, 3 phrases/ }).click();
   await expect.poll(() => selectedInTable(page)).toEqual(["Similar", ...kFixturePhrases.Similar]);
-  await expect(plugin.getByRole("button", { name: /^Similar, 3 points/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(plugin.getByRole("button", { name: /^Similar, 3 phrases/ })).toHaveAttribute("aria-pressed", "true");
 
   // As in CODAP's graph: a plain click on a selected point changes nothing, and a Shift-click removes
   // it. Had the plain click narrowed the selection, the Shift-click would leave nothing selected.
@@ -427,7 +433,7 @@ test("lays out a 40-phrase table quickly", async ({ page }) => {
 
   await choose(plugin, "Label Column", "label");
   await expect.poll(() => keyEntries(plugin))
-    .toEqual(["Unlabeled, 1 point", "Similar, 13 points", "Opposite, 13 points", "Sideways, 13 points"]);
+    .toEqual(["Unlabeled, 1 phrase", "Similar, 13 phrases", "Opposite, 13 phrases", "Sideways, 13 phrases"]);
   // For a look at a realistic picture
   const tile = page.locator(".codap-component").filter({ has: page.locator(".codap-web-view-iframe") });
   await test.info().attach("40-phrase plot", { body: await tile.screenshot(), contentType: "image/png" });
@@ -435,7 +441,7 @@ test("lays out a 40-phrase table quickly", async ({ page }) => {
 
 test("has no accessibility violations with a plot, a Key and a selection", async ({ page }) => {
   const plugin = await openPlot(page, "label");
-  await plugin.getByRole("button", { name: /^Similar, 3 points/ }).click();
+  await plugin.getByRole("button", { name: /^Similar, 3 phrases/ }).click();
   await expect.poll(() => pressedPhrases(plugin)).toHaveLength(3);
   expect(await axeViolations(page)).toEqual([]);
 });
@@ -445,7 +451,7 @@ test("has no accessibility violations with a plot, a Key and a selection", async
 test("keeps the plot's and the Key's colors, rings and focus visible in forced-colors mode", async ({ page }) => {
   await page.emulateMedia({ forcedColors: "active" });
   const plugin = await openPlot(page, "label");
-  const similar = plugin.getByRole("button", { name: /^Similar, 3 points/ });
+  const similar = plugin.getByRole("button", { name: /^Similar, 3 phrases/ });
   await similar.click();
   await expect(similar).toHaveAttribute("aria-pressed", "true");
 
@@ -493,13 +499,13 @@ test("keeps the plot in place when the table is regrouped", async ({ page }) => 
   await expect(plugin.locator(".graph-plot .point")).toHaveCount(40);
   const before = await positions(plugin);
   const firstPoint = () => plugin.locator(".graph-plot .point").first().getAttribute("aria-label");
-  expect(await firstPoint()).toBe("Everyone around the world shares this");
+  expect(await firstPoint()).toBe("Everyone around the world shares this, Similar");
 
   // Grouping puts the Similar rows first; same phrases, so same layout
   await groupByColumn(page, "label");
   await expect(page.locator(".codap-case-table .collection-table")).toHaveCount(2);
-  await expect.poll(firstPoint).toBe("Everyone around the world shares this");
+  await expect.poll(firstPoint).toBe("Everyone around the world shares this, Similar");
   const secondPoint = plugin.locator(".graph-plot .point").nth(1);
-  await expect(secondPoint).toHaveAttribute("aria-label", "All people everywhere feel the same");
+  await expect(secondPoint).toHaveAttribute("aria-label", "All people everywhere feel the same, Similar");
   expect(await positions(plugin)).toEqual(before);
 });

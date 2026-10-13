@@ -1,4 +1,6 @@
-import React, { KeyboardEvent, MouseEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, {
+  KeyboardEvent, MouseEvent, useEffect, useId, useLayoutEffect, useMemo, useRef, useState
+} from "react";
 import { observer } from "mobx-react-lite";
 import { Point } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
@@ -18,6 +20,8 @@ const kFocusRingRadius = kPointRadius + 5;
 
 export const kTooFewMessage = "Add at least 4 phrases to see the plot.";
 export const kErrorMessage = "Something went wrong while making the plot.";
+export const kKeyboardHelp =
+  "Arrow keys, Home and End move between phrases. Enter selects; Shift+Enter adds or removes; Escape clears.";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
@@ -58,6 +62,7 @@ export const Graph = observer(() => {
   const store = useStore();
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const helpId = useId();
   const pointRefs = useRef(new Map<string, SVGGElement>());
   const size = useElementSize(containerRef);
 
@@ -155,9 +160,14 @@ export const Graph = observer(() => {
   const activePoint = activeExists ? points.find(point => point.caseId === activeCaseId) : undefined;
   const activePixels = activePoint && toPixels(activePoint, size);
   const hasPoints = points.length > 0;
-  const label = hasPoints
-    ? `t-SNE plot of ${plural(points.length, "phrase")} in ${plural(store.labelEntries.length, "label")}`
-    : "t-SNE plot";
+  const hasLabels = store.labelAttributeName !== undefined;
+  const label = !hasPoints ? "t-SNE plot"
+    : hasLabels ? `t-SNE plot of ${plural(points.length, "phrase")} in ${plural(store.labelEntries.length, "label")}`
+    : `t-SNE plot of ${plural(points.length, "phrase")}`;
+  const pointName = (caseId: string) => {
+    const phrase = phrases.get(caseId) ?? caseId;
+    return hasLabels ? `${phrase}, ${store.labelForCase(caseId)}` : phrase;
+  };
   const message = computeStatus === "too-few" ? kTooFewMessage : computeStatus === "error" ? kErrorMessage : "";
   // Interior lines, on half pixels so they render as one sharp pixel
   const gridLines = Array.from({ length: kGridCells - 1 }, (_value, i) => i + 1);
@@ -173,6 +183,7 @@ export const Graph = observer(() => {
         height={size.height}
         role="group"
         aria-label={label}
+        aria-describedby={hasPoints ? helpId : undefined}
         // One Tab stop: the plot until a point is focused. An empty plot leaves the Tab order but
         // can still take focus.
         tabIndex={hasPoints && !activeExists ? 0 : -1}
@@ -209,7 +220,7 @@ export const Graph = observer(() => {
               className="point"
               transform={`translate(${x} ${y})`}
               role="button"
-              aria-label={phrases.get(point.caseId) ?? point.caseId}
+              aria-label={pointName(point.caseId)}
               aria-pressed={selected}
               tabIndex={point.caseId === activeCaseId ? 0 : -1}
               onClick={event => handlePointClick(event, point.caseId)}
@@ -230,6 +241,7 @@ export const Graph = observer(() => {
           </g>
         )}
       </svg>
+      <p className="visually-hidden" id={helpId}>{kKeyboardHelp}</p>
       <p className="graph-status" role="status" aria-live="polite">{message}</p>
     </div>
   );

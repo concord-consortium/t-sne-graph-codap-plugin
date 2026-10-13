@@ -23,7 +23,7 @@ export const Key = observer(() => {
             <li key={entry.key}>
               <Button
                 className="key-entry"
-                aria-label={`${entry.label}, ${plural(entry.count, "point")}`}
+                aria-label={`${entry.label}, ${plural(entry.count, "phrase")}`}
                 aria-pressed={entry.isSelected}
                 onPress={event =>
                   selectInCodap(store, store.caseIdsByLabelKey.get(entry.key) ?? [], event.shiftKey)}

@@ -47,10 +47,10 @@ describe("Key", () => {
     expect(entries().map(button => button.textContent)).toEqual(["Unlabeled", "Similar", "Opposite"]);
   });
 
-  it("names each entry with its label and its number of points", () => {
+  it("names each entry with its label and its number of phrases", () => {
     renderKey(store);
     expect(entries().map(button => button.getAttribute("aria-label")))
-      .toEqual(["Unlabeled, 1 point", "Similar, 2 points", "Opposite, 1 point"]);
+      .toEqual(["Unlabeled, 1 phrase", "Similar, 2 phrases", "Opposite, 1 phrase"]);
   });
 
   it("shows each label's color in its dot", () => {
@@ -74,7 +74,7 @@ describe("Key", () => {
   it("follows a Label Column change", () => {
     renderKey(store);
     act(() => store.setLabelAttribute(undefined));
-    expect(entries().map(button => button.getAttribute("aria-label"))).toEqual(["Unlabeled, 4 points"]);
+    expect(entries().map(button => button.getAttribute("aria-label"))).toEqual(["Unlabeled, 4 phrases"]);
   });
 
   it("shows only its heading while there are no rows, as in the spec's default state", () => {

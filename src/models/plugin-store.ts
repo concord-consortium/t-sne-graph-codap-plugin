@@ -1,6 +1,6 @@
 import { Instance, SnapshotIn, types } from "mobx-state-tree";
 import { IPosition } from "../tsne/layout";
-import { groupLabels, ILabelEntry, kUnlabeledColor } from "../tsne/labels";
+import { groupLabels, ILabelEntry, kUnlabeled, kUnlabeledColor } from "../tsne/labels";
 import { randomSeed } from "../tsne/random";
 
 // A table in the CODAP document, as listed by getListOfDataContexts
@@ -118,15 +118,23 @@ export const PluginStore = types
       });
       return caseIds;
     },
-    get colorByCaseId() {
+    get entryByCaseId() {
       const { entries, rowKeys } = self.labelGroups;
-      const colorByKey = new Map(entries.map(entry => [entry.key, entry.color]));
-      return new Map(self.rows.map((row, i) => [row.caseId, colorByKey.get(rowKeys[i]) ?? kUnlabeledColor]));
+      const entryByKey = new Map(entries.map(entry => [entry.key, entry]));
+      const byCaseId = new Map<string, ILabelEntry>();
+      self.rows.forEach((row, i) => {
+        const entry = entryByKey.get(rowKeys[i]);
+        if (entry) byCaseId.set(row.caseId, entry);
+      });
+      return byCaseId;
     }
   }))
   .views(self => ({
     colorForCase(caseId: string) {
-      return self.colorByCaseId.get(caseId) ?? kUnlabeledColor;
+      return self.entryByCaseId.get(caseId)?.color ?? kUnlabeledColor;
+    },
+    labelForCase(caseId: string) {
+      return self.entryByCaseId.get(caseId)?.label ?? kUnlabeled;
     }
   }))
   .actions(self => {

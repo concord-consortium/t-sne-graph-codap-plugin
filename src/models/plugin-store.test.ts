@@ -292,6 +292,12 @@ describe("PluginStore graph data", () => {
     expect(store.colorForCase("99")).toBe(kUnlabeledColor);
   });
 
+  it("gives each case its label's Key text, and Unlabeled for a blank or unknown case", () => {
+    const store = graphStore();
+    expect(kCaseIds.map(caseId => store.labelForCase(caseId))).toEqual(["Similar", "Opposite", "Similar", "Unlabeled"]);
+    expect(store.labelForCase("99")).toBe("Unlabeled");
+  });
+
   it("recolors at once when the Label Column changes", () => {
     const store = graphStore();
     store.setLabelAttribute(undefined);
