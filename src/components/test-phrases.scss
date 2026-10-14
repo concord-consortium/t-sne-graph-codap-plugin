@@ -142,7 +142,8 @@
     opacity: 1;
   }
 
-  // In this order: the no-words fill outlasts hover, and focus wins over both, so editing looks normal
+  // In this order: the no-words fill outlasts hover, focus wins over both, and a focused no-words
+  // field keeps its fill under the focus border, so Enter, which keeps focus, still shows it
   &[data-hovered] {
     background-color: $test-phrase-field-fill-hover;
   }
@@ -153,6 +154,9 @@
   &[data-focused] {
     background-color: white;
     box-shadow: inset 0 0 0 2px $focus-color;
+  }
+  &.no-words[data-focused] {
+    background-color: $test-phrase-no-words-fill;
   }
 }
 

@@ -331,6 +331,28 @@ describe("TestPhrases", () => {
       expect(field(0)).not.toHaveClass("no-words");
     });
 
+    it("keeps the class while the focused field shows that phrase, and drops it while typing", async () => {
+      renderTestPhrases(store);
+      await userEvent.click(field(1));
+      expect(field(1)).toHaveFocus();
+      expect(field(1)).toHaveClass("no-words");
+      await userEvent.keyboard("s");
+      expect(field(1)).not.toHaveClass("no-words");
+      await userEvent.keyboard("{Escape}");
+      expect(field(1)).toHaveClass("no-words");
+    });
+
+    it("shows the class after Enter, while the field keeps focus", async () => {
+      renderTestPhrases(store);
+      await userEvent.click(field(3));
+      await userEvent.keyboard("quilt{Enter}");
+      expect(field(3)).not.toHaveClass("no-words");
+      // The placement reply
+      act(() => store.setTestPhrasePoints([], { 0: "empty", 1: "no-words", 2: "empty", 3: "no-words", 4: "empty" }));
+      expect(field(3)).toHaveFocus();
+      expect(field(3)).toHaveClass("no-words");
+    });
+
     it("dims and disables the symbol", () => {
       renderTestPhrases(store);
       expect(symbolButtons()[1]).not.toHaveAttribute("data-placed");

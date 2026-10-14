@@ -34,6 +34,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
   const hasPoint = !isDisabled && store.placedSlots.has(slot);
   const isPlaced = store.placementStatus[slot] === "placed";
   const hasNoWords = !isDisabled && store.placementStatus[slot] === "no-words";
+  const showsNoWords = hasNoWords && (draft ?? committed) === committed;
 
   const startEditing = () => {
     if (!isDisabled && committed !== "") store.setEditingSlot(slot);
@@ -108,7 +109,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
       >
         <Input
           ref={inputRef}
-          className={hasNoWords ? "test-phrase-input no-words" : "test-phrase-input"}
+          className={showsNoWords ? "test-phrase-input no-words" : "test-phrase-input"}
           // Here, since TextField drops it. Not isDisabled, which leaves the Tab order.
           aria-disabled={isDisabled || undefined}
           placeholder="Enter a phrase"
