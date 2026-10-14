@@ -19,6 +19,7 @@ const point = (slot: number): TestPhrasePoint =>
 const readyStore = () => {
   const store = PluginStore.create({ dataContextName: "Phrases", phraseAttributeName: "phrase", tsneSeed: 1 });
   store.setCases(kCases);
+  store.setComputeStatus("done");
   return store;
 };
 
@@ -214,10 +215,33 @@ describe("TestPhrases", () => {
       expect(store.editingSlot).toBeUndefined();
     });
 
-    it("enables the fields once a Phrase Column is chosen", () => {
+    it("enables the fields once a Phrase Column is chosen and the plot is done", () => {
       renderTestPhrases(store);
       act(() => store.setPhraseAttribute("phrase"));
+      expect(field(0)).toHaveAttribute("aria-disabled", "true");
+      act(() => store.setComputeStatus("done"));
       expect(field(0)).not.toHaveAttribute("aria-disabled");
+    });
+  });
+
+  describe("disabled while there is no plot", () => {
+    it.each(["idle", "computing", "too-few", "error"] as const)("disables the rows while the plot is %s", status => {
+      store.setComputeStatus(status);
+      renderTestPhrases(store);
+      screen.getAllByRole("listitem").forEach(row => expect(row).toHaveAttribute("data-disabled"));
+      expect(field(0)).toHaveAttribute("aria-disabled", "true");
+      expect(field(0)).toHaveAttribute("readonly");
+    });
+
+    it("keeps a draft typed before the plot went away", async () => {
+      renderTestPhrases(store);
+      await userEvent.click(field(2));
+      await userEvent.keyboard("a bird");
+      // A new layout starts, so the rows are disabled until it is done
+      act(() => store.setComputeStatus("computing"));
+      expect(field(2)).toHaveAttribute("aria-disabled", "true");
+      await userEvent.tab();
+      expect(store.testPhrases[2]).toBe("a bird");
     });
   });
 

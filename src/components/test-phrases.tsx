@@ -30,7 +30,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
 
   const committed = store.testPhrases[slot];
   const symbol = store.symbolForSlot(slot);
-  const isDisabled = !store.phraseAttributeName;
+  const isDisabled = !store.phraseAttributeName || store.computeStatus !== "done";
   const hasPoint = !isDisabled && store.placedSlots.has(slot);
   const isPlaced = store.placementStatus[slot] === "placed";
   const hasNoWords = !isDisabled && store.placementStatus[slot] === "no-words";
@@ -43,7 +43,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
     if (store.editingSlot === slot) store.setEditingSlot(undefined);
   };
   const commit = (text: string) => {
-    if (!isDisabled) store.setTestPhrase(slot, text);
+    store.setTestPhrase(slot, text);
     stopEditing();
   };
 
