@@ -689,6 +689,25 @@ describe("Graph", () => {
         expect(point("a fish swam")).toHaveFocus();
       });
 
+      it("keeps the keyboard position on a symbol whose slot is edited from outside the plot", async () => {
+        const user = userEvent.setup();
+        renderGraph(store);
+        await user.tab();
+        await user.keyboard("{End}");
+        expect(symbolPoint("Star: a fish")).toHaveFocus();
+        // Leave the plot, as for editing the slot's field
+        await user.tab();
+        expect(symbolPoint("Star: a fish")).not.toHaveFocus();
+        expect(plot()).not.toHaveFocus();
+        act(() => store.setEditingSlot(4));
+        // Hidden meanwhile, so the plot itself is the Tab stop
+        expect(plot()).toHaveAttribute("tabindex", "0");
+        act(() => store.setEditingSlot(undefined));
+        expect(symbolPoint("Star: a fish")).toHaveAttribute("tabindex", "0");
+        await user.tab({ shift: true });
+        expect(symbolPoint("Star: a fish")).toHaveFocus();
+      });
+
       it("moves focus to the first point when the focused symbol's slot is edited", async () => {
         const user = userEvent.setup();
         renderGraph(store);

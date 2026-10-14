@@ -109,9 +109,10 @@ export const Graph = observer(() => {
     [points, testPoints]);
   const activeExists = activeKey !== undefined && keys.includes(activeKey);
 
-  // If the remembered point is gone, use the first point
+  // If the remembered point is gone while focus is in the plot, use the first point. From outside,
+  // keep it: a test phrase's point is only hidden while its field is edited, and comes back.
   useEffect(() => {
-    if (activeKey !== undefined && keys.length > 0 && !keys.includes(activeKey)) {
+    if (focusWithin.current && activeKey !== undefined && keys.length > 0 && !keys.includes(activeKey)) {
       setActiveKey(keys[0]);
     }
   }, [activeKey, keys]);
