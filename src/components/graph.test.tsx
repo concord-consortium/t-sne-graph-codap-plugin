@@ -411,6 +411,18 @@ describe("Graph", () => {
       expect(within(point("the cat sat")).getByTestId("dot")).toHaveAttribute("r", "6");
     });
 
+    it("draws the active point's copy on top where the view puts the point", () => {
+      store.zoomIn();
+      renderGraph(store);
+      // The center point stays put at level 1, so focus one that moves
+      act(() => point("a dog ran").focus());
+      expect(screen.getByTestId("active-point"))
+        .toHaveAttribute("transform", point("a dog ran").getAttribute("transform"));
+      act(() => store.panTo(0.6, 0.4));
+      expect(screen.getByTestId("active-point"))
+        .toHaveAttribute("transform", point("a dog ran").getAttribute("transform"));
+    });
+
     it("moves the points when the view changes after drawing", () => {
       renderGraph(store);
       expect(point("a dog ran")).toHaveAttribute("transform", "translate(288 12)");

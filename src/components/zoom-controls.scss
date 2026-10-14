@@ -11,6 +11,7 @@
   padding: $zoom-controls-inset;
   position: absolute;
   top: $zoom-controls-offset;
+  z-index: 1;
 }
 
 // Inset box-shadow focus border, so the icon doesn't shift. Only the set's outer corners are round.

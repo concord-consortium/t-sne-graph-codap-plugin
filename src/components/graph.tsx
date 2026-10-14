@@ -305,7 +305,7 @@ export const Graph = observer(() => {
 
   // A test phrase is drawn after the case points, so only a case point needs drawing again on top
   const activePoint = activeExists ? points.find(point => caseKey(point.caseId) === activeKey) : undefined;
-  const activePixels = activePoint && toPixels(activePoint, size);
+  const activePixels = activePoint && viewPixels(activePoint, view, size);
   const hasPoints = points.length > 0;
   const hasLabels = store.labelAttributeName !== undefined;
   const testPhraseCount = testPoints.length > 0 ? ` and ${plural(testPoints.length, "test phrase")}` : "";
