@@ -1,10 +1,11 @@
-import React, { KeyboardEvent, useId, useRef, useState } from "react";
+import React, { useId } from "react";
 import { Button, Input, TextField } from "react-aria-components";
 import { observer } from "mobx-react-lite";
 import { kMaxTestPhraseLength, kTestPhraseSlots, PhraseSymbol } from "../models/plugin-store";
 import { selectTestPhrase } from "../models/selection-sync";
 import { useStore } from "../models/store-context";
 import { PhraseSymbolIcon } from "./phrase-symbol";
+import { usePhraseDraft } from "./use-phrase-draft";
 import "./test-phrases.scss";
 
 // TODO: interim wording until design decides
@@ -16,52 +17,18 @@ interface ITestPhraseRowProps {
   slot: number;
 }
 
-/** Commits its draft on blur, Tab or Enter; Escape reverts. The slot's point hides while editing. */
 const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
   const store = useStore();
   const noWordsId = useId();
-  const inputRef = useRef<HTMLInputElement>(null);
-  // Undefined when not focused: shows the committed phrase
-  const [draft, setDraft] = useState<string>();
-  // Set by Escape, so the blur it causes doesn't commit
-  const reverting = useRef(false);
-  // Stops the mouse-up after a focus from undoing the select-all
-  const keepSelectionOnMouseUp = useRef(false);
 
   const committed = store.testPhrases[slot];
   const symbol = store.symbolForSlot(slot);
   const isDisabled = !store.phraseAttributeName || store.computeStatus !== "done";
+  const { inputRef, showsCommitted, fieldProps, inputProps } = usePhraseDraft(slot, !isDisabled);
   const hasPoint = !isDisabled && store.placedSlots.has(slot);
   const isPlaced = store.placementStatus[slot] === "placed";
   const hasNoWords = !isDisabled && store.placementStatus[slot] === "no-words";
-  const showsNoWords = hasNoWords && (draft ?? committed) === committed;
-
-  const startEditing = () => {
-    if (!isDisabled && committed !== "") store.setEditingSlot(slot);
-  };
-  const stopEditing = () => {
-    if (store.editingSlot === slot) store.setEditingSlot(undefined);
-  };
-  const commit = (text: string) => {
-    store.setTestPhrase(slot, text);
-    stopEditing();
-  };
-
-  const handleKeyDown = (event: KeyboardEvent) => {
-    // Leave IME confirm/cancel keys alone. Safari's confirming Enter follows compositionend, marked only
-    // by keyCode 229.
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-    if (event.key === "Enter") {
-      commit(draft ?? committed);
-      // Show it as stored
-      setDraft(store.testPhrases[slot]);
-    } else if (event.key === "Escape") {
-      reverting.current = true;
-      setDraft(undefined);
-      stopEditing();
-      inputRef.current?.blur();
-    }
-  };
+  const showsNoWords = hasNoWords && showsCommitted;
 
   const symbolLabel = committed
     ? `${symbolName(symbol)}: ${committed}, select its point`
@@ -88,24 +55,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
         aria-describedby={showsNoWords ? noWordsId : undefined}
         isReadOnly={isDisabled}
         maxLength={kMaxTestPhraseLength}
-        value={draft ?? committed}
-        onChange={text => {
-          setDraft(text);
-          startEditing();
-        }}
-        onFocus={() => {
-          setDraft(committed);
-          startEditing();
-        }}
-        onBlur={() => {
-          if (reverting.current) {
-            reverting.current = false;
-          } else {
-            commit(draft ?? committed);
-          }
-          setDraft(undefined);
-        }}
-        onKeyDown={handleKeyDown}
+        {...fieldProps}
       >
         <Input
           ref={inputRef}
@@ -114,18 +64,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
           aria-disabled={isDisabled || undefined}
           placeholder="Enter a phrase"
           title={showsNoWords ? kNoWordsText : undefined}
-          onFocus={event => {
-            event.currentTarget.select();
-            keepSelectionOnMouseUp.current = true;
-          }}
-          onMouseDown={event => {
-            // A click in a focused field places the caret
-            if (event.currentTarget === document.activeElement) keepSelectionOnMouseUp.current = false;
-          }}
-          onMouseUp={event => {
-            if (keepSelectionOnMouseUp.current) event.preventDefault();
-            keepSelectionOnMouseUp.current = false;
-          }}
+          {...inputProps}
         />
       </TextField>
       {hasNoWords && <span id={noWordsId} className="visually-hidden">{kNoWordsText}</span>}

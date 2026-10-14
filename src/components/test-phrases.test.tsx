@@ -1,6 +1,7 @@
 import React from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { applySnapshot, getSnapshot } from "mobx-state-tree";
 import { CaseInfo, IPluginStore, PluginStore, TestPhrasePoint } from "../models/plugin-store";
 import { selectTestPhrase } from "../models/selection-sync";
 import { StoreProvider } from "../models/store-context";
@@ -242,6 +243,31 @@ describe("TestPhrases", () => {
       expect(field(2)).toHaveAttribute("aria-disabled", "true");
       await userEvent.tab();
       expect(store.testPhrases[2]).toBe("a bird");
+    });
+
+    it("keeps a draft typed into a placed slot before the plot went away", async () => {
+      store = placedStore();
+      renderTestPhrases(store);
+      await userEvent.click(field(0));
+      expect(store.editingSlot).toBe(0);
+      await userEvent.keyboard("a dog");
+      act(() => store.setComputeStatus("computing"));
+      await userEvent.tab();
+      expect(store.testPhrases[0]).toBe("a dog");
+      expect(store.editingSlot).toBeUndefined();
+    });
+
+    it("keeps a phrase restored while its field had focus", async () => {
+      // Before the saved state loads, the plugin has no Phrase Column, so the fields are read-only
+      store = PluginStore.create();
+      renderTestPhrases(store);
+      await userEvent.tab();
+      await userEvent.tab();
+      expect(field(0)).toHaveFocus();
+      act(() => applySnapshot(store, { ...getSnapshot(store), testPhrases: ["the cat", "", "", "", ""] }));
+      expect(field(0)).toHaveValue("the cat");
+      await userEvent.tab();
+      expect(store.testPhrases[0]).toBe("the cat");
     });
   });
 
