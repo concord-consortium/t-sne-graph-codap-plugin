@@ -79,13 +79,17 @@ export const startSelectionSync = (store: IPluginStore) => {
   return reaction(() => store.cases, () => { refreshSelection(); });
 };
 
+/** Whether CODAP took the request. A refusal can be thrown or returned. */
 const requestCodapSelection = async (store: IPluginStore, caseIds: string[], extend: boolean) => {
   const dataContextName = store.dataContextName;
-  if (!dataContextName) return;
+  if (!dataContextName) return false;
   try {
-    await (extend ? addCasesToSelection : selectCases)(dataContextName, caseIds);
+    const result = await (extend ? addCasesToSelection : selectCases)(dataContextName, caseIds);
+    if (result?.success === false) throw new Error(String(result.values?.error ?? "request failed"));
+    return true;
   } catch (error) {
     console.error("Unable to select cases in", dataContextName, errorMessage(error));
+    return false;
   }
 };
 
@@ -97,7 +101,7 @@ export const selectInCodap = (store: IPluginStore, caseIds: string[], extend = f
 };
 
 /** Follows CODAP's graph: a selected point stays selected on a plain click, and Shift removes it. */
-export const selectPoint = (store: IPluginStore, caseId: string, extend: boolean) => {
+export const selectPoint = async (store: IPluginStore, caseId: string, extend: boolean) => {
   if (!store.isSelected(caseId)) return selectInCodap(store, [caseId], extend);
   if (!extend) return;
   // The API can only replace or add, so replace with the other selected leaf cases. Parent IDs are
@@ -106,8 +110,11 @@ export const selectPoint = (store: IPluginStore, caseId: string, extend: boolean
     .filter(({ caseId: id }) => id !== caseId && store.isSelected(id))
     .map(({ caseId: id }) => id);
   // A removal keeps the test phrases, as Shift does elsewhere
-  if (store.selectedSlots.size > 0 && others.length > 0) expectedRemovals.set(store, new Set(others));
-  return requestCodapSelection(store, others, false);
+  const expected = store.selectedSlots.size > 0 && others.length > 0 ? new Set(others) : undefined;
+  if (expected) expectedRemovals.set(store, expected);
+  const accepted = await requestCodapSelection(store, others, false);
+  // A refused request sends no notice, so the record would wait for an unrelated one
+  if (!accepted && expected && expectedRemovals.get(store) === expected) expectedRemovals.delete(store);
 };
 
 /** Test phrases and parent cases too. */

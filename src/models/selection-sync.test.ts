@@ -223,6 +223,12 @@ describe("selection-sync", () => {
       expect(api.addCasesToSelection).not.toHaveBeenCalled();
     });
 
+    it("logs an error when CODAP refuses the request", async () => {
+      api.selectCases.mockResolvedValueOnce({ success: false, values: { error: "busy" } });
+      await selectInCodap(store, ["100"]);
+      expect(consoleError).toHaveBeenCalledWith("Unable to select cases in", "Phrases", "busy");
+    });
+
     it("logs an error when CODAP can't be asked", async () => {
       api.selectCases.mockRejectedValueOnce(new Error("timeout"));
       await selectInCodap(store, ["100"]);
@@ -529,6 +535,21 @@ describe("selection-sync", () => {
       it("still clears them for a table click that lands before the removal's notice", async () => {
         await selectPoint(store, "101", true);
         codapSelection = [leaf(102)];
+        notifySelect("Phrases", false);
+        await flush();
+        expect(slots()).toEqual([]);
+      });
+
+      it.each([
+        ["refuses it", () => api.selectCases.mockResolvedValueOnce({ success: false, values: { error: "busy" } })],
+        ["fails", () => api.selectCases.mockRejectedValueOnce(new Error("timeout"))]
+      ])("forgets the removal when CODAP %s, so a later table click still clears them", async (_case, fail) => {
+        fail();
+        await selectPoint(store, "101", true);
+        expect(consoleError).toHaveBeenCalled();
+        expect(slots()).toEqual([2]);
+        // No notice came; a table click that selects exactly the cases left is a table click
+        codapSelection = [leaf(100)];
         notifySelect("Phrases", false);
         await flush();
         expect(slots()).toEqual([]);
