@@ -56,6 +56,8 @@ const shapes: Record<PhraseSymbol, (extent: number) => number[][]> = {
   }
 };
 
+export const symbolName = (symbol: PhraseSymbol) => symbol.charAt(0).toUpperCase() + symbol.slice(1);
+
 /** Centered on its centroid at (0, 0); the larger side is `extent`. */
 export const symbolPath = (symbol: PhraseSymbol, extent: number) => polygon(shapes[symbol](extent));
 

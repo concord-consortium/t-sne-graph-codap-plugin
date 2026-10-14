@@ -2,7 +2,7 @@ import React from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { applySnapshot, getSnapshot } from "mobx-state-tree";
-import { CaseInfo, IPluginStore, PluginStore, TestPhrasePoint } from "../models/plugin-store";
+import { CaseInfo, IPluginStore, PlacementStatus, PluginStore, TestPhrasePoint } from "../models/plugin-store";
 import { selectTestPhrase } from "../models/selection-sync";
 import { StoreProvider } from "../models/store-context";
 import { kNoWordsText, TestPhrases } from "./test-phrases";
@@ -281,6 +281,21 @@ describe("TestPhrases", () => {
       ]);
     });
 
+    it("says why a phrase has no point", async () => {
+      store = placedStore();
+      store.setTestPhrase(1, "a dog");
+      store.setTestPhrase(2, "zebra");
+      store.setTestPhrasePoints([point(0)], { 0: "placed", 2: "no-words", 3: "empty", 4: "empty" });
+      renderTestPhrases(store);
+      const [square, triangle, diamond] = symbolButtons();
+      // Waiting for placement
+      expect(triangle).toHaveAttribute("aria-label", "Triangle: a dog, no point yet");
+      // The no-words description says why
+      expect(diamond).toHaveAttribute("aria-label", "Diamond: zebra, no point");
+      await userEvent.click(field(0));
+      expect(square).toHaveAttribute("aria-label", "Square: the cat, no point yet");
+    });
+
     it("dims the symbol until its slot is placed, and keeps it full while the slot is edited", async () => {
       store = placedStore();
       store.setTestPhrase(1, "a dog");
@@ -362,6 +377,11 @@ describe("TestPhrases", () => {
   });
 
   describe("a phrase with no words in common", () => {
+    // A placement reply; slot 1 keeps no words
+    const reply = (points: TestPhrasePoint[], status: Record<number, PlacementStatus>) =>
+      act(() => store.setTestPhrasePoints(points,
+        { 0: "empty", 1: "no-words", 2: "empty", 3: "empty", 4: "empty", ...status }));
+
     beforeEach(() => {
       store.setTestPhrase(1, "zebra");
       store.setTestPhrasePoints([], { 0: "empty", 1: "no-words", 2: "empty", 3: "empty", 4: "empty" });
@@ -415,6 +435,40 @@ describe("TestPhrases", () => {
       act(() => store.setTestPhrasePoints([], { 0: "empty", 1: "no-words", 2: "empty", 3: "no-words", 4: "empty" }));
       expect(field(3)).toHaveFocus();
       expect(field(3)).toHaveClass("no-words");
+    });
+
+    it("announces the phrase once its result comes back", async () => {
+      renderTestPhrases(store);
+      // Not the phrase that was already there
+      expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+      await userEvent.click(field(3));
+      await userEvent.keyboard("quilt{Enter}");
+      reply([], { 3: "no-words" });
+      expect(screen.getByRole("status")).toHaveTextContent(`Plus: quilt. ${kNoWordsText}`);
+    });
+
+    it("announces nothing for a phrase that is placed", async () => {
+      renderTestPhrases(store);
+      await userEvent.click(field(3));
+      await userEvent.keyboard("the cat{Enter}");
+      reply([point(3)], { 3: "placed" });
+      expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+    });
+
+    it("announces a phrase only once, not again for a new layout", async () => {
+      renderTestPhrases(store);
+      await userEvent.click(field(3));
+      await userEvent.keyboard("quilt{Enter}");
+      reply([], { 3: "no-words" });
+      // Another change clears the message
+      await userEvent.click(field(4));
+      await userEvent.keyboard("the cat{Enter}");
+      reply([point(4)], { 3: "no-words", 4: "placed" });
+      expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+      // A new layout
+      act(() => store.setTestPhrasePoints([], {}));
+      reply([point(4)], { 3: "no-words", 4: "placed" });
+      expect(screen.getByRole("status")).toHaveTextContent(/^$/);
     });
 
     it("dims and disables the symbol", () => {

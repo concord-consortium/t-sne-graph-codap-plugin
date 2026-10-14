@@ -3,8 +3,9 @@ import { useStore } from "../models/store-context";
 
 /** A test-phrase field's draft, committed on blur, Tab or Enter and reverted by Escape. The draft
  * exists only once the student types, so a field focused before the saved state loads shows the
- * restored phrase, and leaving it commits nothing over it. The slot's point hides while editing. */
-export const usePhraseDraft = (slot: number, canEdit: boolean) => {
+ * restored phrase, and leaving it commits nothing over it. The slot's point hides while editing.
+ * `onChange` runs when a commit changes the phrase. */
+export const usePhraseDraft = (slot: number, canEdit: boolean, onChange?: () => void) => {
   const store = useStore();
   const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<string>();
@@ -22,7 +23,10 @@ export const usePhraseDraft = (slot: number, canEdit: boolean) => {
   };
   // Even when the field can't be edited now: one disabled while it was being edited keeps the draft
   const commit = () => {
-    if (draft !== undefined) store.setTestPhrase(slot, draft);
+    if (draft !== undefined) {
+      store.setTestPhrase(slot, draft);
+      if (store.testPhrases[slot] !== committed) onChange?.();
+    }
     setDraft(undefined);
     stopEditing();
   };

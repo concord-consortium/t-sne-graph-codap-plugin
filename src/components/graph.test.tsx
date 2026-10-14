@@ -502,7 +502,7 @@ describe("Graph", () => {
         renderGraph(store);
         expect(pointNames()).toEqual([
           "the cat sat, Similar", "a dog ran, Opposite", "the bird sang, Similar", "a fish swam, Unlabeled",
-          "Square: the cat", "Diamond: a bird", "Star: a fish"
+          "Square test phrase: the cat", "Diamond test phrase: a bird", "Star test phrase: a fish"
         ]);
         expect(symbolPoints().map(element => element.getAttribute("data-symbol")))
           .toEqual(["square", "diamond", "star"]);
@@ -510,7 +510,7 @@ describe("Graph", () => {
 
       it("fills each symbol with the test-phrase color, with a white outline and a 24px hit area", () => {
         renderGraph(store);
-        const square = symbolPoint("Square: the cat");
+        const square = symbolPoint("Square test phrase: the cat");
         expect(within(square).getByTestId("symbol")).toHaveAttribute("fill", "#2e007f");
         // The spec's 13.3px plot square
         expect(within(square).getByTestId("symbol"))
@@ -521,18 +521,18 @@ describe("Graph", () => {
 
       it("pushes a symbol on its neighbor's dot out to 18px, along its direction", () => {
         renderGraph(store);
-        expect(symbolPoint("Square: the cat")).toHaveAttribute("transform", "translate(168 150)");
+        expect(symbolPoint("Square test phrase: the cat")).toHaveAttribute("transform", "translate(168 150)");
       });
 
       it("leaves a symbol far from its neighbor where it was placed", () => {
         renderGraph(store);
-        expect(symbolPoint("Diamond: a bird")).toHaveAttribute("transform", "translate(81 81)");
+        expect(symbolPoint("Diamond test phrase: a bird")).toHaveAttribute("transform", "translate(81 81)");
       });
 
       it("takes the ring point nearest its direction that is inside the plot", () => {
         // Pushed outward from the bottom-left corner: straight up is the first inside
         renderGraph(store);
-        const { x, y } = symbolCenter("Star: a fish");
+        const { x, y } = symbolCenter("Star test phrase: a fish");
         expect(x).toBeCloseTo(12, 6);
         expect(y).toBeCloseTo(270, 6);
       });
@@ -540,14 +540,14 @@ describe("Graph", () => {
       it("clamps a symbol placed past the edge into the padded area", () => {
         store.setTestPhrasePoints([testPoint(2, 1.2, 0.5, "3")], { 2: "placed" });
         renderGraph(store);
-        expect(symbolPoint("Diamond: a bird")).toHaveAttribute("transform", "translate(288 150)");
+        expect(symbolPoint("Diamond test phrase: a bird")).toHaveAttribute("transform", "translate(288 150)");
       });
 
       it("keeps a symbol clear of another phrase's dot", () => {
         // Placed on case 4, far from its neighbor, case 3
         store.setTestPhrasePoints([testPoint(2, 1, 0, "3")], { 2: "placed" });
         renderGraph(store);
-        const { x, y } = symbolCenter("Diamond: a bird");
+        const { x, y } = symbolCenter("Diamond test phrase: a bird");
         expect(Math.hypot(x - 288, y - 288)).toBeGreaterThanOrEqual(18 - 1e-6);
         expect(Math.hypot(x - 150, y - 150)).toBeCloseTo(18, 6);
       });
@@ -557,12 +557,12 @@ describe("Graph", () => {
         store.setTestPhrasePoints([testPoint(0, 0.5, 0.5, "3"), testPoint(2, 0.5, 0.5, "3")],
           { 0: "placed", 2: "placed" });
         renderGraph(store);
-        const before = symbolCenter("Diamond: a bird");
+        const before = symbolCenter("Diamond test phrase: a bird");
         act(() => store.setEditingSlot(0));
-        expect(pointNames()).not.toContain("Square: the cat");
-        expect(symbolCenter("Diamond: a bird")).toEqual(before);
+        expect(pointNames()).not.toContain("Square test phrase: the cat");
+        expect(symbolCenter("Diamond test phrase: a bird")).toEqual(before);
         act(() => store.setEditingSlot(undefined));
-        expect(symbolCenter("Diamond: a bird")).toEqual(before);
+        expect(symbolCenter("Diamond test phrase: a bird")).toEqual(before);
       });
 
       it("keeps a higher slot's symbol clear of a lower slot's", () => {
@@ -570,8 +570,8 @@ describe("Graph", () => {
         store.setTestPhrasePoints([testPoint(0, 0.5, 0.5, "3"), testPoint(2, 0.5, 0.5, "3")],
           { 0: "placed", 2: "placed" });
         renderGraph(store);
-        const square = symbolCenter("Square: the cat");
-        const diamond = symbolCenter("Diamond: a bird");
+        const square = symbolCenter("Square test phrase: the cat");
+        const diamond = symbolCenter("Diamond test phrase: a bird");
         expect(square).toEqual({ x: 168, y: 150 });
         expect(Math.hypot(diamond.x - square.x, diamond.y - square.y)).toBeGreaterThanOrEqual(18 - 1e-6);
         expect(Math.hypot(diamond.x - 150, diamond.y - 150)).toBeCloseTo(18, 6);
@@ -586,33 +586,33 @@ describe("Graph", () => {
         renderGraph(store);
         act(() => resize?.([{ contentRect: { width: 600, height: 200 } }]));
         // The plot is a 200px square, so case 3 is at (100, 100)
-        expect(symbolPoint("Square: the cat")).toHaveAttribute("transform", "translate(118 100)");
+        expect(symbolPoint("Square test phrase: the cat")).toHaveAttribute("transform", "translate(118 100)");
       });
 
       it("hides the symbol of a slot being edited", () => {
         renderGraph(store);
         act(() => store.setEditingSlot(0));
-        expect(pointNames()).not.toContain("Square: the cat");
+        expect(pointNames()).not.toContain("Square test phrase: the cat");
         act(() => store.setEditingSlot(undefined));
-        expect(pointNames()).toContain("Square: the cat");
+        expect(pointNames()).toContain("Square test phrase: the cat");
       });
 
       it("shows the selection rings in the symbol's shape and aria-pressed on selected slots only", () => {
         store.setSelectedSlots([2]);
         renderGraph(store);
-        const diamond = symbolPoint("Diamond: a bird");
+        const diamond = symbolPoint("Diamond test phrase: a bird");
         expect(diamond).toHaveAttribute("aria-pressed", "true");
-        expect(symbolPoint("Square: the cat")).toHaveAttribute("aria-pressed", "false");
+        expect(symbolPoint("Square test phrase: the cat")).toHaveAttribute("aria-pressed", "false");
         const path = within(diamond).getByTestId("symbol").getAttribute("d");
         expect(within(diamond).getByTestId("selection-ring")).toHaveAttribute("d", path);
         expect(within(diamond).getByTestId("selection-ring")).toHaveStyle({ strokeWidth: "6" });
         expect(within(diamond).getByTestId("selection-edge")).toHaveStyle({ strokeWidth: "8" });
-        expect(within(symbolPoint("Square: the cat")).queryByTestId("selection-ring")).toBeNull();
+        expect(within(symbolPoint("Square test phrase: the cat")).queryByTestId("selection-ring")).toBeNull();
       });
 
       it("sizes the focus mask to cover the focus ring at a mitered corner", () => {
         renderGraph(store);
-        const mask = within(symbolPoint("Diamond: a bird")).getByTestId("focus-mask");
+        const mask = within(symbolPoint("Diamond test phrase: a bird")).getByTestId("focus-mask");
         // At the diamond's 90° tips the 12px stroke reaches 6 × √2 past the path
         const ringReach = symbolReach("diamond", kPlotSymbolExtents.diamond) + 6 * Math.SQRT2;
         expect(Number(mask.getAttribute("width"))).toBeGreaterThanOrEqual(2 * ringReach);
@@ -621,7 +621,7 @@ describe("Graph", () => {
 
       it("masks the focus ring to the band 4–6px outside the symbol", () => {
         renderGraph(store);
-        const square = symbolPoint("Square: the cat");
+        const square = symbolPoint("Square test phrase: the cat");
         const focusRing = within(square).getByTestId("focus-ring");
         const maskId = focusRing.getAttribute("mask")?.match(/^url\(#(.+)\)$/)?.[1];
         expect(maskId).toBeDefined();
@@ -655,10 +655,10 @@ describe("Graph", () => {
       it("selects a clicked symbol, and adds it with Shift", async () => {
         const user = userEvent.setup();
         renderGraph(store);
-        await user.click(symbolPoint("Diamond: a bird"));
+        await user.click(symbolPoint("Diamond test phrase: a bird"));
         expect(selectTestPhrase).toHaveBeenLastCalledWith(store, 2, false);
         await user.keyboard("{Shift>}");
-        await user.click(symbolPoint("Square: the cat"));
+        await user.click(symbolPoint("Square test phrase: the cat"));
         await user.keyboard("{/Shift}");
         expect(selectTestPhrase).toHaveBeenLastCalledWith(store, 0, true);
         expect(selectPoint).not.toHaveBeenCalled();
@@ -690,11 +690,11 @@ describe("Graph", () => {
         renderGraph(store);
         await user.tab();
         await user.keyboard("{ArrowLeft}");
-        expect(symbolPoint("Star: a fish")).toHaveFocus();
+        expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
         await user.keyboard("{Home}{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}");
-        expect(symbolPoint("Square: the cat")).toHaveFocus();
+        expect(symbolPoint("Square test phrase: the cat")).toHaveFocus();
         await user.keyboard("{ArrowRight}");
-        expect(symbolPoint("Diamond: a bird")).toHaveFocus();
+        expect(symbolPoint("Diamond test phrase: a bird")).toHaveFocus();
         await user.keyboard("{ArrowLeft}{ArrowLeft}");
         expect(point("a fish swam")).toHaveFocus();
       });
@@ -704,18 +704,18 @@ describe("Graph", () => {
         renderGraph(store);
         await user.tab();
         await user.keyboard("{End}");
-        expect(symbolPoint("Star: a fish")).toHaveFocus();
+        expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
         // Leave the plot, as for editing the slot's field
         await user.tab();
-        expect(symbolPoint("Star: a fish")).not.toHaveFocus();
+        expect(symbolPoint("Star test phrase: a fish")).not.toHaveFocus();
         expect(plot()).not.toHaveFocus();
         act(() => store.setEditingSlot(4));
         // Hidden meanwhile, so the plot itself is the Tab stop
         expect(plot()).toHaveAttribute("tabindex", "0");
         act(() => store.setEditingSlot(undefined));
-        expect(symbolPoint("Star: a fish")).toHaveAttribute("tabindex", "0");
+        expect(symbolPoint("Star test phrase: a fish")).toHaveAttribute("tabindex", "0");
         await user.tab({ shift: true });
-        expect(symbolPoint("Star: a fish")).toHaveFocus();
+        expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
       });
 
       it("moves focus to the first point when the focused symbol's slot is edited", async () => {
@@ -723,7 +723,7 @@ describe("Graph", () => {
         renderGraph(store);
         await user.tab();
         await user.keyboard("{End}");
-        expect(symbolPoint("Star: a fish")).toHaveFocus();
+        expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
         act(() => store.setEditingSlot(4));
         expect(point("the cat sat")).toHaveFocus();
       });

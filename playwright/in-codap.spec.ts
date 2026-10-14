@@ -649,7 +649,7 @@ const distancesToNeighbors = (plugin: FrameLocator) =>
     const byPhrase = (phrase: string) => Array.from(svg.querySelectorAll(".point:not(.test-phrase-point)"))
       .find(dot => (dot.getAttribute("aria-label") ?? "").replace(/, [^,]*$/, "") === phrase);
     return Array.from(svg.querySelectorAll(".test-phrase-point")).map(symbol => {
-      const text = symbol.getAttribute("aria-label")?.replace(/^\w+: /, "");
+      const text = symbol.getAttribute("aria-label")?.replace(/^\w+ test phrase: /, "");
       const neighbor = testPhrases.find(phrase => phrase.text === text)?.neighbor ?? "";
       const a = center(symbol);
       const b = center(byPhrase(neighbor) ?? null);
@@ -689,7 +689,7 @@ test("places a test phrase beside its nearest phrase, hides it while editing, an
     await testField(plugin, 0).fill(kTestPhrases[0].text);
     await expect(symbolPoint(plugin, 0)).toHaveCount(0);
     await testField(plugin, 0).press("Tab");
-    await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-label", `Square: ${kTestPhrases[0].text}`);
+    await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-label", `Square test phrase: ${kTestPhrases[0].text}`);
     const [distance] = await distancesToNeighbors(plugin);
     expect(distance).toBeGreaterThanOrEqual(kMinNeighborOffset - 0.01);
     expect(distance).toBeLessThan(25);
@@ -757,16 +757,16 @@ test("selects test phrases with the symbol button and on the plot, together with
 
   // Shift-click adds the symbol to the case
   await symbolPoint(plugin, 0).click({ modifiers: ["Shift"] });
-  await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow, `Square: ${kTestPhrases[0].text}`]);
+  await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow, `Square test phrase: ${kTestPhrases[0].text}`]);
   await expect.poll(() => tableSelectionCount(page)).toBe(1);
 
   // Shift-click removes a selected case point and keeps the test phrase, through CODAP's notice
   const otherRow = "Nobody anywhere feels this way";
   await point(plugin, otherRow).click({ modifiers: ["Shift"] });
   await expect.poll(() => pressedPhrases(plugin))
-    .toEqual([caseRow, otherRow, `Square: ${kTestPhrases[0].text}`]);
+    .toEqual([caseRow, otherRow, `Square test phrase: ${kTestPhrases[0].text}`]);
   await point(plugin, caseRow).click({ modifiers: ["Shift"] });
-  await expect.poll(() => pressedPhrases(plugin)).toEqual([otherRow, `Square: ${kTestPhrases[0].text}`]);
+  await expect.poll(() => pressedPhrases(plugin)).toEqual([otherRow, `Square test phrase: ${kTestPhrases[0].text}`]);
   await expect.poll(() => tableSelectionCount(page)).toBe(1);
 
   // Empty space clears both
@@ -782,9 +782,9 @@ test("selects test phrases with the symbol button and on the plot, together with
 
   // A shift-click on a table row keeps it
   await symbolPoint(plugin, 0).click();
-  await expect.poll(() => pressedPhrases(plugin)).toEqual([`Square: ${kTestPhrases[0].text}`]);
+  await expect.poll(() => pressedPhrases(plugin)).toEqual([`Square test phrase: ${kTestPhrases[0].text}`]);
   await tableCell(page, caseRow).click({ modifiers: ["Shift"] });
-  await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow, `Square: ${kTestPhrases[0].text}`]);
+  await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow, `Square test phrase: ${kTestPhrases[0].text}`]);
 });
 
 test("explains a phrase with no words in common, and gives it no point", async ({ page }) => {
@@ -840,12 +840,12 @@ test("never shows an edited phrase at its old place", async ({ page }) => {
   // (g) The old point goes before the new one comes, and the new phrase never shows at the old place
   const newText = kTestPhrases[1].text;
   await enterTestPhrase(plugin, 0, newText);
-  await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-label", `Square: ${newText}`);
+  await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-label", `Square test phrase: ${newText}`);
   const log = await pluginPage.evaluate(() => (globalThis as unknown as { squareLog: string[] }).squareLog);
-  expect(log[0]).toBe(`Square: ${kTestPhrases[0].text}|${oldPlace}`);
+  expect(log[0]).toBe(`Square test phrase: ${kTestPhrases[0].text}|${oldPlace}`);
   expect(log[1]).toBe("none");
-  expect(log).not.toContain(`Square: ${newText}|${oldPlace}`);
-  expect(log[log.length - 1]).not.toBe(`Square: ${newText}|${oldPlace}`);
+  expect(log).not.toContain(`Square test phrase: ${newText}|${oldPlace}`);
+  expect(log[log.length - 1]).not.toBe(`Square test phrase: ${newText}|${oldPlace}`);
 });
 
 test("has no accessibility violations with test phrases, one selected and one with no words", async ({ page }) => {

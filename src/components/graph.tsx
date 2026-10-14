@@ -6,7 +6,7 @@ import { Point, TestPhrasePoint } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
 import { directionToPixels, IPosition, ISize, offsetFromNeighbor, paddedBounds, toPixels } from "../tsne/layout";
-import { kPlotSymbolExtents, kTestPhraseColor, symbolPath, symbolReach } from "./phrase-symbol";
+import { kPlotSymbolExtents, kTestPhraseColor, symbolName, symbolPath, symbolReach } from "./phrase-symbol";
 import "./graph.scss";
 
 const kGridCells = 8;
@@ -27,12 +27,12 @@ const kSymbolFocusOuterWidth = 12;
 const caseKey = (caseId: string) => `case:${caseId}`;
 const slotKey = (slot: number) => `slot:${slot}`;
 const slotFromKey = (key: string) => key.startsWith("slot:") ? Number(key.slice(5)) : undefined;
-const symbolName = (symbol: string) => symbol.charAt(0).toUpperCase() + symbol.slice(1);
 
 export const kTooFewMessage = "Add at least 4 phrases to see the plot.";
 export const kErrorMessage = "Something went wrong while making the plot.";
 export const kKeyboardHelp =
-  "Arrow keys, Home and End move between phrases. Enter selects; Shift+Enter adds or removes; Escape clears.";
+  "Arrow keys, Home and End move between phrases, then test phrases. " +
+  "Enter selects; Shift+Enter adds or removes; Escape clears.";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
@@ -319,7 +319,7 @@ export const Graph = observer(() => {
               className="point test-phrase-point"
               transform={`translate(${x} ${y})`}
               role="button"
-              aria-label={`${symbolName(symbol)}: ${store.testPhrases[point.slot]}`}
+              aria-label={`${symbolName(symbol)} test phrase: ${store.testPhrases[point.slot]}`}
               aria-pressed={selected}
               tabIndex={key === activeKey ? 0 : -1}
               data-symbol={symbol}
