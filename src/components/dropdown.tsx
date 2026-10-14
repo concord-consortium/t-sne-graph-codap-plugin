@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Button, Key, Label, ListBox, ListBoxItem, Popover, Select, SelectValue } from "react-aria-components";
+import CheckIcon from "../assets/check-icon.svg";
 import DropdownArrow from "../assets/dropdown-arrow.svg";
 import "./dropdown.scss";
 
@@ -62,7 +63,13 @@ export const Dropdown = (props: IProps) => {
             // A single space works as a stand-in, because React Aria never starts a search with a space.
             <ListBoxItem className="dropdown-item" id={item.id} textValue={item.id === kClearKey ? " " : item.label}
               aria-label={item.id === kClearKey ? "Select, clear selection" : undefined}>
-              {item.label}
+              {({ isSelected }) => (
+                <>
+                  {isSelected &&
+                    <CheckIcon className="dropdown-check" data-testid="dropdown-check" aria-hidden="true" />}
+                  {item.label}
+                </>
+              )}
             </ListBoxItem>
           )}
         </ListBox>
