@@ -70,12 +70,15 @@ const capPhrase = (text: string) => {
 export const normalizeTestPhrase = (text: string) =>
   capPhrase(text.trim().replace(/\s+/g, " "));
 
-// Exactly five strings of at most 255, whatever a saved document holds
-const normalizeTestPhrases = (phrases: readonly unknown[]) =>
-  emptyTestPhrases().map((empty, slot) => {
-    const phrase = phrases[slot];
-    return typeof phrase === "string" ? capPhrase(phrase) : empty;
-  });
+// Always five phrases, whatever a saved document holds. Each is cleaned up as a typed phrase is:
+// trimmed, with each run of spaces made one space, and cut to 255 characters. Anything but a list
+// gives five empty phrases; MST would reject it, and the whole saved state with it.
+const normalizeTestPhrases = (phrases: unknown) => Array.isArray(phrases)
+  ? emptyTestPhrases().map((empty, slot) => {
+    const phrase: unknown = phrases[slot];
+    return typeof phrase === "string" ? normalizeTestPhrase(phrase) : empty;
+  })
+  : emptyTestPhrases();
 
 export interface LabelEntry extends ILabelEntry {
   // All of the label's rows are selected
@@ -104,7 +107,7 @@ export const PluginStore = types
     testPhrases: types.optional(types.array(types.string), emptyTestPhrases)
   })
   // Input normalization, not a version migration
-  .preProcessSnapshot(snapshot => snapshot?.testPhrases
+  .preProcessSnapshot(snapshot => snapshot && "testPhrases" in snapshot
     ? { ...snapshot, testPhrases: normalizeTestPhrases(snapshot.testPhrases) }
     : snapshot)
   .volatile(() => ({

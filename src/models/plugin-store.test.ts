@@ -466,6 +466,23 @@ describe("PluginStore test phrases", () => {
     expect(store.testPhrases[1]).toBe("");
   });
 
+  it.each([null, "abc", 7, { 0: "the cat" }])(
+    "loads %j as five empty phrases and keeps the rest of the saved state", testPhrases => {
+      const store = PluginStore.create();
+      const saved = { version: 1, dataContextName: "Phrases", phraseAttributeName: "phrase", tsneSeed: 12345 };
+      applySnapshot(store, { ...saved, testPhrases } as unknown as typeof saved);
+      expect(store.testPhrases).toEqual(["", "", "", "", ""]);
+      expect(store.dataContextName).toBe("Phrases");
+      expect(store.phraseAttributeName).toBe("phrase");
+      expect(store.tsneSeed).toBe(12345);
+    });
+
+  it("normalizes saved phrases as a commit does", () => {
+    const store = PluginStore.create();
+    applySnapshot(store, { version: 1, testPhrases: ["  the  cat ", "   ", "a\tdog"] });
+    expect(store.testPhrases).toEqual(["the cat", "", "a dog", "", ""]);
+  });
+
   it("loads a saved entry that is not text as an empty phrase", () => {
     const store = PluginStore.create();
     applySnapshot(store, { version: 1, testPhrases: [null, 7, "a dog"] as unknown as string[] });
