@@ -6,6 +6,7 @@ import { StoreProvider } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
 import { kLabelColors, kUnlabeledColor } from "../tsne/labels";
 import { Graph, kErrorMessage, kKeyboardHelp, kTooFewMessage } from "./graph";
+import { kPlotSymbolExtents, symbolReach } from "./phrase-symbol";
 
 jest.mock("../models/selection-sync",
   () => ({ clearCodapSelection: jest.fn(), selectPoint: jest.fn(), selectTestPhrase: jest.fn() }));
@@ -607,6 +608,15 @@ describe("Graph", () => {
         expect(within(diamond).getByTestId("selection-ring")).toHaveStyle({ strokeWidth: "6" });
         expect(within(diamond).getByTestId("selection-edge")).toHaveStyle({ strokeWidth: "8" });
         expect(within(symbolPoint("Square: the cat")).queryByTestId("selection-ring")).toBeNull();
+      });
+
+      it("sizes the focus mask to cover the focus ring at a mitered corner", () => {
+        renderGraph(store);
+        const mask = within(symbolPoint("Diamond: a bird")).getByTestId("focus-mask");
+        // At the diamond's 90° tips the 12px stroke reaches 6 × √2 past the path
+        const ringReach = symbolReach("diamond", kPlotSymbolExtents.diamond) + 6 * Math.SQRT2;
+        expect(Number(mask.getAttribute("width"))).toBeGreaterThanOrEqual(2 * ringReach);
+        expect(Number(mask.getAttribute("x"))).toBeLessThanOrEqual(-ringReach);
       });
 
       it("masks the focus ring to the band 4–6px outside the symbol", () => {

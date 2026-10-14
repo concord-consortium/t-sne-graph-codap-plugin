@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { kPhraseSymbols, PhraseSymbol } from "../models/plugin-store";
 import { kMinNeighborOffsetPx } from "../tsne/layout";
 import {
-  kButtonSymbolExtents, kPlotSymbolExtents, kTestPhraseColor, PhraseSymbolIcon, symbolPath
+  kButtonSymbolExtents, kPlotSymbolExtents, kTestPhraseColor, PhraseSymbolIcon, symbolPath, symbolReach
 } from "./phrase-symbol";
 
 // The [x, y] points of an "M x yL x y…Z" path
@@ -19,12 +19,20 @@ const box = (symbol: PhraseSymbol, extent: number) => {
 describe("symbolPath", () => {
   describe.each(kPhraseSymbols.map(symbol => [symbol]))("%s", symbol => {
     it.each([kButtonSymbolExtents[symbol], kPlotSymbolExtents[symbol]])(
-      "is %fpx at its larger side, centered", extent => {
+      "is %fpx at its larger side, centered on its centroid", extent => {
         const { left, right, top, bottom } = box(symbol, extent);
         expect(Math.max(right - left, bottom - top)).toBeCloseTo(extent, 2);
-        expect((left + right) / 2).toBeCloseTo(0, 2);
-        expect((top + bottom) / 2).toBeCloseTo(0, 2);
+        // Every shape is regular or symmetric, so its centroid is the mean of its points
+        const corners = points(symbolPath(symbol, extent));
+        expect(corners.reduce((sum, [x]) => sum + x, 0) / corners.length).toBeCloseTo(0, 2);
+        expect(corners.reduce((sum, [, y]) => sum + y, 0) / corners.length).toBeCloseTo(0, 2);
       });
+
+    it("reports its reach as its farthest point from the center", () => {
+      const extent = kPlotSymbolExtents[symbol];
+      const farthest = Math.max(...points(symbolPath(symbol, extent)).map(([x, y]) => Math.hypot(x, y)));
+      expect(symbolReach(symbol, extent)).toBeCloseTo(farthest, 2);
+    });
 
     it("fits the 24px symbol button", () => {
       const { left, right, top, bottom } = box(symbol, kButtonSymbolExtents[symbol]);
@@ -77,10 +85,14 @@ describe("symbolPath", () => {
 describe("plot symbols", () => {
   it("are each pushed far enough from the neighbor's 6px-radius dot to leave it uncovered", () => {
     kPhraseSymbols.forEach(symbol => {
-      const { left, right, top, bottom } = box(symbol, kPlotSymbolExtents[symbol]);
-      const reach = Math.max(-left, right, -top, bottom);
-      expect(reach + 6).toBeLessThan(kMinNeighborOffsetPx);
+      expect(symbolReach(symbol, kPlotSymbolExtents[symbol]) + 6).toBeLessThan(kMinNeighborOffsetPx);
     });
+  });
+
+  it("reach at most 10px, so two 18px apart overlap by at most 2px", () => {
+    kPhraseSymbols.forEach(symbol => expect(symbolReach(symbol, kPlotSymbolExtents[symbol])).toBeLessThanOrEqual(10));
+    // An equilateral triangle centered on its centroid reaches side / √3
+    expect(symbolReach("triangle", 17.3)).toBeCloseTo(17.3 / Math.sqrt(3), 2);
   });
 });
 

@@ -6,7 +6,7 @@ import { Point, TestPhrasePoint } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
 import { directionToPixels, IPosition, ISize, offsetFromNeighbor, paddedBounds, toPixels } from "../tsne/layout";
-import { kPlotSymbolExtents, kTestPhraseColor, symbolPath } from "./phrase-symbol";
+import { kPlotSymbolExtents, kTestPhraseColor, symbolPath, symbolReach } from "./phrase-symbol";
 import "./graph.scss";
 
 const kGridCells = 8;
@@ -308,8 +308,9 @@ export const Graph = observer(() => {
           const path = symbolPath(symbol, extent);
           const key = slotKey(point.slot);
           const maskId = `${maskIdPrefix}-focus-${point.slot}`;
-          // The focus ring's reach, plus 1px
-          const maskSize = extent + kSymbolFocusOuterWidth + 2;
+          // The focus ring's reach, plus 1px: half the stroke past the path, or up to √2 times that at a
+          // mitered 90° corner. Too big is harmless.
+          const maskSize = 2 * (symbolReach(symbol, extent) + kSymbolFocusOuterWidth / 2 * Math.SQRT2 + 1);
           const maskOrigin = -maskSize / 2;
           return (
             <g
