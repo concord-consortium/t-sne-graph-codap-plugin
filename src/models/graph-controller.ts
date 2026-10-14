@@ -26,9 +26,12 @@ export const startGraphController = (store: IPluginStore) => {
   // The worker's finished layout; caseIds in its phrase order
   let doneLayout: { requestId: number, caseIds: string[] } | undefined;
 
-  // No placement reply will drop a stale slot selection, so drop it here. Only if non-empty:
-  // replacing the Set disturbs an in-progress selection read.
+  // No plot is left: clear a progress layout an error interrupted. No placement reply will drop a
+  // stale slot selection, so drop it here. Only if non-empty: replacing the Set disturbs an
+  // in-progress selection read.
   const endWithoutPlacement = (status: "idle" | "too-few" | "error") => {
+    store.setPoints([]);
+    store.setTestPhrasePoints([], {});
     store.setComputeStatus(status);
     if (store.selectedSlots.size > 0) store.setSelectedSlots([]);
   };
@@ -115,9 +118,6 @@ export const startGraphController = (store: IPluginStore) => {
         console.error("The t-SNE worker failed:", event.message);
         if (newWorker !== worker) return;
         stopWorker();
-        // Nothing left to show or place into
-        store.setPoints([]);
-        store.setTestPhrasePoints([], {});
         endWithoutPlacement("error");
       };
       worker = newWorker;

@@ -268,6 +268,16 @@ describe("startGraphController", () => {
     expect(store.points).toEqual([]);
   });
 
+  it("clears a progress layout when the layout reports an error", () => {
+    stop = startGraphController(store);
+    const { requestId } = lastWorker().lastRequest;
+    lastWorker().reply({ type: "progress", requestId, step: 50, positions: kPositions });
+    expect(store.points).toHaveLength(4);
+    lastWorker().reply({ type: "error", requestId, message: "bad data" });
+    expect(store.points).toEqual([]);
+    expect(store.computeStatus).toBe("error");
+  });
+
   it("reports an error from the layout and logs it", () => {
     stop = startGraphController(store);
     lastWorker().reply({ type: "error", requestId: lastWorker().lastRequest.requestId, message: "bad data" });
