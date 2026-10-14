@@ -325,6 +325,12 @@ describe("TestPhrases", () => {
       expect(screen.getByText(kNoWordsText)).toHaveClass("visually-hidden");
     });
 
+    it("marks its field with the no-words class, and only its field", () => {
+      renderTestPhrases(store);
+      expect(field(1)).toHaveClass("no-words");
+      expect(field(0)).not.toHaveClass("no-words");
+    });
+
     it("dims and disables the symbol", () => {
       renderTestPhrases(store);
       expect(symbolButtons()[1]).not.toHaveAttribute("data-placed");

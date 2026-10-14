@@ -794,6 +794,11 @@ test("explains a phrase with no words in common, and gives it no point", async (
   await expect(testField(plugin, 1)).toHaveAccessibleDescription(kNoWordsText);
   await expect(symbolButton(plugin, 1)).toHaveAccessibleDescription(kNoWordsText);
   await expect(testField(plugin, 1)).toHaveAttribute("title", kNoWordsText);
+  // Placeholder styling: a violet border and a light violet fill, while the field isn't focused
+  await expect(testField(plugin, 1)).toHaveCSS("background-color", "rgb(241, 235, 252)");
+  await expect(testField(plugin, 1)).toHaveCSS("box-shadow", /rgb\(90, 31, 209\) 0px 0px 0px 2px inset/);
+  await testField(plugin, 1).focus();
+  await expect(testField(plugin, 1)).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await expect(symbolPoint(plugin, 1)).toHaveCount(0);
   await expect(symbolButton(plugin, 1)).toHaveAttribute("aria-disabled", "true");
   expect(await symbolOpacity(plugin, 1)).toBe("0.35");

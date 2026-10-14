@@ -108,7 +108,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
       >
         <Input
           ref={inputRef}
-          className="test-phrase-input"
+          className={hasNoWords ? "test-phrase-input no-words" : "test-phrase-input"}
           // Here, since TextField drops it. Not isDisabled, which leaves the Tab order.
           aria-disabled={isDisabled || undefined}
           placeholder="Enter a phrase"

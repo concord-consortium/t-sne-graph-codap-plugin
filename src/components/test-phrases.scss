@@ -142,9 +142,13 @@
     opacity: 1;
   }
 
-  // Focus comes after hover, so a focused field stays white
+  // In this order: the no-words fill outlasts hover, and focus wins over both, so editing looks normal
   &[data-hovered] {
     background-color: $test-phrase-field-fill-hover;
+  }
+  &.no-words {
+    background-color: $test-phrase-no-words-fill;
+    box-shadow: inset 0 0 0 2px $test-phrase-no-words-border;
   }
   &[data-focused] {
     background-color: white;

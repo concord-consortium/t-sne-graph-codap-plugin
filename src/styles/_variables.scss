@@ -56,3 +56,7 @@ $test-phrase-field-radius: 4px;
 $test-phrase-field-border: #006c8e;
 $test-phrase-field-fill-hover: #d3f4ff;
 $test-phrase-placeholder-color: #767676;
+// Placeholder styling for a phrase with no words in common, until design decides
+// Violets of the test-phrase symbol's hue
+$test-phrase-no-words-border: #5a1fd1;
+$test-phrase-no-words-fill: #f1ebfc;
