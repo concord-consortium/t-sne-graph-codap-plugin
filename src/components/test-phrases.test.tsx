@@ -366,6 +366,20 @@ describe("TestPhrases", () => {
       expect(field(1)).toHaveClass("no-words");
     });
 
+    it("describes the field only while it shows that phrase, and the button throughout", async () => {
+      renderTestPhrases(store);
+      await userEvent.click(field(1));
+      expect(field(1)).toHaveAccessibleDescription(kNoWordsText);
+      await userEvent.keyboard("s");
+      expect(field(1)).not.toHaveAccessibleDescription();
+      expect(field(1).getAttribute("title") ?? "").toBe("");
+      // The committed phrase still has no point
+      expect(symbolButtons()[1]).toHaveAccessibleDescription(kNoWordsText);
+      await userEvent.keyboard("{Escape}");
+      expect(field(1)).toHaveAccessibleDescription(kNoWordsText);
+      expect(field(1)).toHaveAttribute("title", kNoWordsText);
+    });
+
     it("shows the class after Enter, while the field keeps focus", async () => {
       renderTestPhrases(store);
       await userEvent.click(field(3));

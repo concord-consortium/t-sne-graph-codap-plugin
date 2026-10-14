@@ -85,7 +85,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
       <TextField
         className="test-phrase-field"
         aria-label={`Test phrase ${slot + 1}`}
-        aria-describedby={hasNoWords ? noWordsId : undefined}
+        aria-describedby={showsNoWords ? noWordsId : undefined}
         isReadOnly={isDisabled}
         maxLength={kMaxTestPhraseLength}
         value={draft ?? committed}
@@ -113,7 +113,7 @@ const TestPhraseRow = observer(({ slot }: ITestPhraseRowProps) => {
           // Here, since TextField drops it. Not isDisabled, which leaves the Tab order.
           aria-disabled={isDisabled || undefined}
           placeholder="Enter a phrase"
-          title={hasNoWords ? kNoWordsText : undefined}
+          title={showsNoWords ? kNoWordsText : undefined}
           onFocus={event => {
             event.currentTarget.select();
             keepSelectionOnMouseUp.current = true;
