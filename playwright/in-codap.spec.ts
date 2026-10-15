@@ -1137,4 +1137,15 @@ test("keeps the zoom buttons' frame, icons and focus visible in forced-colors mo
   await zoomButton(plugin, "Zoom out").press("Shift+Tab");
   await expect(zoomIn).toHaveAttribute("data-focus-visible");
   expect(await zoomIn.evaluate(el => getComputedStyle(el).outlineStyle)).toBe("solid");
+  // Hovered too, the outline still differs from the fill
+  await zoomIn.hover();
+  await expect(zoomIn).toHaveAttribute("data-hovered");
+  const { outline, fill } = await zoomIn.evaluate(el =>
+    ({ outline: getComputedStyle(el).outlineColor, fill: getComputedStyle(el).backgroundColor }));
+  expect(outline).not.toBe(fill);
+
+  // A disabled icon is dimmed by GrayText alone
+  await expect(zoomButton(plugin, "Fit all")).toHaveAttribute("aria-disabled", "true");
+  expect(await zoomButton(plugin, "Fit all").locator(".zoom-icon").evaluate(el => getComputedStyle(el).opacity))
+    .toBe("1");
 });

@@ -40,13 +40,13 @@
 
   // Pressed overrides hover; focus adds its border
   &[data-hovered] {
-    background-color: $key-entry-fill-hover;
+    background-color: $accent-fill;
   }
   &[data-pressed] {
-    background-color: $key-entry-fill-pressed;
+    background-color: $accent-fill-strong;
   }
   &[data-focus-visible] {
-    background-color: $key-entry-fill-hover;
+    background-color: $accent-fill;
     box-shadow: inset 0 0 0 2px $focus-color;
   }
 
@@ -93,9 +93,18 @@
       outline: 2px solid Highlight;
       outline-offset: -2px;
     }
+    // On a Highlight fill
+    &[data-focus-visible]:is([data-hovered], [data-pressed]) {
+      outline-color: HighlightText;
+    }
     &[aria-disabled="true"] {
       background-color: ButtonFace;
       color: GrayText;
+
+      // GrayText is the dimming
+      .zoom-icon {
+        opacity: 1;
+      }
     }
   }
 }
