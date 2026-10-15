@@ -290,15 +290,17 @@ export const Graph = observer(() => {
     return placed;
   }, [store.points, store.testPhrasePoints, size, view]);
 
-  // A point focused outside the padded area pans into view. By its drawn position: the ring search
-  // can move a symbol 18px.
+  // A point given keyboard focus outside the padded area pans into view. By its drawn position: the
+  // ring search can move a symbol 18px. Not on a mouse press, which would move the dot from under the
+  // pointer before release and make the click land on the background. (jsdom always matches
+  // :focus-visible.)
   const handlePointFocus = (key: string) => {
     setActiveKey(key);
     const slot = slotFromKey(key);
     const caseId = key.slice("case:".length);
     const casePoint = slot === undefined ? store.points.find(point => point.caseId === caseId) : undefined;
     const pixel = slot !== undefined ? testPointPixels.get(slot) : casePoint && viewPixels(casePoint, view, size);
-    if (!pixel) return;
+    if (!pixel || !pointRefs.current.get(key)?.matches(":focus-visible")) return;
     const panned = panToInclude(view, pixel, size);
     if (panned !== view) store.panTo(panned.centerX, panned.centerY);
   };

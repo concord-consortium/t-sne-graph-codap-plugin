@@ -917,7 +917,7 @@ test("keeps the test phrases' borders, symbols and focus visible in forced-color
 const zoomButton = (plugin: FrameLocator, name: "Zoom in" | "Zoom out" | "Fit all") =>
   plugin.getByRole("button", { name, exact: true });
 // Every case point's center, by phrase; off-plot centers can be negative
-const pointCenters = (plugin: FrameLocator) =>
+const pointCenters = (plugin: FrameLocator): Promise<Record<string, { x: number, y: number }>> =>
   plugin.locator(".graph-plot .point:not(.test-phrase-point)").evaluateAll(points =>
     Object.fromEntries(points.map(p => {
       const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(p.getAttribute("transform") ?? "") ?? [];
@@ -1041,6 +1041,33 @@ test("keeps the focused point inside the plot while arrowing through a zoomed-in
     expect(y).toBeGreaterThanOrEqual(12 - 0.01);
     expect(y).toBeLessThanOrEqual(288 + 0.01);
   }
+});
+
+test("selects a dot clicked at the plot's edge without moving the view", async ({ page }) => {
+  const plugin = await openFlatPlot(page);
+  const fit = await pointCenters(plugin);
+  await zoomButton(plugin, "Zoom in").click();
+  await expect.poll(() => pointCenters(plugin)).not.toEqual(fit);
+  // Drag the dot nearest the top-right corner to (298, 2), past the padded area on both sides, so a
+  // focus pan would move it more than its 12px hit radius from the pointer. Not the bottom corner:
+  // CODAP's tile border covers the plot's bottom edge.
+  const zoomed = await pointCenters(plugin);
+  const [name, center] = Object.entries(zoomed).reduce((near, entry) =>
+    Math.hypot(300 - entry[1].x, entry[1].y) < Math.hypot(300 - near[1].x, near[1].y) ? entry : near);
+  const start = await onPage(plugin, await emptySpot(plugin));
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 298 - center.x, start.y + 2 - center.y, { steps: 10 });
+  await page.mouse.up();
+  await expect.poll(async () => (await pointCenters(plugin))[name].x).toBeCloseTo(298, 0);
+  const before = await pointCenters(plugin);
+  expect(before[name].y).toBeCloseTo(2, 0);
+
+  const target = await onPage(plugin, before[name]);
+  await page.mouse.click(target.x, target.y);
+  await expect.poll(() => tableSelectionCount(page)).toBe(1);
+  expect(await pressedPhrases(plugin)).toEqual([name.replace(/, [^,]*$/, "")]);
+  expect(await pointCenters(plugin)).toEqual(before);
 });
 
 test("restores the zoom and pan after the document is saved and reopened", async ({ page }) => {
