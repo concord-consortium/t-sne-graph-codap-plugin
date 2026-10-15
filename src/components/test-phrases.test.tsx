@@ -121,19 +121,22 @@ describe("TestPhrases", () => {
       expect(store.testPhrases[0]).toBe("にほん");
     });
 
-    it("reverts the draft on Escape and leaves the field", async () => {
+    it("reverts the draft on Escape and keeps focus in the field", async () => {
       store = placedStore();
       renderTestPhrases(store);
       await userEvent.click(field(0));
       await userEvent.keyboard("{Control>}a{/Control}a dog");
       await userEvent.keyboard("{Escape}");
       expect(field(0)).toHaveValue("the cat");
-      expect(field(0)).not.toHaveFocus();
+      expect(field(0)).toHaveFocus();
       expect(store.testPhrases[0]).toBe("the cat");
       expect(store.testPhrasePoints).toHaveLength(1);
       // Its point shows again
       expect(store.editingSlot).toBeUndefined();
       expect(store.placedSlots.has(0)).toBe(true);
+      // Leaving commits nothing
+      await userEvent.tab();
+      expect(store.testPhrases[0]).toBe("the cat");
     });
 
     it("clears a phrase when its text is deleted", async () => {

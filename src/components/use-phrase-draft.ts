@@ -7,10 +7,7 @@ import { useStore } from "../models/store-context";
  * `onChange` runs when a commit changes the phrase. */
 export const usePhraseDraft = (slot: number, canEdit: boolean, onChange?: () => void) => {
   const store = useStore();
-  const inputRef = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<string>();
-  // Set by Escape, so the blur it causes doesn't commit
-  const reverting = useRef(false);
   // Stops the mouse-up after a focus from undoing the select-all
   const keepSelectionOnMouseUp = useRef(false);
   const committed = store.testPhrases[slot];
@@ -38,15 +35,12 @@ export const usePhraseDraft = (slot: number, canEdit: boolean, onChange?: () => 
     if (event.key === "Enter") {
       commit();
     } else if (event.key === "Escape") {
-      reverting.current = true;
       setDraft(undefined);
       stopEditing();
-      inputRef.current?.blur();
     }
   };
 
   return {
-    inputRef,
     // Not a new draft
     showsCommitted: draft === undefined || draft === committed,
     fieldProps: {
@@ -56,10 +50,7 @@ export const usePhraseDraft = (slot: number, canEdit: boolean, onChange?: () => 
         startEditing();
       },
       onFocus: startEditing,
-      onBlur: () => {
-        if (reverting.current) reverting.current = false;
-        else commit();
-      },
+      onBlur: commit,
       onKeyDown
     },
     inputProps: {

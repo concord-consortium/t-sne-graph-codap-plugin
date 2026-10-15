@@ -24,8 +24,7 @@ const TestPhraseRow = observer(({ slot, onPhraseChange }: ITestPhraseRowProps) =
   const committed = store.testPhrases[slot];
   const symbol = store.symbolForSlot(slot);
   const isDisabled = !store.phraseAttributeName || store.computeStatus !== "done";
-  const { inputRef, showsCommitted, fieldProps, inputProps } =
-    usePhraseDraft(slot, !isDisabled, () => onPhraseChange(slot));
+  const { showsCommitted, fieldProps, inputProps } = usePhraseDraft(slot, !isDisabled, () => onPhraseChange(slot));
   const hasPoint = !isDisabled && store.placedSlots.has(slot);
   const isPlaced = store.placementStatus[slot] === "placed";
   const hasNoWords = !isDisabled && store.placementStatus[slot] === "no-words";
@@ -61,7 +60,6 @@ const TestPhraseRow = observer(({ slot, onPhraseChange }: ITestPhraseRowProps) =
         {...fieldProps}
       >
         <Input
-          ref={inputRef}
           className={showsNoWords ? "test-phrase-input no-words" : "test-phrase-input"}
           // Here, since TextField drops it. Not isDisabled, which leaves the Tab order.
           aria-disabled={isDisabled || undefined}
