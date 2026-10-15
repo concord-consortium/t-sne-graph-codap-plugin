@@ -308,10 +308,13 @@ export const Graph = observer(() => {
     setIsDragging(false);
   };
 
-  // Browsers don't reliably focus a tapped point
+  // Browsers don't reliably focus a tapped point. A mouse or pen click is on the point, even if keyboard
+  // focus ended its hover.
   const handlePointClick = (event: MouseEvent<SVGGElement>, key: string) => {
     event.stopPropagation();
     moveTo(key);
+    const pointerType = lastPointerType.current;
+    if (pointerType === "mouse" || pointerType === "pen") setHoverKey(key);
     select(key, event.shiftKey);
   };
 

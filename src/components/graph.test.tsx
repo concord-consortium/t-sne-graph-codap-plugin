@@ -1190,6 +1190,21 @@ describe("Graph", () => {
       expect(tooltip()).toHaveTextContent("a dog ran");
     });
 
+    it("shows a point clicked by a resting mouse after the keyboard reached it, until the mouse leaves", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      hover(point("the cat sat"));
+      await tabToPlot(user);
+      await user.keyboard("{ArrowRight}");
+      expect(point("the cat sat")).toHaveFocus();
+      // A click with no mouse move, so no new pointer enter
+      fireEvent.pointerDown(point("the cat sat"), { pointerId: 1, button: 0, pointerType: "mouse" });
+      fireEvent.click(point("the cat sat"));
+      expect(tooltip()).toHaveTextContent("the cat sat");
+      unhover(point("the cat sat"));
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
     it("goes on a click outside the plot", async () => {
       const user = userEvent.setup();
       renderGraph(store);
