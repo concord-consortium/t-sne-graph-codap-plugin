@@ -1168,6 +1168,28 @@ describe("Graph", () => {
       expect(tooltip()).toHaveTextContent("the cat sat");
     });
 
+    it.each(["{Home}", "{ArrowLeft}"])("shows after a mouse click when %s stays on the clicked point", async key => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await user.click(point("the cat sat"));
+      await user.unhover(point("the cat sat"));
+      expect(tooltip()).not.toBeInTheDocument();
+      // The first point, so the key moves nowhere and no focus event comes
+      await user.keyboard(key);
+      expect(point("the cat sat")).toHaveFocus();
+      expect(tooltip()).toHaveTextContent("the cat sat");
+    });
+
+    it("keeps a hovered point's tooltip when Shift is pressed, as before a Shift-click", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await user.click(point("the cat sat"));
+      await user.unhover(point("the cat sat"));
+      hover(point("a dog ran"));
+      await user.keyboard("{Shift>}");
+      expect(tooltip()).toHaveTextContent("a dog ran");
+    });
+
     it("goes on a click outside the plot", async () => {
       const user = userEvent.setup();
       renderGraph(store);

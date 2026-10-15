@@ -188,10 +188,19 @@ export const Graph = observer(() => {
     restoringFocus.current = !activeExists;
   });
 
+  // Not mouse or pen focus: those have hover
+  const setFocusedPoint = (key: string) => {
+    const pointerType = lastPointerType.current;
+    setFocused({ key, showsTooltip: pointerType === undefined || pointerType === "touch" });
+  };
+
+  // Focusing the focused point fires no focus event, so this does its work too
   const moveTo = (key: string | undefined) => {
     if (key === undefined) return;
     setActiveKey(key);
     pointRefs.current.get(key)?.focus();
+    setFocusedPoint(key);
+    if (lastPointerType.current === undefined) setHoverKey(undefined);
   };
 
   const select = (key: string, extend: boolean) => {
@@ -299,17 +308,10 @@ export const Graph = observer(() => {
     setIsDragging(false);
   };
 
-  // Not mouse or pen focus: those have hover
-  const setFocusedPoint = (key: string) => {
-    const pointerType = lastPointerType.current;
-    setFocused({ key, showsTooltip: pointerType === undefined || pointerType === "touch" });
-  };
-
-  // Browsers don't reliably focus a tapped point. A click on the focused point fires no focus event.
+  // Browsers don't reliably focus a tapped point
   const handlePointClick = (event: MouseEvent<SVGGElement>, key: string) => {
     event.stopPropagation();
     moveTo(key);
-    setFocusedPoint(key);
     select(key, event.shiftKey);
   };
 
