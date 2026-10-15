@@ -16,7 +16,6 @@ const mockSize = ({ width, height }: ISize) =>
 
 const tooltip = () => screen.getByTestId("point-tooltip");
 const left = () => Number.parseFloat(tooltip().style.left);
-// 11px from the point to the box
 const reach = kTooltipTipToBox;
 // The [x, y] corners of the pointer's colored triangle: tip, top, bottom
 const pointerCorners = () => (screen.getByTestId("pointer-border").getAttribute("points") ?? "").split(" ")

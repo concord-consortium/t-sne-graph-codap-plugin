@@ -1,8 +1,7 @@
 @use "sass:math";
 @use "../styles/variables" as *;
 
-// The width is the text's, up to the inline max-width, wherever the box sits. The drop-shadow filter
-// shades the box and the pointer as one shape.
+// max-content, so the width doesn't depend on the position. The filter shades the box and pointer as one.
 .point-tooltip {
   background-color: var(--tooltip-fill);
   border-radius: $tooltip-radius;
@@ -22,7 +21,7 @@
   z-index: 2;
 }
 
-// Its origin is on the box's outer left edge at its vertical center; the shapes reach out from it
+// Origin at the box's left edge and vertical center
 .point-tooltip-pointer {
   display: block;
   left: 0;

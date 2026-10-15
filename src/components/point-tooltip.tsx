@@ -22,8 +22,8 @@ interface IProps {
   area: ISize;
 }
 
-/** The phrase beside a point, in the point's colors. Measures itself at the full max width, narrows itself
- * if it fits on neither side of the point, then places itself in `area`. */
+/** Measures itself at the full max width, narrows if it fits on neither side of the point, then places
+ * itself. */
 export const PointTooltip = ({ text, color, fill, anchor, halfExtent, area }: IProps) => {
   const ref = useRef<HTMLDivElement>(null);
   // At the full max width, so a pan or a resize can narrow it again without measuring
@@ -45,7 +45,7 @@ export const PointTooltip = ({ text, color, fill, anchor, halfExtent, area }: IP
     setMeasured(measure);
   }, [text, maxWidth, fullWidth]);
 
-  // Hidden at the area's corner until measured: its size doesn't depend on where it is
+  // Hidden until measured; its max-content size doesn't depend on its position
   const placement = size && placeTooltip(anchor, halfExtent, size, area);
   const pointer = pointerShapes(placement ?? { pointerOffset: 0, tipOffset: 0 });
   const style = {

@@ -85,8 +85,7 @@ $zoom-button-size: 24px;
 $zoom-button-radius: 2px;
 $zoom-icon-color: $accent-color;
 
-// Point tooltip. Its max width is `kTooltipMaxWidth` in point-tooltip.tsx; the radius, border and outline
-// widths are also in layout.ts, which draws the pointer.
+// Point tooltip. Max width in point-tooltip.tsx; radius, border and outline widths also in layout.ts.
 $tooltip-min-height: 24px;
 $tooltip-line-height: 16px;
 $tooltip-max-lines: 2;

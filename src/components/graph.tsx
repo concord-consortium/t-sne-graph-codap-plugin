@@ -117,7 +117,7 @@ export const Graph = observer(() => {
   const [hoverKey, setHoverKey] = useState<string>();
   // The point with DOM focus, and whether that focus came from the keyboard or a touch
   const [focused, setFocused] = useState<{ key: string, showsTooltip: boolean }>();
-  // The last input in the plugin: a pointer type, or undefined for the keyboard
+  // Undefined for the keyboard
   const lastPointerType = useRef<string | undefined>(undefined);
 
   // On the whole document, so a Tab from the panel back to a point counts as the keyboard. Leaving the
@@ -250,7 +250,7 @@ export const Graph = observer(() => {
   // Only from the background: a press on a point is a click on it. An empty plot has no view to move.
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if ((event.target as Element).closest(".point")) return;
-    // Not every browser blurs a point on a press here, and a touch may leave its tooltip showing
+    // Not every browser blurs a point on a press here, which would leave a tapped point's tooltip
     const svg = svgRef.current;
     if (svg && document.activeElement !== svg && svg.contains(document.activeElement)) svg.focus();
     if (!store.hasGraph || event.button !== 0) return;
@@ -299,14 +299,13 @@ export const Graph = observer(() => {
     setIsDragging(false);
   };
 
-  // Keyboard and touch focus show the point's tooltip; a mouse or pen has hover instead
+  // Not mouse or pen focus: those have hover
   const setFocusedPoint = (key: string) => {
     const pointerType = lastPointerType.current;
     setFocused({ key, showsTooltip: pointerType === undefined || pointerType === "touch" });
   };
 
-  // Browsers focus a clicked point for a mouse, but not reliably for a tap. A click on the point that
-  // already has focus fires no focus event, so it sets how the focus came again.
+  // Browsers don't reliably focus a tapped point. A click on the focused point fires no focus event.
   const handlePointClick = (event: MouseEvent<SVGGElement>, key: string) => {
     event.stopPropagation();
     moveTo(key);
@@ -314,7 +313,7 @@ export const Graph = observer(() => {
     select(key, event.shiftKey);
   };
 
-  // A finger has no hover; a tap shows the tooltip by focusing the point
+  // A finger has no hover; a tap focuses instead
   const handlePointerEnter = (event: PointerEvent<SVGGElement>, key: string) => {
     if (event.pointerType === "mouse" || event.pointerType === "pen") setHoverKey(key);
   };
@@ -354,8 +353,7 @@ export const Graph = observer(() => {
     return placed;
   }, [store.points, store.testPhrasePoints, size, view]);
 
-  // Where a point is drawn: through the view, or where the ring search put a symbol, which can be 18px from
-  // its dot
+  // The ring search can put a symbol 18px from its dot
   const drawnPixel = (key: string) => {
     const slot = slotFromKey(key);
     if (slot !== undefined) return testPointPixels.get(slot);
@@ -364,9 +362,8 @@ export const Graph = observer(() => {
     return casePoint && viewPixels(casePoint, view, size);
   };
 
-  // A point given keyboard focus outside the padded area pans into view. Not on a press, which would move
-  // the dot from under the pointer before release and make the click land on the background. Keyboard
-  // focus also ends a resting mouse's hover.
+  // Keyboard focus pans the point into view and ends a resting mouse's hover. Not a press: a pan would move
+  // the dot from under the pointer before the click.
   const handlePointFocus = (key: string) => {
     setActiveKey(key);
     setFocusedPoint(key);
@@ -391,7 +388,7 @@ export const Graph = observer(() => {
     const phrase = phrases.get(caseId) ?? caseId;
     return hasLabels ? `${phrase}, ${store.labelForCase(caseId)}` : phrase;
   };
-  // Hover wins; the anchor is the drawn position in the graph area
+  // Hover wins
   const focusTooltipKey = focused?.showsTooltip ? focused.key : undefined;
   const tooltipKey = isDragging ? undefined : hoverKey ?? focusTooltipKey;
   const tooltip = (() => {

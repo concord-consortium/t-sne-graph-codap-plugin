@@ -506,7 +506,6 @@ describe("placeTooltip", () => {
   const dot = 6;
   // Half the diamond's 18.8px plot extent
   const diamond = 9.4;
-  // 11px: the pointer's 10px, and its tip 1px short of the point
   const reach = kTooltipTipToBox;
 
   it("puts the box right of a dot, with the pointer's tip by its center, vertically centered", () => {

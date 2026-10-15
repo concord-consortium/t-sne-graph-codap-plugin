@@ -1170,21 +1170,19 @@ const hoverPoint = async (page: Page, plugin: FrameLocator, element: Locator) =>
   const { x, y } = await onPage(plugin, await centerOf(element));
   await page.mouse.move(x, y);
 };
-// An element's center on the page
 const boxCenter = async (element: Locator) => {
   const box = await element.boundingBox();
   if (!box) throw new Error("The element is not visible");
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 };
-// The tooltip's fill, and its border's color: the first, inset, box-shadow
+// The border's color is the first (inset) box-shadow's
 const tooltipColors = (plugin: FrameLocator) => tooltip(plugin).evaluate(box => {
   const { backgroundColor, boxShadow } = getComputedStyle(box);
   const pointer = box.querySelector("[data-testid=pointer-border]");
   return { fill: backgroundColor, border: /^rgba?\([^)]*\)/.exec(boxShadow)?.[0],
     pointer: pointer && getComputedStyle(pointer).fill };
 });
-// From the point's center to the pointer's colored tip, and the box's size and side, and whether it is
-// inside the graph area. Read in one step, so all come from the same render.
+// Read in one step, so all come from the same render
 const tooltipFit = (element: Locator) => element.evaluate((p: SVGGElement) => {
   const center = p.getScreenCTM();
   const border = document.querySelector<SVGPolygonElement>("[data-testid=pointer-border]");
@@ -1246,7 +1244,7 @@ test("narrows a long phrase's tooltip over a dot near the middle, so it fits bes
   await hoverPoint(page, plugin, point(plugin, kMiddleDot));
   await expect(tooltip(plugin)).toHaveText(kMiddleDot);
   const fit = await tooltipFit(point(plugin, kMiddleDot));
-  // Too wide on one line for either side of a central dot, so it wraps to two
+  // Narrowed to fit beside the dot, so two lines
   expect(fit.width).toBeLessThan(150);
   expect(Math.round(fit.height)).toBe(40);
   expectTipOnDot(fit);
@@ -1265,7 +1263,7 @@ test("shows a test phrase in the test-phrase colors, and cuts a long one short a
     await expect(tooltip(plugin)).toHaveText(kTestPhrases[0].text);
     expect(await tooltipColors(plugin))
       .toEqual({ fill: "rgb(203, 203, 255)", border: "rgb(46, 0, 127)", pointer: "rgb(46, 0, 127)" });
-    // The square reaches 6.65px from its center: the tip is 0.65px further out than on a dot
+    // The square's half extent is 6.65px: 0.65px further out than a dot's
     const square = await tooltipFit(symbolPoint(plugin, 0));
     expect(Math.abs(square.tipX)).toBeCloseTo(1.65, 1);
     expect(square.tipY).toBeCloseTo(0, 1);
@@ -1277,7 +1275,7 @@ test("shows a test phrase in the test-phrase colors, and cuts a long one short a
     const fit = await tooltipFit(symbolPoint(plugin, 1));
     expect(fit.width).toBeCloseTo(240, 0);
     expect(fit.height).toBeCloseTo(40, 0);
-    // The text runs past the two lines shown. The browser draws the ellipsis, which the page can't read.
+    // The ellipsis can't be read, so check that the text is cut
     expect(await plugin.getByTestId("point-tooltip-text").evaluate(text =>
       ({ isCut: text.scrollHeight > text.clientHeight, lines: getComputedStyle(text).webkitLineClamp })))
       .toEqual({ isCut: true, lines: "2" });
@@ -1299,8 +1297,7 @@ test("shows the tooltip for the point the arrow keys reach, and moves it with th
   expectTipOnDot(await tooltipFit(plugin.locator(".graph-plot .point:focus")));
 });
 
-// The rule that a drag hides the tooltip is in the Jest tests: here the dots move with the mouse, so it
-// never reaches one during a drag
+// Jest checks that a drag hides the tooltip; here the dots move with the mouse, so it never reaches one
 test("places the tooltip at a dot's new position after a zoom and a drag", async ({ page }) => {
   const plugin = await openFlatPlot(page);
   const fit = await centerOf(point(plugin, kMiddleDot));
@@ -1327,7 +1324,6 @@ test.describe("tooltips with a touch screen", () => {
   test("shows a tapped dot's tooltip until a tap elsewhere", async ({ page }) => {
     const plugin = await openFlatPlot(page);
     const cdp = await page.context().newCDPSession(page);
-    // A real touch, as a finger gives
     const tap = async (at: { x: number, y: number }) => {
       await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] });
       await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
@@ -1362,7 +1358,7 @@ test("keeps the tooltip inside a narrow graph area", async ({ page }) => {
   await expect.poll(async () => (await plotLayout(plugin)).area.width).toBeLessThan(200);
   const { area } = await plotLayout(plugin);
 
-  // Near the right edge: narrowed to the room on the left, with the pointer on the dot
+  // Near the right edge: narrowed to fit on the left
   await hoverPoint(page, plugin, point(plugin, kRightEdgeDot));
   await expect(tooltip(plugin)).toHaveText(kRightEdgeDot);
   const edge = await tooltipFit(point(plugin, kRightEdgeDot));
@@ -1370,7 +1366,7 @@ test("keeps the tooltip inside a narrow graph area", async ({ page }) => {
   expect(edge.width).toBeLessThan(area.width - 8);
   expectTipOnDot(edge);
 
-  // Near the middle, under 80px each side: the box stays inside and the pointer's tip falls short of the dot
+  // Near the middle, under 80px each side: clamped, so the tip falls short
   await hoverPoint(page, plugin, point(plugin, kMiddleDot));
   await expect(tooltip(plugin)).toHaveText(kMiddleDot);
   const middle = await tooltipFit(point(plugin, kMiddleDot));
