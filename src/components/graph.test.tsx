@@ -1205,6 +1205,45 @@ describe("Graph", () => {
       expect(tooltip()).not.toBeInTheDocument();
     });
 
+    it("stays while the pointer moves onto the tooltip and back, and goes when it leaves the tooltip", () => {
+      renderGraph(store);
+      hover(point("the cat sat"));
+      const box = screen.getByTestId("point-tooltip");
+      const dot = within(point("the cat sat")).getByTestId("dot");
+      fireEvent.pointerOut(point("the cat sat"), { pointerType: "mouse", relatedTarget: box });
+      expect(tooltip()).toHaveTextContent("the cat sat");
+      fireEvent.pointerOut(box, { pointerType: "mouse", relatedTarget: dot });
+      expect(tooltip()).toHaveTextContent("the cat sat");
+      fireEvent.pointerOut(point("the cat sat"), { pointerType: "mouse", relatedTarget: box });
+      fireEvent.pointerOut(box, { pointerType: "mouse", relatedTarget: plot() });
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("hides a hover tooltip on Escape until the pointer enters a point again", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      hover(point("the cat sat"));
+      await user.keyboard("{Escape}");
+      expect(tooltip()).not.toBeInTheDocument();
+      unhover(point("the cat sat"));
+      hover(point("the cat sat"));
+      expect(tooltip()).toHaveTextContent("the cat sat");
+    });
+
+    it("hides a keyboard tooltip on Escape, which still clears the selection, until a point is reached again",
+      async () => {
+        const user = userEvent.setup();
+        renderGraph(store);
+        await tabToPlot(user);
+        await user.keyboard("{ArrowRight}");
+        expect(tooltip()).toHaveTextContent("the cat sat");
+        await user.keyboard("{Escape}");
+        expect(tooltip()).not.toBeInTheDocument();
+        expect(clearCodapSelection).toHaveBeenCalledWith(store);
+        await user.keyboard("{ArrowRight}");
+        expect(tooltip()).toHaveTextContent("a dog ran");
+      });
+
     it("goes on a click outside the plot", async () => {
       const user = userEvent.setup();
       renderGraph(store);

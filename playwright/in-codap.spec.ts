@@ -331,6 +331,9 @@ const emptySpot = async (plugin: FrameLocator) => {
   throw new Error("The plot has no empty space");
 };
 
+// Moves the mouse off the plugin, to hide a hover tooltip that could cover the next point a test clicks
+const moveMouseOff = (page: Page) => page.mouse.move(1, 1);
+
 test("plots the phrases, then colors them by label without moving them", async ({ page }) => {
   const plugin = await openPlot(page);
   await expect(plot(plugin)).toHaveAccessibleName("t-SNE plot of 9 phrases");
@@ -793,6 +796,7 @@ test("selects test phrases with the symbol button and on the plot, together with
   await point(plugin, otherRow).click({ modifiers: ["Shift"] });
   await expect.poll(() => pressedPhrases(plugin))
     .toEqual([caseRow, otherRow, `Square test phrase: ${kTestPhrases[0].text}`]);
+  await moveMouseOff(page);
   await point(plugin, caseRow).click({ modifiers: ["Shift"] });
   await expect.poll(() => pressedPhrases(plugin)).toEqual([otherRow, `Square test phrase: ${kTestPhrases[0].text}`]);
   await expect.poll(() => tableSelectionCount(page)).toBe(1);
@@ -1229,6 +1233,27 @@ test("shows a dot's phrase in its label's colors while the pointer is on it, aim
       .toEqual({ fill: "rgb(209, 209, 209)", border: "rgb(148, 148, 148)", pointer: "rgb(148, 148, 148)" });
   });
 
+test("keeps the tooltip while the mouse is on it, and hides it on Escape until the mouse comes back",
+  async ({ page }) => {
+    const plugin = await openFlatPlot(page);
+    // A click gives the plugin keyboard focus; the mouse stays on the dot
+    await point(plugin, kIsolatedDot).click();
+    await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
+    const box = await boxCenter(tooltip(plugin));
+    await page.mouse.move(box.x, box.y, { steps: 5 });
+    await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
+    await moveMouseOff(page);
+    await expect(tooltip(plugin)).toHaveCount(0);
+
+    await hoverPoint(page, plugin, point(plugin, kIsolatedDot));
+    await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
+    await page.keyboard.press("Escape");
+    await expect(tooltip(plugin)).toHaveCount(0);
+    await moveMouseOff(page);
+    await hoverPoint(page, plugin, point(plugin, kIsolatedDot));
+    await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
+  });
+
 test("puts the tooltip on the left of a dot near the plot's right edge, inside the graph area", async ({ page }) => {
   const plugin = await openFlatPlot(page);
   await hoverPoint(page, plugin, point(plugin, kRightEdgeDot));
@@ -1366,6 +1391,7 @@ test("keeps the tooltip inside a narrow graph area", async ({ page }) => {
   expect(edge.width).toBeLessThan(area.width - 8);
   expectTipOnDot(edge);
 
+  await moveMouseOff(page);
   // Near the middle, under 80px each side: clamped, so the tip falls short
   await hoverPoint(page, plugin, point(plugin, kMiddleDot));
   await expect(tooltip(plugin)).toHaveText(kMiddleDot);

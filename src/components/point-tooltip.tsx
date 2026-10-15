@@ -1,4 +1,4 @@
-import React, { CSSProperties, useLayoutEffect, useRef, useState } from "react";
+import React, { CSSProperties, PointerEventHandler, useLayoutEffect, useRef, useState } from "react";
 import { IPosition, ISize, kTooltipMargin, placeTooltip, pointerShapes, tooltipMaxWidth } from "../tsne/layout";
 import "./point-tooltip.scss";
 
@@ -20,11 +20,15 @@ interface IProps {
   anchor: IPosition;
   halfExtent: number;
   area: ISize;
+  onPointerEnter?: PointerEventHandler<HTMLDivElement>;
+  onPointerLeave?: PointerEventHandler<HTMLDivElement>;
 }
 
 /** Measures itself at the full max width, narrows if it fits on neither side of the point, then places
  * itself. */
-export const PointTooltip = ({ text, color, fill, anchor, halfExtent, area }: IProps) => {
+export const PointTooltip = (
+  { text, color, fill, anchor, halfExtent, area, onPointerEnter, onPointerLeave }: IProps
+) => {
   const ref = useRef<HTMLDivElement>(null);
   // At the full max width, so a pan or a resize can narrow it again without measuring
   const [full, setFull] = useState<IMeasure>();
@@ -59,7 +63,7 @@ export const PointTooltip = ({ text, color, fill, anchor, halfExtent, area }: IP
 
   return (
     <div ref={ref} className="point-tooltip" data-side={placement?.side ?? "right"} data-testid="point-tooltip"
-      aria-hidden="true" style={style}>
+      aria-hidden="true" style={style} onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave}>
       <svg className="point-tooltip-pointer" data-testid="point-tooltip-pointer" width={1} height={1}>
         <polygon className="point-tooltip-pointer-outline" data-testid="pointer-outline"
           points={toPoints(pointer.outline)} />

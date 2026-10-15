@@ -15,17 +15,18 @@
   line-height: $tooltip-line-height;
   min-height: $tooltip-min-height;
   padding: math.div($tooltip-min-height - $tooltip-line-height, 2) $tooltip-padding-x;
-  pointer-events: none;
   position: absolute;
   width: max-content;
   z-index: 2;
 }
 
-// Origin at the box's left edge and vertical center
+// Origin at the box's left edge and vertical center. Its tip covers the point's center, so only the box can be
+// hovered.
 .point-tooltip-pointer {
   display: block;
   left: 0;
   overflow: visible;
+  pointer-events: none;
   position: absolute;
   top: 50%;
 

@@ -119,6 +119,8 @@ export const Graph = observer(() => {
   const [focused, setFocused] = useState<{ key: string, showsTooltip: boolean }>();
   // Undefined for the keyboard
   const lastPointerType = useRef<string | undefined>(undefined);
+  // By Escape, until a point is hovered or focused again
+  const [isDismissed, setIsDismissed] = useState(false);
 
   // On the whole document, so a Tab from the panel back to a point counts as the keyboard. Leaving the
   // plugin resets it, so a Tab in from CODAP does too. A touch ends a resting mouse's hover: the latest
@@ -128,14 +130,18 @@ export const Graph = observer(() => {
       lastPointerType.current = event.pointerType;
       if (event.pointerType === "touch") setHoverKey(undefined);
     };
-    const handleKey = () => { lastPointerType.current = undefined; };
+    const resetPointerType = () => { lastPointerType.current = undefined; };
+    const handleKey = (event: globalThis.KeyboardEvent) => {
+      resetPointerType();
+      if (event.key === "Escape") setIsDismissed(true);
+    };
     document.addEventListener("pointerdown", handlePointer, true);
     document.addEventListener("keydown", handleKey, true);
-    window.addEventListener("blur", handleKey);
+    window.addEventListener("blur", resetPointerType);
     return () => {
       document.removeEventListener("pointerdown", handlePointer, true);
       document.removeEventListener("keydown", handleKey, true);
-      window.removeEventListener("blur", handleKey);
+      window.removeEventListener("blur", resetPointerType);
     };
   }, []);
 
@@ -192,6 +198,7 @@ export const Graph = observer(() => {
   const setFocusedPoint = (key: string) => {
     const pointerType = lastPointerType.current;
     setFocused({ key, showsTooltip: pointerType === undefined || pointerType === "touch" });
+    setIsDismissed(false);
   };
 
   // Focusing the focused point fires no focus event, so this does its work too
@@ -319,11 +326,16 @@ export const Graph = observer(() => {
   };
 
   // A finger has no hover; a tap focuses instead
-  const handlePointerEnter = (event: PointerEvent<SVGGElement>, key: string) => {
-    if (event.pointerType === "mouse" || event.pointerType === "pen") setHoverKey(key);
+  const handlePointerEnter = (event: PointerEvent<Element>, key: string) => {
+    if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
+    setHoverKey(key);
+    setIsDismissed(false);
   };
 
-  const handlePointerLeave = (key: string) => {
+  // Moving between a point and its tooltip keeps the hover, so the tooltip can be hovered
+  const handlePointerLeave = (event: PointerEvent<Element>, key: string) => {
+    const to = event.relatedTarget instanceof Element ? event.relatedTarget : null;
+    if (to?.closest(".point-tooltip") || (to && pointRefs.current.get(key)?.contains(to))) return;
     setHoverKey(current => current === key ? undefined : current);
   };
 
@@ -395,18 +407,18 @@ export const Graph = observer(() => {
   };
   // Hover wins
   const focusTooltipKey = focused?.showsTooltip ? focused.key : undefined;
-  const tooltipKey = isDragging ? undefined : hoverKey ?? focusTooltipKey;
+  const tooltipKey = isDragging || isDismissed ? undefined : hoverKey ?? focusTooltipKey;
   const tooltip = (() => {
     const pixel = tooltipKey !== undefined && keys.includes(tooltipKey) ? drawnPixel(tooltipKey) : undefined;
     if (tooltipKey === undefined || !pixel) return undefined;
     const slot = slotFromKey(tooltipKey);
     if (slot !== undefined) {
-      return { text: store.testPhrases[slot], color: kTestPhraseColor, fill: kTestPhraseTooltipFill, pixel,
-        halfExtent: kPlotSymbolExtents[store.symbolForSlot(slot)] / 2 };
+      return { key: tooltipKey, text: store.testPhrases[slot], color: kTestPhraseColor, fill: kTestPhraseTooltipFill,
+        pixel, halfExtent: kPlotSymbolExtents[store.symbolForSlot(slot)] / 2 };
     }
     const caseId = tooltipKey.slice("case:".length);
-    return { text: phrases.get(caseId) ?? "", color: store.colorForCase(caseId), fill: store.tooltipFillForCase(caseId),
-      pixel, halfExtent: kPointRadius };
+    return { key: tooltipKey, text: phrases.get(caseId) ?? "", color: store.colorForCase(caseId),
+      fill: store.tooltipFillForCase(caseId), pixel, halfExtent: kPointRadius };
   })();
   const message = computeStatus === "too-few" ? kTooFewMessage : computeStatus === "error" ? kErrorMessage : "";
   const grid = gridLines(size, view);
@@ -470,7 +482,7 @@ export const Graph = observer(() => {
               onFocus={() => handlePointFocus(key)}
               onBlur={() => handlePointBlur(key)}
               onPointerEnter={event => handlePointerEnter(event, key)}
-              onPointerLeave={() => handlePointerLeave(key)}
+              onPointerLeave={event => handlePointerLeave(event, key)}
             >
               <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
               <PointMarks color={store.colorForCase(point.caseId)} selected={selected} />
@@ -514,7 +526,7 @@ export const Graph = observer(() => {
               onFocus={() => handlePointFocus(key)}
               onBlur={() => handlePointBlur(key)}
               onPointerEnter={event => handlePointerEnter(event, key)}
-              onPointerLeave={() => handlePointerLeave(key)}
+              onPointerLeave={event => handlePointerLeave(event, key)}
             >
               <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
               {selected && <path className="selection-edge" data-testid="selection-edge" d={path}
@@ -540,7 +552,9 @@ export const Graph = observer(() => {
       </svg>
       {tooltip && (
         <PointTooltip text={tooltip.text} color={tooltip.color} fill={tooltip.fill} halfExtent={tooltip.halfExtent}
-          anchor={{ x: tooltip.pixel.x + offset.left, y: tooltip.pixel.y + offset.top }} area={area} />
+          anchor={{ x: tooltip.pixel.x + offset.left, y: tooltip.pixel.y + offset.top }} area={area}
+          onPointerEnter={event => handlePointerEnter(event, tooltip.key)}
+          onPointerLeave={event => handlePointerLeave(event, tooltip.key)} />
       )}
       <p className="visually-hidden" id={helpId}>{kKeyboardHelp}</p>
       <p className="graph-status" role="status" aria-live="polite">{message}</p>
