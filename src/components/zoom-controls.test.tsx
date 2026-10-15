@@ -138,6 +138,35 @@ describe("ZoomControls", () => {
     });
   });
 
+  describe("clears a message the view no longer matches", () => {
+    it("after a reset from a table, column or layout change", async () => {
+      const user = userEvent.setup();
+      renderControls(store);
+      await user.click(zoomIn());
+      expect(announcement()).toHaveTextContent("Zoom 150%");
+      act(() => store.resetView());
+      expect(announcement()).toHaveTextContent("");
+    });
+
+    it("after a drag, which makes \"whole plot\" untrue", async () => {
+      const user = userEvent.setup();
+      store.panTo(0.4, 0.5);
+      renderControls(store);
+      await user.click(fitAll());
+      expect(announcement()).toHaveTextContent("Zoom 100%, whole plot");
+      act(() => store.panTo(0.3, 0.5));
+      expect(announcement()).toHaveTextContent("");
+    });
+
+    it("but keeps it while the view is unchanged", async () => {
+      const user = userEvent.setup();
+      renderControls(store);
+      await user.click(zoomIn());
+      act(() => store.panTo(store.view.centerX, store.view.centerY));
+      expect(announcement()).toHaveTextContent("Zoom 150%");
+    });
+  });
+
   it("works from the keyboard", async () => {
     const user = userEvent.setup();
     renderControls(store);

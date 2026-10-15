@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { Button } from "react-aria-components";
 import { IPluginStore } from "../models/plugin-store";
@@ -12,6 +12,8 @@ export const zoomAnnouncement = (store: IPluginStore) => {
   const percent = `Zoom ${Math.round(store.scale * 100)}%`;
   return store.isFitView ? `${percent}, whole plot` : percent;
 };
+
+const viewKey = ({ view: { zoomLevel, centerX, centerY } }: IPluginStore) => `${zoomLevel} ${centerX} ${centerY}`;
 
 interface IZoomButtonProps {
   label: string;
@@ -34,9 +36,20 @@ export const ZoomControls = observer(() => {
   // A new key per click makes a new node, which the live region announces even when the text repeats
   const [announcement, setAnnouncement] = useState({ text: "", key: 0 });
   const { hasGraph } = store;
+  const view = viewKey(store);
+  // The view the message describes. A change from elsewhere (a reset, a drag, a focus pan) makes the
+  // message stale, so it is cleared rather than left for browse mode to read.
+  const announcedView = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (announcedView.current === undefined || announcedView.current === view) return;
+    announcedView.current = undefined;
+    setAnnouncement(({ key }) => ({ text: "", key }));
+  }, [view]);
 
   const act = (action: () => void) => () => {
     action();
+    announcedView.current = viewKey(store);
     setAnnouncement(({ key }) => ({ text: zoomAnnouncement(store), key: key + 1 }));
   };
 
