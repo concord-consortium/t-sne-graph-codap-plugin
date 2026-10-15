@@ -54,6 +54,17 @@ const checkSuccess = (...results: IResult[]) => {
   if (failed) throw new Error(String(failed.values?.error ?? "request failed"));
 };
 
+// So CODAP autosaves and warns about unsaved changes. CODAP v3 doesn't act on it yet (Oct 2026).
+const markDocumentChanged = async () => {
+  try {
+    const result = await codapInterface.sendRequest(
+      { action: "notify", resource: "interactiveFrame", values: { dirty: true } });
+    checkSuccess(result as IResult);
+  } catch (error) {
+    console.error("Unable to mark the document as changed:", errorMessage(error));
+  }
+};
+
 /**
  * Connects to CODAP, restores the saved table and column choices, and keeps the tables, columns and
  * cases current.
@@ -240,5 +251,9 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
   // 5. Fetch the tables, then the columns and cases of the restored table
   await refreshDataContexts();
   await Promise.all([refreshAttributes(), refreshCases()]);
+
+  // 6. Mark the document changed when the saved state changes. Not before: the startup fetches only
+  // check the restored state.
+  onSnapshot(store, () => { markDocumentChanged(); });
   return true;
 };

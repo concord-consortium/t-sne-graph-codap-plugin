@@ -27,7 +27,7 @@ S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. Se
 ### Known limitations
 - A selected test phrase stays selected when the selection is cleared from another CODAP component, such as a graph. CODAP's selection notices don't say where a change came from, so the plugin can't tell that clear from its own. Clicking empty space in the plot, a Key label, a point that isn't selected, or a table row clears it.
 - In a crowded area, where no place 18px from the nearest phrase's dot is clear of every other dot, a test phrase's symbol goes to the place with the most room and can touch another dot.
-- Changing a dropdown or a test phrase doesn't mark the CODAP document as changed, so on its own it doesn't trigger CODAP's autosave or its unsaved-changes warning. The change is saved with the document's next save. CODAP v3 doesn't yet let a plugin mark the document as changed.
+- Changing a dropdown or a test phrase doesn't mark the CODAP document as changed, so on its own it doesn't trigger CODAP's autosave or its unsaved-changes warning. The change is saved with the document's next save. The plugin tells CODAP when its state changes, but CODAP v3 doesn't act on that yet.
 
 ### Testing
 
