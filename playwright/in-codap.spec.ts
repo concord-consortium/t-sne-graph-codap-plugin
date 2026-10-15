@@ -1277,7 +1277,7 @@ test("shows a test phrase in the test-phrase colors, and cuts a long one short a
     const fit = await tooltipFit(symbolPoint(plugin, 1));
     expect(fit.width).toBeCloseTo(240, 0);
     expect(fit.height).toBeCloseTo(40, 0);
-    // The text runs past the two lines shown, which end in an ellipsis
+    // The text runs past the two lines shown. The browser draws the ellipsis, which the page can't read.
     expect(await plugin.getByTestId("point-tooltip-text").evaluate(text =>
       ({ isCut: text.scrollHeight > text.clientHeight, lines: getComputedStyle(text).webkitLineClamp })))
       .toEqual({ isCut: true, lines: "2" });
@@ -1299,19 +1299,20 @@ test("shows the tooltip for the point the arrow keys reach, and moves it with th
   expectTipOnDot(await tooltipFit(plugin.locator(".graph-plot .point:focus")));
 });
 
-test("shows no tooltip during a drag, and places it at the dot's new position after", async ({ page }) => {
+// The rule that a drag hides the tooltip is in the Jest tests: here the dots move with the mouse, so it
+// never reaches one during a drag
+test("places the tooltip at a dot's new position after a zoom and a drag", async ({ page }) => {
   const plugin = await openFlatPlot(page);
+  const fit = await centerOf(point(plugin, kMiddleDot));
   await zoomButton(plugin, "Zoom in").click();
+  // Wait for the redraw
+  await expect.poll(() => centerOf(point(plugin, kMiddleDot))).not.toEqual(fit);
   const before = await centerOf(point(plugin, kMiddleDot));
-  await expect.poll(async () => (await centerOf(point(plugin, kMiddleDot))).y).not.toBeCloseTo(189, 0);
 
   const start = await onPage(plugin, await emptySpot(plugin));
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
-  await page.mouse.move(start.x + 20, start.y, { steps: 5 });
-  await expect(plugin.locator(".graph-plot")).toHaveAttribute("data-dragging", "true");
-  await expect(tooltip(plugin)).toHaveCount(0);
-  await page.mouse.move(start.x + 40, start.y, { steps: 5 });
+  await page.mouse.move(start.x + 40, start.y, { steps: 10 });
   await page.mouse.up();
   await expect.poll(async () => (await centerOf(point(plugin, kMiddleDot))).x - before.x).toBeCloseTo(40, 0);
 

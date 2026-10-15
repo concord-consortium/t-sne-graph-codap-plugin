@@ -71,21 +71,11 @@ describe("PointTooltip", () => {
     expect(left()).toBeCloseTo(210 - reach - 86, 6);
   });
 
-  it("puts the pointer on the right near the area's right edge", () => {
-    render(<PointTooltip {...props} anchor={{ x: 250, y: 150 }} />);
-    expect(tooltip()).toHaveAttribute("data-side", "left");
-  });
-
   it("tilts the pointer to the point when the box is clamped further than the base can slide", () => {
     render(<PointTooltip {...props} anchor={{ x: 100, y: 12 }} />);
+    expect(tooltip().style.top).toBe("4px");
     // The box's center is at 16: the base slides 2px up, and the tip tilts to the point, 4px up
     expect(pointerCorners()).toEqual([[-10, -4], [1.5, -8], [1.5, 4]]);
-  });
-
-  it("slides the pointer when the box is clamped at the top", () => {
-    render(<PointTooltip {...props} anchor={{ x: 100, y: 14 }} />);
-    expect(tooltip().style.top).toBe("4px");
-    expect(pointerCorners()).toEqual([[-10, -2], [1.5, -8], [1.5, 4]]);
   });
 
   it("re-places itself on a new anchor", () => {

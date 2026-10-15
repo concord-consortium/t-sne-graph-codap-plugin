@@ -558,12 +558,6 @@ describe("placeTooltip", () => {
     expect(placeTooltip({ x: 100, y: 300 }, dot, tall, area)).toMatchObject({ pointerOffset: 10, tipOffset: 24 });
   });
 
-  it("clamps at the left when flipped in a narrow area", () => {
-    const narrow = { width: 120, height: 300 };
-    expect(placeTooltip({ x: 40, y: 150 }, dot, { width: 100, height: 24 }, narrow))
-      .toEqual({ left: kTooltipMargin, top: 138, side: "left", pointerOffset: 0, tipOffset: 0 });
-  });
-
   it("puts a box as wide as the area minus 8px 4px from both edges", () => {
     const narrow = { width: 120, height: 300 };
     const { left } = placeTooltip({ x: 60, y: 150 }, dot, { width: 112, height: 24 }, narrow);
@@ -578,17 +572,10 @@ describe("placeTooltip", () => {
   });
 
   it("keeps the box inside when it can't also aim at a central point: containment wins", () => {
-    const narrow = { width: 160, height: 300 };
-    const wide = { width: 140, height: 24 };
-    const { left, side, pointerOffset } = placeTooltip({ x: 80, y: 150 }, dot, wide, narrow);
-    expect(side).toBe("left");
-    expect(left).toBe(kTooltipMargin);
-    expect(left + wide.width).toBeLessThanOrEqual(narrow.width - kTooltipMargin);
-    // The pointer stays on the box's right edge; its tip is short of the point by the clamped amount
-    const unclampedLeft = 80 - reach - wide.width;
-    const tip = left + wide.width + reach;
-    expect(tip - 80).toBeCloseTo(left - unclampedLeft, 12);
-    expect(pointerOffset).toBe(0);
+    // 140px fits on neither side of a point at 80 in a 160px area, so it is flipped, then clamped to the margin
+    expect(placeTooltip({ x: 80, y: 150 }, dot, { width: 140, height: 24 }, { width: 160, height: 300 }))
+      .toEqual({ left: kTooltipMargin, top: 138, side: "left", pointerOffset: 0, tipOffset: 0 });
+    // The pointer stays on the box's right edge, at 144, so its tip, 11px out at 155, is 75px past the point
   });
 });
 
@@ -651,11 +638,20 @@ describe("pointerShapes", () => {
       .toEqual([[-10, -14], [1.5, -8], [1.5, 4]]);
   });
 
-  it.each([-14, 14])("keeps the outline pointed past the tip when tilted %ipx", tipOffset => {
-    const { outline, border } = pointerShapes({ pointerOffset: 0, tipOffset });
-    const [[outlineX]] = corners(outline);
-    const [[tipX]] = corners(border);
-    expect(outlineX).toBeLessThan(tipX);
-    expect(outline).toHaveLength(3);
-  });
+  it.each([-14, 14])("keeps the outline 1px outside and the fill 1.5px inside both sides when tilted %ipx",
+    tipOffset => {
+      const { outline, border, fill } = pointerShapes({ pointerOffset: 0, tipOffset });
+      const [tip, ...ends] = border;
+      // From a point to the line through the colored tip and a base corner
+      const toSide = ({ x, y }: IPosition, end: IPosition) => {
+        const [dx, dy] = [end.x - tip.x, end.y - tip.y];
+        return Math.abs(dx * (y - tip.y) - dy * (x - tip.x)) / Math.hypot(dx, dy);
+      };
+      ends.forEach(end => {
+        expect(toSide(outline[0], end)).toBeCloseTo(1, 6);
+        expect(toSide(fill[0], end)).toBeCloseTo(1.5, 6);
+      });
+      // Pointed, past the colored tip
+      expect(outline[0].x).toBeLessThan(tip.x);
+    });
 });

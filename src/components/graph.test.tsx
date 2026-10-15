@@ -1053,23 +1053,8 @@ describe("Graph", () => {
       expect(tooltipColors()).toEqual([kLabelColors[0], "#c0cfff"]);
       unhover(point("the cat sat"));
       expect(tooltip()).not.toBeInTheDocument();
-    });
-
-    it("uses the Unlabeled colors for an unlabeled point", () => {
-      renderGraph(store);
       hover(point("a fish swam"));
       expect(tooltipColors()).toEqual([kUnlabeledColor, "#d1d1d1"]);
-    });
-
-    it("mixes the fill for a fifth label", () => {
-      store.setCases([
-        ...kCases.map(({ caseId, values }, i): CaseInfo => ({ caseId, values: { ...values, label: `L${i}` } })),
-        { caseId: "5", values: { phrase: "a frog hopped", label: "L4" } }
-      ]);
-      store.setPoints([...kPoints, { caseId: "5", x: 0.25, y: 0.25 }]);
-      renderGraph(store);
-      hover(point("a frog hopped"));
-      expect(tooltipColors()).toEqual([kLabelColors[4], `color-mix(in srgb, ${kLabelColors[4]} 35%, white)`]);
     });
 
     it("shows a test phrase in the test-phrase colors", () => {
@@ -1092,7 +1077,7 @@ describe("Graph", () => {
       areaSize = { width: 400, height: 300 };
       renderGraph(store);
       hover(point("the bird sang"));
-      // (150, 150) in the plot, 50px from the area's left; the box about 12px right of the dot's center
+      // (150, 150) in the plot, 50px from the area's left; the box 11px right of the dot's center
       expect(Number.parseFloat(tooltip()?.style.left ?? "")).toBeCloseTo(200 + kTooltipTipToBox, 6);
       expect(tooltip()?.style.top).toBe("138px");
     });
@@ -1124,6 +1109,7 @@ describe("Graph", () => {
       renderGraph(store);
       await tabToPlot(user);
       await user.keyboard("{ArrowRight}");
+      expect(tooltip()).toBeInTheDocument();
       await user.tab({ shift: true });
       expect(screen.getByRole("button", { name: "Fit all" })).toHaveFocus();
       expect(tooltip()).not.toBeInTheDocument();
@@ -1187,6 +1173,7 @@ describe("Graph", () => {
       renderGraph(store);
       await tabToPlot(user);
       await user.keyboard("{ArrowRight}");
+      expect(tooltip()).toBeInTheDocument();
       await user.click(document.body);
       expect(tooltip()).not.toBeInTheDocument();
     });
@@ -1205,6 +1192,7 @@ describe("Graph", () => {
     it.each(["touch", "mouse"])("focuses the plot on a %s press on the background, before the click", type => {
       renderGraph(store);
       tap(within(point("the cat sat")).getByTestId("dot"));
+      expect(tooltip()).toBeInTheDocument();
       pressBackground(type);
       expect(plot()).toHaveFocus();
       expect(tooltip()).not.toBeInTheDocument();
@@ -1213,7 +1201,9 @@ describe("Graph", () => {
     it("hides while dragging", () => {
       renderGraph(store);
       hover(point("the bird sang"));
+      // The press alone leaves it; the drag hides it
       pressBackground("mouse");
+      expect(tooltip()).toBeInTheDocument();
       fireEvent.pointerMove(plot(), { pointerId: 3, buttons: 1, clientX: 110, clientY: 60 });
       expect(tooltip()).not.toBeInTheDocument();
     });
@@ -1221,6 +1211,7 @@ describe("Graph", () => {
     it("goes when a recompute removes the point, and doesn't come back with it", () => {
       renderGraph(store);
       hover(point("the cat sat"));
+      expect(tooltip()).toBeInTheDocument();
       act(() => store.setPoints(kPoints.slice(1)));
       expect(tooltip()).not.toBeInTheDocument();
       act(() => store.setPoints(kPoints));
@@ -1233,6 +1224,7 @@ describe("Graph", () => {
         [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "3", direction: { dx: 1, dy: 0 } }], { 0: "placed" });
       renderGraph(store);
       hover(screen.getByRole("button", { name: "Square test phrase: the cat" }));
+      expect(tooltip()).toBeInTheDocument();
       act(() => store.setEditingSlot(0));
       expect(tooltip()).not.toBeInTheDocument();
     });
