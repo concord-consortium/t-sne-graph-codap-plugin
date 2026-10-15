@@ -411,6 +411,20 @@ describe("Graph", () => {
         expect(y).toBeCloseTo(288, 6);
       });
 
+      it("leaves the view alone when focus isn't from the keyboard, as on a mouse press", () => {
+        // jsdom matches :focus-visible on every focus; a browser doesn't after a mouse press
+        const matches = Element.prototype.matches;
+        jest.spyOn(Element.prototype, "matches").mockImplementation(function(this: Element, selector: string) {
+          return selector === ":focus-visible" ? false : matches.call(this, selector);
+        });
+        for (let i = 0; i < 3; i++) store.zoomIn();
+        renderGraph(store);
+        // (0, 0) is far off the bottom left at level 3
+        act(() => point("the cat sat").focus());
+        expect(point("the cat sat")).toHaveFocus();
+        expect(store.view).toEqual({ zoomLevel: 3, centerX: 0.5, centerY: 0.5 });
+      });
+
       it("leaves the view alone for a point already showing", () => {
         store.zoomIn();
         renderGraph(store);
