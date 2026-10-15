@@ -428,7 +428,7 @@ describe("startGraphController", () => {
       store.setPhraseAttribute(undefined);
       expect(store.points).toEqual([]);
       zoom();
-      // No points are showing, so the controller leaves the view alone; the store action resets it
+      // No points shown, so the store action resets the view, not the controller
       store.setPhraseAttribute("label");
       expect(lastWorker().requests).toHaveLength(2);
       expect(store.isFitView).toBe(true);

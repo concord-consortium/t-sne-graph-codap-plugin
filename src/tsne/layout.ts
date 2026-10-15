@@ -163,8 +163,7 @@ export const kZoomFactor = 1.5;
 export const kMinZoomLevel = -1;
 export const kMaxZoomLevel = 8;
 
-/** What part of the unit square the plot shows: `centerX` and `centerY` are the unit-square point at
- * the plot's center, and the scale is `kZoomFactor ** zoomLevel`. */
+/** `centerX`, `centerY`: the unit-square point at the plot's center. Scale: `kZoomFactor ** zoomLevel`. */
 export interface IView {
   zoomLevel: number;
   centerX: number;
@@ -174,8 +173,7 @@ export interface IView {
 export const kFitView: IView = { zoomLevel: 0, centerX: 0.5, centerY: 0.5 };
 export const scaleForLevel = (zoomLevel: number) => kZoomFactor ** zoomLevel;
 
-/** Maps a unit-square point to where the view shows it in the unit square; `toPixels` then maps that
- * to the plot. The identity at the fit view. */
+/** Maps a unit-square point through the view, before `toPixels`. The identity at the fit view. */
 export const applyView = ({ x, y }: IPosition, { zoomLevel, centerX, centerY }: IView): IPosition => {
   const scale = scaleForLevel(zoomLevel);
   return { x: 0.5 + (x - centerX) * scale, y: 0.5 + (y - centerY) * scale };
@@ -184,27 +182,24 @@ export const applyView = ({ x, y }: IPosition, { zoomLevel, centerX, centerY }: 
 const clampOrDefault = (value: number, min: number, max: number, fallback: number) =>
   Number.isFinite(value) ? clamp(value, min, max) : fallback;
 
-/** An integer level in range and a center in [0, 1]; a value that isn't finite becomes the fit
- * view's. */
+/** Integer level in range, center in [0, 1]; a non-finite value becomes the fit view's. */
 export const clampView = ({ zoomLevel, centerX, centerY }: IView): IView => ({
   zoomLevel: Math.round(clampOrDefault(zoomLevel, kMinZoomLevel, kMaxZoomLevel, kFitView.zoomLevel)),
   centerX: clampOrDefault(centerX, 0, 1, kFitView.centerX),
   centerY: clampOrDefault(centerY, 0, 1, kFitView.centerY)
 });
 
-/** Where the view puts the padded area of the fit view: the bounds of the whole layout, in plot
- * pixels. Equals `paddedBounds` at the fit view; extends past the plot when zoomed in. */
+/** The whole layout's bounds in plot pixels: `paddedBounds` at the fit view, past the plot when zoomed in. */
 export const worldBounds = (size: ISize, view: IView, padding = kGraphPadding): IBounds => {
   const topLeft = toPixels(applyView({ x: 0, y: 1 }, view), size, padding);
   const bottomRight = toPixels(applyView({ x: 1, y: 0 }, view), size, padding);
   return { left: topLeft.x, top: topLeft.y, right: bottomRight.x, bottom: bottomRight.y };
 };
 
-/** Moves the view the least amount that brings a drawn pixel into the padded area. A pixel already
- * inside leaves the view as it is. The center stays in [0, 1], so the pixel may stay outside. */
+/** Pans the least amount that brings a pixel into the padded area; returns `view` if none is needed. The
+ * center stays in [0, 1], so the pixel may stay outside. */
 export const panToInclude = (view: IView, { x, y }: IPosition, size: ISize, padding = kGraphPadding): IView => {
   const { left, top, right, bottom } = paddedBounds(size, padding);
-  // How far the picture must move, in pixels
   const shiftX = x < left ? left - x : x > right ? right - x : 0;
   const shiftY = y < top ? top - y : y > bottom ? bottom - y : 0;
   if (shiftX === 0 && shiftY === 0) return view;
@@ -215,16 +210,15 @@ export const panToInclude = (view: IView, { x, y }: IPosition, size: ISize, padd
   return clampView({
     ...view,
     centerX: innerWidth > 0 ? view.centerX - shiftX / (innerWidth * scale) : view.centerX,
-    // y is flipped: moving the picture down raises the center
+    // y is flipped, as in `toPixels`
     centerY: innerHeight > 0 ? view.centerY + shiftY / (innerHeight * scale) : view.centerY
   });
 };
 
-// The fit view's grid has this many cells across each axis of the whole plot
+// Per axis, at the fit view
 const kGridCells = 8;
 
-// The pixel positions of one axis's grid lines: line i sits at i × length / kGridCells at the fit
-// view and moves with the view. Every line strictly inside the plot, on a half pixel.
+// Line i is at i × length / kGridCells at the fit view, moved by the view; on half pixels
 const axisGridLines = (length: number, scale: number, offset: number) => {
   const spacing = scale * length / kGridCells;
   if (!(spacing > 0)) return [];
@@ -232,22 +226,22 @@ const axisGridLines = (length: number, scale: number, offset: number) => {
   const last = Math.ceil((length - offset) / spacing);
   const lines: number[] = [];
   for (let i = first; i <= last; i++) {
-    // Written so that the fit view (scale 1, offset 0) gives exactly i × length / kGridCells
+    // Exactly i × length / kGridCells at the fit view (scale 1, offset 0)
     const pixel = Math.round(scale * (i * length / kGridCells) + offset);
-    // Checked on the drawn pixel, so no line falls on or past an edge
+    // None on or past an edge
     if (pixel > 0 && pixel < length) lines.push(pixel + 0.5);
   }
   return lines;
 };
 
-/** The grid moves with the dots; at the fit view it is seven lines across each axis. */
+/** Moves with the dots; seven lines per axis at the fit view. */
 export const gridLines = ({ width, height }: ISize, view: IView, padding = kGraphPadding) => {
   const innerWidth = width - 2 * padding;
   const innerHeight = height - 2 * padding;
-  // Too small for the padding: `toPixels` centers the points, so keep the fit view's grid
+  // Too small for the padding: `toPixels` centers the points; keep the fit view's grid
   const scale = scaleForLevel(view.zoomLevel);
   const [scaleX, scaleY] = [innerWidth > 0 ? scale : 1, innerHeight > 0 ? scale : 1];
-  // The fit-view line at p moves to scale × p + offset (the y center is flipped, as in `toPixels`)
+  // A fit-view line at p is drawn at scale × p + offset; y is flipped, as in `toPixels`
   const offsetX = innerWidth > 0 ? padding * (1 - scale) + innerWidth * (0.5 - scale * view.centerX) : 0;
   const offsetY = innerHeight > 0 ? padding * (1 - scale) + innerHeight * (0.5 - scale * (1 - view.centerY)) : 0;
   return { x: axisGridLines(width, scaleX, offsetX), y: axisGridLines(height, scaleY, offsetY) };

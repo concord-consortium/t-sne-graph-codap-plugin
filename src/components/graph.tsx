@@ -27,7 +27,7 @@ const kSymbolRingWidth = 6;
 const kSymbolEdgeWidth = 8;
 const kSymbolFocusOuterWidth = 12;
 
-// Every drawn position goes through the view; sizes don't
+// Positions go through the view; sizes don't
 const viewPixels = (point: IPosition, view: IView, size: ISize) => toPixels(applyView(point, view), size);
 
 // A smaller move is still a click
@@ -106,9 +106,9 @@ export const Graph = observer(() => {
   const focusWithin = useRef(false);
   // Set when a recompute removed the focused point, until focus is back on a point
   const restoringFocus = useRef(false);
-  // Cleared by pointerup, pointercancel and lostpointercapture, so a drag can't be left running
+  // Every drag end clears it, so none is left running
   const drag = useRef<IDrag | undefined>(undefined);
-  // The click that ends a drag is not a background click
+  // The click after a drag isn't a background click
   const ignoreClick = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -214,16 +214,16 @@ export const Graph = observer(() => {
     if (!event.shiftKey) clearCodapSelection(store);
   };
 
-  // Drags start only on the background; a press on a point is a click on it
+  // Only from the background: a press on a point is a click on it
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (event.button !== 0 || (event.target as Element).closest(".point")) return;
-    // A second finger during a drag doesn't take it over
+    // A second finger doesn't take over a drag
     if (drag.current) return;
     // In case the last drag's click never came
     ignoreClick.current = false;
     const { pointerId, clientX, clientY } = event;
     drag.current = { pointerId, startX: clientX, startY: clientY, lastX: clientX, lastY: clientY, isDragging: false };
-    // Keeps the drag going outside the plot. jsdom has no pointer capture.
+    // Drags past the plot's edge. Optional: jsdom lacks it.
     svgRef.current?.setPointerCapture?.(pointerId);
   };
 
@@ -236,19 +236,19 @@ export const Graph = observer(() => {
       current.isDragging = true;
       setIsDragging(true);
     }
-    // From the last position, which starts at the press, so the dots stay under the pointer
+    // From the last position (the press at first), so the dots follow the pointer
     const { left, top, right, bottom } = paddedBounds(size);
     const scale = store.scale;
     const { centerX: x, centerY: y } = store.view;
     store.panTo(
       right > left ? x - (clientX - current.lastX) / ((right - left) * scale) : x,
-      // y is flipped: dragging down shows more of the top
+      // y is flipped, as in `toPixels`
       bottom > top ? y + (clientY - current.lastY) / ((bottom - top) * scale) : y);
     current.lastX = clientX;
     current.lastY = clientY;
   };
 
-  // A cancel or a lost capture gets no click, so it ignores none
+  // No click follows a cancel or a lost capture
   const endDrag = (event: PointerEvent<SVGSVGElement>, isRelease: boolean) => {
     const current = drag.current;
     if (event.pointerId !== current?.pointerId) return;
@@ -270,7 +270,7 @@ export const Graph = observer(() => {
 
   // In slot order: each symbol keeps clear of every dot and of the lower slots' symbols. Includes the
   // hidden slot being edited, so the others don't move into its place meanwhile. The bounds are the
-  // whole layout's, not the plot's, so a symbol whose neighbor is off-screen is off-screen with it.
+  // whole layout's, so a symbol stays with an off-screen neighbor.
   const testPointPixels = useMemo(() => {
     const bounds = worldBounds(size, view);
     const casePixels = store.points.map(point => ({ caseId: point.caseId, ...viewPixels(point, view, size) }));
@@ -290,8 +290,8 @@ export const Graph = observer(() => {
     return placed;
   }, [store.points, store.testPhrasePoints, size, view]);
 
-  // A keyboard user can reach every point: one drawn outside the padded area moves the view the
-  // least amount that shows it. Drawn, not raw: the ring search can move a symbol 18px.
+  // A point focused outside the padded area pans into view. By its drawn position: the ring search
+  // can move a symbol 18px.
   const handlePointFocus = (key: string) => {
     setActiveKey(key);
     const slot = slotFromKey(key);
@@ -317,7 +317,7 @@ export const Graph = observer(() => {
     return hasLabels ? `${phrase}, ${store.labelForCase(caseId)}` : phrase;
   };
   const message = computeStatus === "too-few" ? kTooFewMessage : computeStatus === "error" ? kErrorMessage : "";
-  // Moves with the dots; on half pixels so each line renders as one sharp pixel
+  // On half pixels, so each line renders as one sharp pixel
   const grid = gridLines(size, view);
 
   return (

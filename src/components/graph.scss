@@ -13,7 +13,7 @@
   display: block;
   outline: none;
   position: absolute;
-  // A finger drag pans the plot instead of scrolling the document
+  // A finger drag pans instead of scrolling
   touch-action: none;
 
   // The plot is the Tab stop until a point is focused; points draw their own rings
@@ -22,7 +22,6 @@
     outline-offset: -2px;
   }
 
-  // Only while dragging; the cursor is unchanged otherwise
   &[data-dragging] {
     cursor: grabbing;
 

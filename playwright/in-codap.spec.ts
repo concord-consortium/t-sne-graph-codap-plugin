@@ -101,12 +101,11 @@ test("restores the selections after the document is saved and reopened", async (
   await expect(dropdown(reopened, "Label Column")).toHaveText("Attribute Name");
 });
 
-// The t-SNE seed is otherwise random, so each run would have a different layout, and a point a test
-// clicks could be drawn under the zoom buttons, which take the click. With this seed no point in
-// either fixture is within 30px of the buttons (checked with the plugin's own layout code).
+// Fixes the otherwise random layout, so no point a test clicks is under the zoom buttons, which would
+// take the click
 const kFixtureSeed = 1;
 
-// A fixture document with a plugin tile added, its layout fixed by kFixtureSeed
+// A fixture document with a plugin tile added
 const documentWithPlugin = (file: string) => {
   const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", file), "utf8"));
   const pluginTileId = "WEBVtsnePlugin";
@@ -282,8 +281,7 @@ const renameColumn = async (page: Page, name: string, newName: string) => {
   await nameInput.press("Enter");
 };
 
-// What kFixtureSeed promises: no point within 30px of the zoom buttons, so none is under them. If a
-// change to the layout code breaks it, this fails here rather than as a click that times out.
+// Fails clearly, not as a timed-out click, if a layout change breaks kFixtureSeed
 const expectPointsClearOfZoomButtons = async (plugin: FrameLocator) => {
   const plotBox = await plugin.locator(".graph-plot").boundingBox();
   const zoomBox = await plugin.locator(".zoom-controls").boundingBox();
@@ -938,17 +936,17 @@ const onPage = async (plugin: FrameLocator, { x, y }: { x: number, y: number }) 
 
 test("zooms in and out about the center, fits all again, and stops at the largest zoom", async ({ page }) => {
   const plugin = await openFlatPlot(page);
-  // (a) Fit all has nothing to do at first
+  // Fit all has nothing to do at first
   await expect(zoomButton(plugin, "Fit all")).toHaveAttribute("aria-disabled", "true");
   await expect(zoomButton(plugin, "Zoom in")).not.toHaveAttribute("aria-disabled");
   await expect(zoomButton(plugin, "Zoom out")).not.toHaveAttribute("aria-disabled");
   const fit = await pointCenters(plugin);
   const far = farthestFromCenter(fit);
 
-  // (b) Zooming in moves a point near the edge outward, 1.5 times as far from the center
+  // Zooming in moves a point near the edge 1.5 times as far from the center
   await zoomButton(plugin, "Zoom in").click();
   await expect(zoomButton(plugin, "Fit all")).not.toHaveAttribute("aria-disabled");
-  // Read only once the zoomed picture is drawn
+  // Wait for the redraw
   await expect.poll(() => pointCenters(plugin)).not.toEqual(fit);
   const zoomed = (await pointCenters(plugin))[far];
   expect(zoomed.x - 150).toBeCloseTo(1.5 * (fit[far].x - 150), 1);
@@ -960,7 +958,6 @@ test("zooms in and out about the center, fits all again, and stops at the larges
   await expect(zoomButton(plugin, "Fit all")).toHaveAttribute("aria-disabled", "true");
   await expect(plugin.getByTestId("zoom-announcement")).toHaveText("Zoom 100%, whole plot");
 
-  // (c) Eight clicks reach the largest zoom
   for (let i = 0; i < 8; i++) await zoomButton(plugin, "Zoom in").click();
   await expect(zoomButton(plugin, "Zoom in")).toHaveAttribute("aria-disabled", "true");
   await zoomButton(plugin, "Zoom out").click();
@@ -974,13 +971,12 @@ test("pans with a mouse drag, which keeps CODAP's selection; a click still clear
   await expect.poll(() => tableSelectionCount(page)).toBe(1);
   const before = await pointCenters(plugin);
 
-  // (d) A 40px drag from empty space moves every dot 40px
   const start = await onPage(plugin, await emptySpot(plugin));
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(start.x + 40, start.y, { steps: 10 });
   await page.mouse.up();
-  // Read only once the last move is drawn
+  // Wait for the redraw
   const [first] = Object.keys(before);
   await expect.poll(async () => (await pointCenters(plugin))[first].x - before[first].x).toBeCloseTo(40, 1);
   const after = await pointCenters(plugin);
@@ -998,8 +994,7 @@ test("pans with a mouse drag, which keeps CODAP's selection; a click still clear
 test.describe("with a touch screen", () => {
   test.use({ hasTouch: true });
 
-  // Without touch-action: none the browser takes the gesture over (nothing here can scroll, but it
-  // cancels the pointer) and the pan stops short, so the full 40px is the check
+  // Without `touch-action: none`, the browser takes the gesture and cancels the pointer, so the pan stops short
   test("pans the full distance with a finger drag, and keeps the first finger's drag past a second finger",
     async ({ page }) => {
       const plugin = await openFlatPlot(page);
@@ -1025,7 +1020,7 @@ test.describe("with a touch screen", () => {
       await expect.poll(async () => (await pointCenters(plugin))[phrase].y - before[phrase].y).toBeCloseTo(40, 1);
       const after = await pointCenters(plugin);
       Object.keys(before).forEach(name => expect(after[name].y - before[name].y).toBeCloseTo(40, 1));
-      // The second finger's tap selected nothing and cleared nothing
+      // The second finger's tap changed no selection
       expect(await tableSelectionCount(page)).toBe(1);
     });
 });
@@ -1033,7 +1028,6 @@ test.describe("with a touch screen", () => {
 test("keeps the focused point inside the plot while arrowing through a zoomed-in plot", async ({ page }) => {
   const plugin = await openFlatPlot(page);
   for (let i = 0; i < 3; i++) await zoomButton(plugin, "Zoom in").click();
-  // (e) Every point, in turn
   await plot(plugin).focus();
   for (let i = 0; i < 40; i++) {
     await page.keyboard.press("ArrowRight");
@@ -1056,7 +1050,7 @@ test("restores the zoom and pan after the document is saved and reopened", async
   await zoomButton(plugin, "Zoom in").click();
   await expect.poll(() => pointCenters(plugin)).not.toEqual(fit);
   const zoomed = await pointCenters(plugin);
-  // From empty space, so the press starts a drag and isn't a click on a point
+  // From empty space, or the press clicks a point
   const start = await onPage(plugin, await emptySpot(plugin));
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
@@ -1067,7 +1061,6 @@ test("restores the zoom and pan after the document is saved and reopened", async
   const before = await pointCenters(plugin);
   expect(before[phrase].y - zoomed[phrase].y).toBeCloseTo(20, 1);
 
-  // (f) Same zoom and center
   const saved = await saveCodapDocument(page);
   await openDocument(page, saved);
   const reopened = pluginFrame(page);
@@ -1082,7 +1075,6 @@ test("returns to the whole plot when the Phrase Column is cleared and chosen aga
   await zoomButton(plugin, "Zoom in").click();
   await expect.poll(() => pointCenters(plugin)).not.toEqual(fit);
 
-  // (g) A new picture starts at the fit view
   await choose(plugin, "Phrase Column", "Select, clear selection");
   await expect(plugin.locator(".graph-plot .point")).toHaveCount(0);
   await choose(plugin, "Phrase Column", "phrase");
@@ -1093,7 +1085,6 @@ test("returns to the whole plot when the Phrase Column is cleared and chosen aga
 
 test("has no accessibility violations with the zoom buttons enabled and disabled", async ({ page }) => {
   const plugin = await openFlatPlot(page);
-  // (h) Fit all disabled, then all enabled, then zoom in disabled
   expect(await axeViolations(page)).toEqual([]);
   await zoomButton(plugin, "Zoom in").click();
   expect(await axeViolations(page)).toEqual([]);
@@ -1108,12 +1099,12 @@ test("keeps the zoom buttons' frame, icons and focus visible in forced-colors mo
   const style = (selector: string, property: string) => plugin.locator(selector).first().evaluate(
     (el, p) => getComputedStyle(el).getPropertyValue(p), property);
   expect(await style(".zoom-controls", "border-top-style")).toBe("solid");
-  // The icons follow the button's text color, not a fixed fill
+  // Icons follow the text color
   const zoomIn = zoomButton(plugin, "Zoom in");
   expect(await zoomIn.locator("svg path").evaluate(icon => getComputedStyle(icon).fill))
     .toBe(await zoomIn.evaluate(el => getComputedStyle(el).color));
 
-  // Keyboard focus (Tab away and back, so React Aria sees keyboard use)
+  // Tab away and back, so React Aria shows keyboard focus
   await zoomIn.focus();
   await zoomIn.press("Tab");
   await zoomButton(plugin, "Zoom out").press("Shift+Tab");

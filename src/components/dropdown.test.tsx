@@ -77,7 +77,7 @@ describe("Dropdown", () => {
     const checks = screen.getAllByTestId("dropdown-check");
     expect(checks).toHaveLength(1);
     expect(screen.getByRole("option", { name: "Another Data Table" })).toContainElement(checks[0]);
-    // Hidden from screen readers, which hear aria-selected; the name stays the item's text
+    // Screen readers hear aria-selected instead
     expect(checks[0]).toHaveAttribute("aria-hidden", "true");
     expect(screen.getByRole("option", { name: "Another Data Table" })).toHaveAttribute("aria-selected", "true");
   });

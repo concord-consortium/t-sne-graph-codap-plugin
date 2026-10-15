@@ -9,9 +9,9 @@ $focus-color: #0957d0;
 $separator-color: #d1d1d1;
 // Borders, icons and the selection ring
 $accent-color: #006c8e;
-// A control's tint, and its hover and focus fill
+// Control tint; hover and focus fill
 $accent-fill: #d3f4ff;
-// One step stronger: a dropdown's hover, a button's press
+// Stronger: dropdown hover, button press
 $accent-fill-strong: #bbefff;
 
 // Points and Key dots have a 1px white outline; selected ones add a 2px ring and a 1px white
@@ -75,7 +75,7 @@ $test-phrase-placeholder-color: #767676;
 $test-phrase-no-words-border: #5a1fd1;
 $test-phrase-no-words-fill: #f1ebfc;
 
-// Zoom controls: three 24px buttons, 1px apart and 2px inside a translucent back (28 × 78px)
+// Zoom controls: 28 × 78px
 $zoom-controls-offset: 8px;
 $zoom-controls-inset: 2px;
 $zoom-button-gap: 1px;

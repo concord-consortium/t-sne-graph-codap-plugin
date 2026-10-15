@@ -82,14 +82,14 @@ const normalizeTestPhrases = (phrases: unknown) => Array.isArray(phrases)
   })
   : emptyTestPhrases();
 
-// Whatever a saved document holds: a value that isn't a number becomes the fit view's
+// A saved value that isn't a number becomes the fit view's
 const normalizeView = (view: unknown): IView => {
   const { zoomLevel, centerX, centerY } = (view && typeof view === "object" ? view : {}) as Record<string, unknown>;
   const toNumber = (value: unknown) => typeof value === "number" ? value : NaN;
   return clampView({ zoomLevel: toNumber(zoomLevel), centerX: toNumber(centerX), centerY: toNumber(centerY) });
 };
 
-// The part of the plot shown; see IView
+// See IView
 const View = types.model("View", {
   zoomLevel: types.optional(types.integer, kFitView.zoomLevel),
   centerX: types.optional(types.number, kFitView.centerX),
@@ -255,7 +255,6 @@ export const PluginStore = types
       self.view.centerX = centerX;
       self.view.centerY = centerY;
     };
-    // An old view of a different picture is never kept
     const resetView = () => setView(kFitView);
     const idOf = (name: string | undefined) => self.attributes.find(attr => attr.name === name)?.id;
     const setPhraseAttribute = (name: string | undefined) => {

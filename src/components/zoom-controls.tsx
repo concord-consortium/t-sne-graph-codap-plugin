@@ -20,8 +20,7 @@ interface IZoomButtonProps {
   children: React.ReactNode;
 }
 
-// aria-disabled, not isDisabled, so a disabled button stays in the Tab order. Button takes no title,
-// so a face that fills it carries the tooltip.
+// aria-disabled keeps a disabled button in the Tab order. Button takes no title, so the face has it.
 const ZoomButton = ({ label, isDisabled, onPress, children }: IZoomButtonProps) => (
   <Button className="zoom-button" aria-label={label} aria-disabled={isDisabled || undefined}
     onPress={() => { if (!isDisabled) onPress(); }}>
@@ -29,7 +28,7 @@ const ZoomButton = ({ label, isDisabled, onPress, children }: IZoomButtonProps) 
   </Button>
 );
 
-/** Zoom in, zoom out and fit all, over the plot's top-left corner. */
+/** Zoom in, zoom out and fit all, in the graph area's top-left corner. */
 export const ZoomControls = observer(() => {
   const store = useStore();
   const [announcement, setAnnouncement] = useState("");

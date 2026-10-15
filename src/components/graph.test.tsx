@@ -316,7 +316,7 @@ describe("Graph", () => {
         expect(clearCodapSelection).toHaveBeenCalledTimes(1);
       });
 
-    // touch-action: none, which stops the document scrolling, is in graph.scss; Playwright checks it
+    // `touch-action: none` is in graph.scss, so only Playwright can check it
     it("drags with a finger, and keeps the first finger's drag when a second finger touches the plot", () => {
       renderGraph(store);
       const touch = { pointerType: "touch" };
