@@ -337,6 +337,15 @@ describe("Graph", () => {
       expect(plot()).not.toHaveAttribute("data-dragging");
     });
 
+    it("doesn't pan an empty plot, as while computing or with too few phrases", () => {
+      store.setPoints([]);
+      renderGraph(store);
+      press(100, 100);
+      move(150, 150);
+      expect(plot()).not.toHaveAttribute("data-dragging");
+      expect(store.isFitView).toBe(true);
+    });
+
     it("does not drag from a point, or with another button", () => {
       renderGraph(store);
       fireEvent.pointerDown(within(point("the bird sang")).getByTestId("dot"),

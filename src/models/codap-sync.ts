@@ -76,7 +76,7 @@ const markDocumentChanged = async () => {
 export const startCodapSync = async (store: IPluginStore, config = kPluginConfig): Promise<boolean> => {
   let isRestored = false;
   // A saved state that couldn't be restored, given back to CODAP unchanged until the user changes
-  // a selection, so a save doesn't replace it with the default store
+  // anything that is saved, so a save doesn't replace it with the default store
   let unreadableState: unknown;
 
   // CODAP saves whatever value this returns. Answering with no value until restore finishes keeps

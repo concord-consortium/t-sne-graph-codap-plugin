@@ -184,7 +184,7 @@ describe("startCodapSync", () => {
     expect(store.labelAttributeName).toBe("group");
   });
 
-  it("gives back a saved state it can't restore, until the user changes a selection", async () => {
+  it("gives back a saved state it can't restore, until the user changes anything that is saved", async () => {
     // A number where a name belongs makes applySnapshot throw. MST applies the fields in the model's
     // order, so the table and phrase are applied before it throws at the label.
     const unreadable = { dataContextName: "Phrases", phraseAttributeName: "phrase", labelAttributeName: 42 };

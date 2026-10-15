@@ -214,9 +214,9 @@ export const Graph = observer(() => {
     if (!event.shiftKey) clearCodapSelection(store);
   };
 
-  // Only from the background: a press on a point is a click on it
+  // Only from the background: a press on a point is a click on it. An empty plot has no view to move.
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
-    if (event.button !== 0 || (event.target as Element).closest(".point")) return;
+    if (!store.hasGraph || event.button !== 0 || (event.target as Element).closest(".point")) return;
     // A second finger doesn't take over a drag
     if (drag.current) return;
     // In case the last drag's click never came
