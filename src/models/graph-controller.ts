@@ -80,6 +80,8 @@ export const startGraphController = (store: IPluginStore) => {
 
   const compute = () => {
     const requestId = ++currentRequest;
+    // Only when replacing a shown layout, so a just-loaded document keeps its saved view
+    if (store.points.length > 0) store.resetView();
     // Never show an old layout against new phrases
     store.setPoints([]);
     store.setTestPhrasePoints([], {});

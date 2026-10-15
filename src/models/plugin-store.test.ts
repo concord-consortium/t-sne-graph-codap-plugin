@@ -1,5 +1,6 @@
 import { applySnapshot, getSnapshot } from "mobx-state-tree";
 import { kLabelColors, kUnlabeledColor } from "../tsne/labels";
+import { kFitView, kMaxZoomLevel, kMinZoomLevel, kZoomFactor } from "../tsne/layout";
 import {
   AttributeInfo, CaseInfo, kMaxTestPhraseLength, kStoreVersion, PluginStore, TestPhrasePoint
 } from "./plugin-store";
@@ -36,7 +37,8 @@ describe("PluginStore", () => {
       phraseAttributeName: undefined,
       labelAttributeName: undefined,
       tsneSeed: undefined,
-      testPhrases: ["", "", "", "", ""]
+      testPhrases: ["", "", "", "", ""],
+      view: { zoomLevel: 0, centerX: 0.5, centerY: 0.5 }
     });
     expect(store.dataContexts).toEqual([]);
     expect(store.attributes).toEqual([]);
@@ -98,7 +100,8 @@ describe("PluginStore", () => {
       phraseAttributeName: "phrase",
       labelAttributeName: "label",
       tsneSeed: expect.any(Number),
-      testPhrases: ["a cat", "", "", "", ""]
+      testPhrases: ["a cat", "", "", "", ""],
+      view: { zoomLevel: 0, centerX: 0.5, centerY: 0.5 }
     });
   });
 
@@ -176,6 +179,41 @@ describe("PluginStore column choices", () => {
     store.updateAttributeChoices();
     expect(store.phraseAttributeName).toBeUndefined();
   });
+
+  describe("and the view", () => {
+    const zoomed = { zoomLevel: 2, centerX: 0.2, centerY: 0.7 };
+    const zoomedChoicesStore = () => {
+      const store = choicesStore();
+      store.zoomIn();
+      store.zoomIn();
+      store.panTo(zoomed.centerX, zoomed.centerY);
+      return store;
+    };
+
+    it("keeps the view when a chosen column is renamed: same column, same picture", () => {
+      const store = zoomedChoicesStore();
+      store.setAttributes(rename(rename(kAttributes, "2", "text"), "1", "category"));
+      store.updateAttributeChoices();
+      expect(store.phraseAttributeName).toBe("text");
+      expect(store.view).toEqual(zoomed);
+    });
+
+    it("resets the view when the Phrase Column is gone", () => {
+      const store = zoomedChoicesStore();
+      store.setAttributes(kAttributes.filter(attr => attr.id !== "2"));
+      store.updateAttributeChoices();
+      expect(store.phraseAttributeName).toBeUndefined();
+      expect(store.view).toEqual(kFitView);
+    });
+
+    it("keeps the view when only the Label Column is gone", () => {
+      const store = zoomedChoicesStore();
+      store.setAttributes(kAttributes.filter(attr => attr.id !== "1"));
+      store.updateAttributeChoices();
+      expect(store.labelAttributeName).toBeUndefined();
+      expect(store.view).toEqual(zoomed);
+    });
+  });
 });
 
 describe("PluginStore snapshot version", () => {
@@ -185,7 +223,7 @@ describe("PluginStore snapshot version", () => {
     const store = PluginStore.create();
     applySnapshot(store, saved);
     expect(getSnapshot(store)).toEqual({ ...saved, labelAttributeName: undefined, tsneSeed: undefined,
-      testPhrases: ["", "", "", "", ""] });
+      testPhrases: ["", "", "", "", ""], view: { zoomLevel: 0, centerX: 0.5, centerY: 0.5 } });
   });
 
   it("restores a saved seed", () => {
@@ -596,5 +634,158 @@ describe("PluginStore test phrases", () => {
     store.setLabelAttribute(undefined);
     expect(store.testPhrasePoints).toHaveLength(2);
     expect(store.isSlotSelected(0)).toBe(true);
+  });
+});
+
+describe("PluginStore view", () => {
+  const zoomedStore = () => {
+    const store = selectedStore();
+    store.zoomIn();
+    store.zoomIn();
+    store.panTo(0.2, 0.7);
+    return store;
+  };
+  const restore = (view: unknown) =>
+    PluginStore.create({ version: 1, view } as unknown as Parameters<typeof PluginStore.create>[0]).view;
+
+  it("starts at the fit view, with zoom in and out allowed", () => {
+    const store = PluginStore.create();
+    expect(store.view).toEqual(kFitView);
+    expect(store.scale).toBe(1);
+    expect(store.isFitView).toBe(true);
+    expect(store.canZoomIn).toBe(true);
+    expect(store.canZoomOut).toBe(true);
+  });
+
+  it("zooms in and out one level at a time, about the same center", () => {
+    const store = PluginStore.create();
+    store.panTo(0.3, 0.6);
+    store.zoomIn();
+    expect(store.view).toEqual({ zoomLevel: 1, centerX: 0.3, centerY: 0.6 });
+    expect(store.scale).toBe(kZoomFactor);
+    store.zoomOut();
+    store.zoomOut();
+    expect(store.view).toEqual({ zoomLevel: -1, centerX: 0.3, centerY: 0.6 });
+  });
+
+  it("returns exactly to fit after the same number of clicks in and out", () => {
+    const store = PluginStore.create();
+    store.zoomIn();
+    store.zoomIn();
+    store.zoomIn();
+    store.zoomOut();
+    store.zoomOut();
+    store.zoomOut();
+    expect(store.isFitView).toBe(true);
+  });
+
+  it("stops at the largest zoom", () => {
+    const store = PluginStore.create();
+    for (let i = 0; i < kMaxZoomLevel + 3; i++) store.zoomIn();
+    expect(store.view.zoomLevel).toBe(kMaxZoomLevel);
+    expect(store.canZoomIn).toBe(false);
+    expect(store.canZoomOut).toBe(true);
+  });
+
+  it("stops at the smallest zoom", () => {
+    const store = PluginStore.create();
+    for (let i = 0; i < 5; i++) store.zoomOut();
+    expect(store.view.zoomLevel).toBe(kMinZoomLevel);
+    expect(store.canZoomOut).toBe(false);
+    expect(store.canZoomIn).toBe(true);
+  });
+
+  it("pans within [0, 1]", () => {
+    const store = PluginStore.create();
+    store.panTo(0.25, 0.8);
+    expect(store.view).toEqual({ zoomLevel: 0, centerX: 0.25, centerY: 0.8 });
+    store.panTo(-1, 3);
+    expect(store.view).toEqual({ zoomLevel: 0, centerX: 0, centerY: 1 });
+  });
+
+  it("is not the fit view after a pan at level 0", () => {
+    const store = PluginStore.create();
+    store.panTo(0.5, 0.6);
+    expect(store.view.zoomLevel).toBe(0);
+    expect(store.isFitView).toBe(false);
+  });
+
+  it("returns to the fit view on fitAll and resetView", () => {
+    const store = zoomedStore();
+    store.fitAll();
+    expect(store.view).toEqual(kFitView);
+    store.zoomIn();
+    store.resetView();
+    expect(store.view).toEqual(kFitView);
+  });
+
+  it("round-trips the view through a snapshot", () => {
+    const saved = getSnapshot(zoomedStore());
+    expect(saved.view).toEqual({ zoomLevel: 2, centerX: 0.2, centerY: 0.7 });
+    const store = PluginStore.create();
+    applySnapshot(store, saved);
+    expect(store.view).toEqual({ zoomLevel: 2, centerX: 0.2, centerY: 0.7 });
+  });
+
+  it("loads a snapshot without a view at the fit view", () => {
+    const store = PluginStore.create({ version: 1, dataContextName: "Phrases" });
+    expect(store.view).toEqual(kFitView);
+  });
+
+  it("clamps and rounds a saved level that is out of range or not an integer", () => {
+    expect(restore({ zoomLevel: 99, centerX: 0.5, centerY: 0.5 }).zoomLevel).toBe(kMaxZoomLevel);
+    expect(restore({ zoomLevel: -99, centerX: 0.5, centerY: 0.5 }).zoomLevel).toBe(kMinZoomLevel);
+    expect(restore({ zoomLevel: 2.4, centerX: 0.5, centerY: 0.5 }).zoomLevel).toBe(2);
+  });
+
+  it("loads a saved center that is a string, NaN or out of range as a usable one", () => {
+    expect(restore({ zoomLevel: 1, centerX: "0.3", centerY: 0.4 }))
+      .toEqual({ zoomLevel: 1, centerX: 0.5, centerY: 0.4 });
+    expect(restore({ zoomLevel: 1, centerX: 0.3, centerY: NaN })).toEqual({ zoomLevel: 1, centerX: 0.3, centerY: 0.5 });
+    expect(restore({ zoomLevel: 1, centerX: -2, centerY: 7 })).toEqual({ zoomLevel: 1, centerX: 0, centerY: 1 });
+  });
+
+  it("loads a saved view that is not an object at the fit view", () => {
+    expect(restore("zoomed")).toEqual(kFitView);
+    expect(restore(null)).toEqual(kFitView);
+  });
+
+  it("resets on a table change", () => {
+    const store = zoomedStore();
+    store.setDataContext("Other");
+    expect(store.view).toEqual(kFitView);
+  });
+
+  it("resets when the Phrase Column is cleared", () => {
+    const store = zoomedStore();
+    store.setPhraseAttribute(undefined);
+    expect(store.view).toEqual(kFitView);
+  });
+
+  it("resets when a different Phrase Column is chosen", () => {
+    const store = zoomedStore();
+    store.setPhraseAttribute("label");
+    expect(store.view).toEqual(kFitView);
+  });
+
+  it("keeps the view when the same table or Phrase Column is set again", () => {
+    const store = zoomedStore();
+    store.setDataContext("Phrases");
+    store.setPhraseAttribute("phrase");
+    expect(store.view).toEqual({ zoomLevel: 2, centerX: 0.2, centerY: 0.7 });
+  });
+
+  it("keeps the view on a Label Column change", () => {
+    const store = zoomedStore();
+    store.setLabelAttribute(undefined);
+    store.setLabelAttribute("group");
+    expect(store.view).toEqual({ zoomLevel: 2, centerX: 0.2, centerY: 0.7 });
+  });
+
+  it("keeps a restored view: applySnapshot does not go through the column actions", () => {
+    const saved = getSnapshot(zoomedStore());
+    const store = selectedStore();
+    applySnapshot(store, { ...saved, dataContextName: "Other", phraseAttributeName: "label" });
+    expect(store.view).toEqual({ zoomLevel: 2, centerX: 0.2, centerY: 0.7 });
   });
 });

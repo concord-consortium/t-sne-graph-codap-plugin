@@ -158,3 +158,91 @@ export const offsetFromNeighbor = (
     y: neighbor.y + kMinNeighborOffsetPx * direction.dy
   }, bounds);
 };
+
+export const kZoomFactor = 1.5;
+export const kMinZoomLevel = -1;
+export const kMaxZoomLevel = 8;
+
+/** `centerX`, `centerY`: the unit-square point at the plot's center. Scale: `kZoomFactor ** zoomLevel`. */
+export interface IView {
+  zoomLevel: number;
+  centerX: number;
+  centerY: number;
+}
+
+export const kFitView: IView = { zoomLevel: 0, centerX: 0.5, centerY: 0.5 };
+export const scaleForLevel = (zoomLevel: number) => kZoomFactor ** zoomLevel;
+
+/** Maps a unit-square point through the view, before `toPixels`. The identity at the fit view. */
+export const applyView = ({ x, y }: IPosition, { zoomLevel, centerX, centerY }: IView): IPosition => {
+  const scale = scaleForLevel(zoomLevel);
+  return { x: 0.5 + (x - centerX) * scale, y: 0.5 + (y - centerY) * scale };
+};
+
+const clampOrDefault = (value: number, min: number, max: number, fallback: number) =>
+  Number.isFinite(value) ? clamp(value, min, max) : fallback;
+
+/** Integer level in range, center in [0, 1]; a non-finite value becomes the fit view's. */
+export const clampView = ({ zoomLevel, centerX, centerY }: IView): IView => ({
+  zoomLevel: Math.round(clampOrDefault(zoomLevel, kMinZoomLevel, kMaxZoomLevel, kFitView.zoomLevel)),
+  centerX: clampOrDefault(centerX, 0, 1, kFitView.centerX),
+  centerY: clampOrDefault(centerY, 0, 1, kFitView.centerY)
+});
+
+/** The whole layout's bounds in plot pixels: `paddedBounds` at the fit view, past the plot when zoomed in. */
+export const worldBounds = (size: ISize, view: IView, padding = kGraphPadding): IBounds => {
+  const topLeft = toPixels(applyView({ x: 0, y: 1 }, view), size, padding);
+  const bottomRight = toPixels(applyView({ x: 1, y: 0 }, view), size, padding);
+  return { left: topLeft.x, top: topLeft.y, right: bottomRight.x, bottom: bottomRight.y };
+};
+
+/** Pans the least amount that brings a pixel into the padded area; returns `view` if none is needed. The
+ * center stays in [0, 1], so the pixel may stay outside. */
+export const panToInclude = (view: IView, { x, y }: IPosition, size: ISize, padding = kGraphPadding): IView => {
+  const { left, top, right, bottom } = paddedBounds(size, padding);
+  const shiftX = x < left ? left - x : x > right ? right - x : 0;
+  const shiftY = y < top ? top - y : y > bottom ? bottom - y : 0;
+  if (shiftX === 0 && shiftY === 0) return view;
+
+  const scale = scaleForLevel(view.zoomLevel);
+  const innerWidth = right - left;
+  const innerHeight = bottom - top;
+  return clampView({
+    ...view,
+    centerX: innerWidth > 0 ? view.centerX - shiftX / (innerWidth * scale) : view.centerX,
+    // y is flipped, as in `toPixels`
+    centerY: innerHeight > 0 ? view.centerY + shiftY / (innerHeight * scale) : view.centerY
+  });
+};
+
+// Per axis, at the fit view
+const kGridCells = 8;
+
+// Line i is at i × length / kGridCells at the fit view, moved by the view; on half pixels, so each
+// renders as one sharp pixel
+const axisGridLines = (length: number, scale: number, offset: number) => {
+  const spacing = scale * length / kGridCells;
+  if (!(spacing > 0)) return [];
+  const first = Math.floor(-offset / spacing);
+  const last = Math.ceil((length - offset) / spacing);
+  const lines: number[] = [];
+  for (let i = first; i <= last; i++) {
+    const pixel = Math.round(scale * (i * length / kGridCells) + offset);
+    // None on or past an edge
+    if (pixel > 0 && pixel < length) lines.push(pixel + 0.5);
+  }
+  return lines;
+};
+
+/** Moves with the dots; seven lines per axis at the fit view. */
+export const gridLines = ({ width, height }: ISize, view: IView, padding = kGraphPadding) => {
+  const innerWidth = width - 2 * padding;
+  const innerHeight = height - 2 * padding;
+  // Too small for the padding: `toPixels` centers the points; keep the fit view's grid
+  const scale = scaleForLevel(view.zoomLevel);
+  const [scaleX, scaleY] = [innerWidth > 0 ? scale : 1, innerHeight > 0 ? scale : 1];
+  // y is flipped, as in `toPixels`
+  const offsetX = innerWidth > 0 ? padding * (1 - scale) + innerWidth * (0.5 - scale * view.centerX) : 0;
+  const offsetY = innerHeight > 0 ? padding * (1 - scale) + innerHeight * (0.5 - scale * (1 - view.centerY)) : 0;
+  return { x: axisGridLines(width, scaleX, offsetX), y: axisGridLines(height, scaleY, offsetY) };
+};

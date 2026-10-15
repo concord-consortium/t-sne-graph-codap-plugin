@@ -1,6 +1,7 @@
 import {
-  applyTransform, directionToPixels, fitLayout, kGraphPadding, kMinNeighborOffsetPx, kOffsetCandidates,
-  normalizeLayout, offsetFromNeighbor, paddedBounds, toPixels, unitDirection
+  applyTransform, applyView, clampView, directionToPixels, fitLayout, gridLines, IView, kFitView, kGraphPadding,
+  kMaxZoomLevel, kMinNeighborOffsetPx, kMinZoomLevel, kOffsetCandidates, kZoomFactor, normalizeLayout,
+  offsetFromNeighbor, paddedBounds, panToInclude, scaleForLevel, toPixels, unitDirection, worldBounds
 } from "./layout";
 
 describe("normalizeLayout", () => {
@@ -311,6 +312,189 @@ describe("offsetFromNeighbor", () => {
       const second = offsetFromNeighbor(neighbor, neighbor, right, bounds, [first]);
       expect(distance(second, first)).toBeGreaterThanOrEqual(kMinNeighborOffsetPx - 1e-9);
       expect(distance(second, neighbor)).toBeCloseTo(kMinNeighborOffsetPx, 9);
+    });
+  });
+});
+
+describe("view", () => {
+  const square = { width: 300, height: 300 };
+  const wide = { width: 600, height: 300 };
+  const level1: IView = { zoomLevel: 1, centerX: 0.5, centerY: 0.5 };
+
+  describe("scaleForLevel", () => {
+    it("multiplies by the zoom factor per level", () => {
+      expect(scaleForLevel(0)).toBe(1);
+      expect(scaleForLevel(1)).toBe(kZoomFactor);
+      expect(scaleForLevel(-1)).toBeCloseTo(1 / kZoomFactor, 12);
+      expect(scaleForLevel(kMaxZoomLevel)).toBeCloseTo(25.63, 2);
+    });
+  });
+
+  describe("applyView", () => {
+    it("is the identity at the fit view", () => {
+      [{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 0.3, y: 0.85 }].forEach(point => {
+        expect(applyView(point, kFitView)).toEqual(point);
+      });
+    });
+
+    it("spreads points out from the center at level 1", () => {
+      expect(applyView({ x: 0.75, y: 0.5 }, level1)).toEqual({ x: 0.875, y: 0.5 });
+      expect(applyView({ x: 0.5, y: 0.25 }, level1)).toEqual({ x: 0.5, y: 0.125 });
+    });
+
+    it("puts the view's center at the plot's center", () => {
+      expect(applyView({ x: 0.2, y: 0.9 }, { zoomLevel: 3, centerX: 0.2, centerY: 0.9 })).toEqual({ x: 0.5, y: 0.5 });
+    });
+  });
+
+  describe("clampView", () => {
+    it("leaves a view in range alone", () => {
+      const view = { zoomLevel: 4, centerX: 0.1, centerY: 0.9 };
+      expect(clampView(view)).toEqual(view);
+    });
+
+    it("limits the level and rounds it to an integer", () => {
+      expect(clampView({ ...kFitView, zoomLevel: kMaxZoomLevel + 3 }).zoomLevel).toBe(kMaxZoomLevel);
+      expect(clampView({ ...kFitView, zoomLevel: kMinZoomLevel - 3 }).zoomLevel).toBe(kMinZoomLevel);
+      expect(clampView({ ...kFitView, zoomLevel: 2.6 }).zoomLevel).toBe(3);
+    });
+
+    it("keeps the center in [0, 1]", () => {
+      expect(clampView({ zoomLevel: 0, centerX: -0.5, centerY: 1.5 }))
+        .toEqual({ zoomLevel: 0, centerX: 0, centerY: 1 });
+    });
+
+    it("replaces a value that isn't finite with the fit view's", () => {
+      expect(clampView({ zoomLevel: NaN, centerX: Infinity, centerY: NaN })).toEqual(kFitView);
+    });
+  });
+
+  describe("worldBounds", () => {
+    it("equals the padded bounds at the fit view", () => {
+      expect(worldBounds(square, kFitView)).toEqual(paddedBounds(square));
+      expect(worldBounds(wide, kFitView)).toEqual(paddedBounds(wide));
+    });
+
+    it("is 1.5 times as wide at level 1, centered on the plot", () => {
+      const fit = paddedBounds(wide);
+      const { left, top, right, bottom } = worldBounds(wide, level1);
+      expect(right - left).toBeCloseTo(1.5 * (fit.right - fit.left), 9);
+      expect(bottom - top).toBeCloseTo(1.5 * (fit.bottom - fit.top), 9);
+      expect((left + right) / 2).toBeCloseTo(300, 9);
+      expect((top + bottom) / 2).toBeCloseTo(150, 9);
+    });
+  });
+
+  describe("panToInclude", () => {
+    const { left, top, right, bottom } = paddedBounds(square);
+    const inner = right - left;
+    const zoomed: IView = { zoomLevel: 2, centerX: 0.5, centerY: 0.5 };
+    const scale = scaleForLevel(2);
+    // Where the view draws a unit-square point
+    const drawn = (point: { x: number, y: number }, view: IView) => toPixels(applyView(point, view), square);
+
+    it("leaves the view alone for a pixel in the padded area", () => {
+      expect(panToInclude(zoomed, { x: left, y: bottom }, square)).toBe(zoomed);
+      expect(panToInclude(zoomed, { x: 150, y: 150 }, square)).toBe(zoomed);
+    });
+
+    it("moves the view the least amount for a pixel past the right edge", () => {
+      const view = panToInclude(zoomed, { x: right + 30, y: 150 }, square);
+      expect(view.zoomLevel).toBe(zoomed.zoomLevel);
+      expect(view.centerY).toBe(zoomed.centerY);
+      expect(view.centerX).toBeCloseTo(0.5 + 30 / (inner * scale), 12);
+    });
+
+    it("moves the view the least amount for a pixel past the top edge", () => {
+      const view = panToInclude(zoomed, { x: 150, y: top - 20 }, square);
+      expect(view.centerX).toBe(zoomed.centerX);
+      expect(view.centerY).toBeCloseTo(0.5 + 20 / (inner * scale), 12);
+    });
+
+    it("brings a drawn point to the padded edge", () => {
+      const point = { x: 0.05, y: 0.02 };
+      const view = panToInclude(zoomed, drawn(point, zoomed), square);
+      const after = drawn(point, view);
+      expect(after.x).toBeCloseTo(left, 9);
+      expect(after.y).toBeCloseTo(bottom, 9);
+    });
+
+    it("never moves the center out of [0, 1]", () => {
+      const view = panToInclude({ zoomLevel: 1, centerX: 0.98, centerY: 0.02 }, { x: 5000, y: 5000 }, square);
+      expect(view.centerX).toBe(1);
+      expect(view.centerY).toBe(0);
+    });
+  });
+
+  describe("gridLines", () => {
+    const fitViewLines = (length: number) => [1, 2, 3, 4, 5, 6, 7].map(i => Math.round(i * length / 8) + 0.5);
+    const onHalfPixel = (value: number) => value - Math.floor(value) === 0.5;
+
+    it.each([square, wide])("draws seven lines per axis at the fit view on $width x $height", size => {
+      const { x, y } = gridLines(size, kFitView);
+      expect(x).toEqual(fitViewLines(size.width));
+      expect(y).toEqual(fitViewLines(size.height));
+    });
+
+    it("draws fewer lines at level 1", () => {
+      const { x, y } = gridLines(square, level1);
+      expect(x.length).toBeLessThan(7);
+      expect(y.length).toBeLessThan(7);
+    });
+
+    it("draws lines past the layout's square at level -1", () => {
+      const { x, y } = gridLines(square, { ...kFitView, zoomLevel: -1 });
+      expect(x.length).toBeGreaterThan(7);
+      expect(y.length).toBeGreaterThan(7);
+      const { left, right } = worldBounds(square, { ...kFitView, zoomLevel: -1 });
+      expect(x.some(position => position < left)).toBe(true);
+      expect(x.some(position => position > right)).toBe(true);
+    });
+
+    it.each([square, wide])("draws each line where the view draws its place in the data, on $width x $height",
+      size => {
+        // Zoomed and panned on both axes, so the padding term and the y flip both matter
+        const view: IView = { zoomLevel: 2, centerX: 0.4, centerY: 0.3 };
+        const inner = { width: size.width - 2 * kGraphPadding, height: size.height - 2 * kGraphPadding };
+        // Fit-view line i is at i / 8 of the plot; drawn where the view puts that unit-square point
+        const expected = (length: number, toPixel: (i: number) => number) => {
+          const lines: number[] = [];
+          for (let i = -50; i <= 50; i++) {
+            const pixel = Math.round(toPixel(i));
+            if (pixel > 0 && pixel < length) lines.push(pixel + 0.5);
+          }
+          return lines;
+        };
+        const xs = expected(size.width, i => toPixels(
+          applyView({ x: (i * size.width / 8 - kGraphPadding) / inner.width, y: 0.5 }, view), size).x);
+        const ys = expected(size.height, i => toPixels(
+          applyView({ x: 0.5, y: 1 - (i * size.height / 8 - kGraphPadding) / inner.height }, view), size).y);
+        expect(gridLines(size, view)).toEqual({ x: xs, y: ys });
+      });
+
+    it("moves the lines with a pan", () => {
+      const panned = gridLines(square, { zoomLevel: 0, centerX: 0.6, centerY: 0.5 }).x;
+      // 0.1 of the 276px padded width
+      expect(panned).toContain(Math.round(37.5 - 27.6) + 0.5);
+    });
+
+    it("puts every line strictly inside the plot, on a half pixel", () => {
+      [kFitView, level1, { zoomLevel: -1, centerX: 0.1, centerY: 0.9 }, { zoomLevel: 5, centerX: 0.33, centerY: 0.71 }]
+        .forEach(view => {
+          [square, wide].forEach(size => {
+            const { x, y } = gridLines(size, view);
+            x.forEach(position => {
+              expect(onHalfPixel(position)).toBe(true);
+              expect(position).toBeGreaterThan(0);
+              expect(position).toBeLessThan(size.width);
+            });
+            y.forEach(position => {
+              expect(onHalfPixel(position)).toBe(true);
+              expect(position).toBeGreaterThan(0);
+              expect(position).toBeLessThan(size.height);
+            });
+          });
+        });
     });
   });
 });

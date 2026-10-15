@@ -11,6 +11,20 @@ import { kPlotSymbolExtents, symbolReach } from "./phrase-symbol";
 jest.mock("../models/selection-sync",
   () => ({ clearCodapSelection: jest.fn(), selectPoint: jest.fn(), selectTestPhrase: jest.fn() }));
 
+// jsdom has no PointerEvent, so fireEvent would send a plain Event with no pointer or position
+class TestPointerEvent extends MouseEvent {
+  pointerId: number;
+  pointerType: string;
+  constructor(type: string, init: PointerEventInit = {}) {
+    super(type, init);
+    this.pointerId = init.pointerId ?? 0;
+    this.pointerType = init.pointerType ?? "mouse";
+  }
+}
+if (typeof window.PointerEvent === "undefined") {
+  Object.defineProperty(window, "PointerEvent", { configurable: true, value: TestPointerEvent });
+}
+
 const kCases: CaseInfo[] = [
   { caseId: "1", values: { phrase: "the cat sat", label: "Similar" } },
   { caseId: "2", values: { phrase: "a dog ran", label: "Opposite" } },
@@ -36,11 +50,16 @@ const graphStore = () => {
 
 const renderGraph = (store: IPluginStore) => render(<StoreProvider store={store}><Graph /></StoreProvider>);
 
-const plot = () => screen.getByRole("group");
+// Not the zoom controls' group
+const plot = () => screen.getByRole("group", { name: /^t-SNE plot/ });
 // A point's name is its phrase, then its label when there is a Label Column
 const point = (phrase: string) =>
-  screen.getByRole("button", { name: name => name === phrase || name.startsWith(`${phrase}, `) });
-const pointNames = () => screen.queryAllByRole("button").map(button => button.getAttribute("aria-label"));
+  within(plot()).getByRole("button", { name: name => name === phrase || name.startsWith(`${phrase}, `) });
+// Tab reaches the three zoom buttons first
+const tabToPlot = async (user: ReturnType<typeof userEvent.setup>) => {
+  for (let i = 0; i < 4; i++) await user.tab();
+};
+const pointNames = () => within(plot()).queryAllByRole("button").map(button => button.getAttribute("aria-label"));
 const pointPhrases = () => pointNames().map(name => name?.split(", ")[0]);
 
 describe("Graph", () => {
@@ -71,6 +90,19 @@ describe("Graph", () => {
       expect(lines.slice(0, 7).map(line => line.getAttribute("x1")))
         .toEqual(["38.5", "75.5", "113.5", "150.5", "188.5", "225.5", "263.5"]);
       expect(screen.getByTestId("grid")).toHaveAttribute("aria-hidden", "true");
+    });
+
+    it("gives each grid line its own key, even when lines share a pixel on a tiny plot", () => {
+      jest.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValue(
+        { width: 7, height: 7, x: 0, y: 0, top: 0, left: 0, right: 7, bottom: 7, toJSON: () => undefined });
+      const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
+      renderGraph(store);
+      const positions = screen.getAllByTestId("grid-line").map(line => line.getAttribute("x1"));
+      // Two lines at the same pixel
+      expect(new Set(positions.slice(0, 7)).size).toBeLessThan(7);
+      const keyWarnings = consoleError.mock.calls.filter(([message]) => String(message).includes("same key"));
+      consoleError.mockRestore();
+      expect(keyWarnings).toEqual([]);
     });
 
     it("draws one 12px dot per point, in its label's color, inside the 12px padding", () => {
@@ -118,7 +150,7 @@ describe("Graph", () => {
       renderGraph(store);
       expect(screen.queryByTestId("active-point")).toBeNull();
 
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}");
       expect(point("the bird sang")).toHaveFocus();
       const copy = screen.getByTestId("active-point");
@@ -206,6 +238,263 @@ describe("Graph", () => {
     });
   });
 
+  describe("panning", () => {
+    // 276px padded width and height at 300 × 300
+    const kInner = 276;
+    const translation = (element: HTMLElement) => {
+      const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(element.getAttribute("transform") ?? "") ?? [];
+      return { x: Number(x), y: Number(y) };
+    };
+    const press = (x: number, y: number, init: PointerEventInit = {}) =>
+      fireEvent.pointerDown(plot(), { pointerId: 1, button: 0, clientX: x, clientY: y, ...init });
+    // A button held down, as during a drag
+    const move = (x: number, y: number, init: PointerEventInit = {}) =>
+      fireEvent.pointerMove(plot(), { pointerId: 1, buttons: 1, clientX: x, clientY: y, ...init });
+    const release = (x: number, y: number) => {
+      fireEvent.pointerUp(plot(), { pointerId: 1, clientX: x, clientY: y });
+      fireEvent.click(plot(), { clientX: x, clientY: y });
+    };
+
+    it("treats a move under 3px as a click, which clears the selection", () => {
+      renderGraph(store);
+      press(100, 100);
+      move(102, 100);
+      release(102, 100);
+      expect(store.isFitView).toBe(true);
+      expect(clearCodapSelection).toHaveBeenCalledWith(store);
+    });
+
+    it("moves the view with a drag past 3px, keeping the dots under the pointer, and keeps the selection", () => {
+      renderGraph(store);
+      press(100, 100);
+      move(104, 100);
+      move(110, 110);
+      expect(store.view.centerX).toBeCloseTo(0.5 - 10 / kInner, 12);
+      // Dragging down shows more of the top
+      expect(store.view.centerY).toBeCloseTo(0.5 + 10 / kInner, 12);
+      const { x, y } = translation(point("the bird sang"));
+      expect(x).toBeCloseTo(160, 9);
+      expect(y).toBeCloseTo(160, 9);
+      release(110, 110);
+      expect(clearCodapSelection).not.toHaveBeenCalled();
+      // Only the drag's own click is ignored
+      fireEvent.click(plot());
+      expect(clearCodapSelection).toHaveBeenCalledTimes(1);
+    });
+
+    it("scales the drag by the zoom", () => {
+      store.zoomIn();
+      renderGraph(store);
+      press(100, 100);
+      move(130, 100);
+      expect(store.view.centerX).toBeCloseTo(0.5 - 30 / (kInner * 1.5), 12);
+    });
+
+    it("keeps the center in [0, 1]", () => {
+      renderGraph(store);
+      press(100, 100);
+      move(-2000, 3000);
+      expect(store.view).toEqual({ zoomLevel: 0, centerX: 1, centerY: 1 });
+    });
+
+    it("captures the pointer, and shows the grabbing cursor only while dragging", () => {
+      const capture = jest.fn();
+      Object.defineProperty(SVGElement.prototype, "setPointerCapture", { configurable: true, value: capture });
+      try {
+        renderGraph(store);
+        expect(plot()).not.toHaveAttribute("data-dragging");
+        press(100, 100);
+        expect(capture).toHaveBeenCalledWith(1);
+        expect(plot()).not.toHaveAttribute("data-dragging");
+        move(110, 100);
+        expect(plot()).toHaveAttribute("data-dragging", "true");
+        release(110, 100);
+        expect(plot()).not.toHaveAttribute("data-dragging");
+      } finally {
+        delete (SVGElement.prototype as { setPointerCapture?: unknown }).setPointerCapture;
+      }
+    });
+
+    it.each(["pointerCancel", "lostPointerCapture"] as const)("ends a drag on %s, and a later move changes nothing",
+      eventName => {
+        renderGraph(store);
+        press(100, 100);
+        move(110, 100);
+        fireEvent[eventName](plot(), { pointerId: 1 });
+        expect(plot()).not.toHaveAttribute("data-dragging");
+        const { centerX, centerY } = store.view;
+        move(200, 200);
+        expect(store.view).toEqual({ zoomLevel: 0, centerX, centerY });
+        // No drag click to ignore
+        fireEvent.click(plot());
+        expect(clearCodapSelection).toHaveBeenCalledTimes(1);
+      });
+
+    // `touch-action: none` is in graph.scss, so only Playwright can check it
+    it("drags with a finger, and keeps the first finger's drag when a second finger touches the plot", () => {
+      renderGraph(store);
+      const touch = { pointerType: "touch" };
+      press(100, 100, touch);
+      move(110, 100, touch);
+      press(200, 200, { ...touch, pointerId: 2 });
+      // The second finger's moves change nothing
+      move(300, 300, { ...touch, pointerId: 2 });
+      expect(store.view.centerX).toBeCloseTo(0.5 - 10 / kInner, 12);
+      expect(store.view.centerY).toBe(0.5);
+      move(120, 100, touch);
+      expect(store.view.centerX).toBeCloseTo(0.5 - 20 / kInner, 12);
+      fireEvent.pointerUp(plot(), { pointerId: 2, clientX: 200, clientY: 200 });
+      expect(plot()).toHaveAttribute("data-dragging", "true");
+      move(130, 100, touch);
+      expect(store.view.centerX).toBeCloseTo(0.5 - 30 / kInner, 12);
+      fireEvent.pointerUp(plot(), { pointerId: 1, clientX: 130, clientY: 100 });
+      expect(plot()).not.toHaveAttribute("data-dragging");
+    });
+
+    it("ends a drag whose release never came at the next move with no button down", () => {
+      renderGraph(store);
+      press(100, 100);
+      move(110, 100);
+      const { centerX } = store.view;
+      move(150, 100, { buttons: 0 });
+      expect(plot()).not.toHaveAttribute("data-dragging");
+      expect(store.view.centerX).toBe(centerX);
+      move(200, 100);
+      expect(store.view.centerX).toBe(centerX);
+      // The next click is a click, not the end of a drag
+      fireEvent.click(plot());
+      expect(clearCodapSelection).toHaveBeenCalledWith(store);
+    });
+
+    it("treats a click as a click after a drag whose click never came", () => {
+      renderGraph(store);
+      press(100, 100);
+      move(110, 100);
+      // Released, but the browser sent no click
+      fireEvent.pointerUp(plot(), { pointerId: 1, clientX: 110, clientY: 100 });
+      press(120, 120);
+      release(120, 120);
+      expect(clearCodapSelection).toHaveBeenCalledWith(store);
+    });
+
+    it("doesn't pan an empty plot, as while computing or with too few phrases", () => {
+      store.setPoints([]);
+      renderGraph(store);
+      press(100, 100);
+      move(150, 150);
+      expect(plot()).not.toHaveAttribute("data-dragging");
+      expect(store.isFitView).toBe(true);
+    });
+
+    it("does not drag from a point, or with another button", () => {
+      renderGraph(store);
+      fireEvent.pointerDown(within(point("the bird sang")).getByTestId("dot"),
+        { pointerId: 1, button: 0, clientX: 150, clientY: 150 });
+      move(200, 150);
+      press(100, 100, { button: 2 });
+      move(200, 150);
+      expect(store.isFitView).toBe(true);
+    });
+
+    describe("focus", () => {
+      it("moves the view to show a point off the plot reached with the arrow keys", async () => {
+        const user = userEvent.setup();
+        for (let i = 0; i < 3; i++) store.zoomIn();
+        renderGraph(store);
+        // (0, 0) is far off the bottom left at level 3
+        expect(translation(point("the cat sat")).x).toBeLessThan(0);
+        await tabToPlot(user);
+        await user.keyboard("{ArrowRight}");
+        expect(point("the cat sat")).toHaveFocus();
+        const { x, y } = translation(point("the cat sat"));
+        expect(x).toBeCloseTo(12, 6);
+        expect(y).toBeCloseTo(288, 6);
+      });
+
+      it("leaves the view alone when focus isn't from the keyboard, as on a mouse press", () => {
+        // jsdom matches :focus-visible on every focus; a browser doesn't after a mouse press
+        const matches = Element.prototype.matches;
+        jest.spyOn(Element.prototype, "matches").mockImplementation(function(this: Element, selector: string) {
+          return selector === ":focus-visible" ? false : matches.call(this, selector);
+        });
+        for (let i = 0; i < 3; i++) store.zoomIn();
+        renderGraph(store);
+        // (0, 0) is far off the bottom left at level 3
+        act(() => point("the cat sat").focus());
+        expect(point("the cat sat")).toHaveFocus();
+        expect(store.view).toEqual({ zoomLevel: 3, centerX: 0.5, centerY: 0.5 });
+      });
+
+      it("leaves the view alone for a point already showing", () => {
+        store.zoomIn();
+        renderGraph(store);
+        act(() => point("the bird sang").focus());
+        expect(store.view).toEqual({ zoomLevel: 1, centerX: 0.5, centerY: 0.5 });
+      });
+
+      it("brings a symbol the ring search pushed past the edge fully inside", () => {
+        store.setTestPhrase(0, "the cat");
+        store.setTestPhrasePoints(
+          [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "3", direction: { dx: 1, dy: 0 } }], { 0: "placed" });
+        store.zoomIn();
+        // Case 3 is drawn on the padded edge, at x = 288; its symbol 18px past it
+        store.panTo(1 / 6, 0.5);
+        renderGraph(store);
+        const symbol = screen.getByRole("button", { name: "Square test phrase: the cat" });
+        expect(translation(symbol).x).toBeCloseTo(306, 6);
+        act(() => symbol.focus());
+        expect(translation(symbol).x).toBeCloseTo(288, 6);
+        expect(translation(point("the bird sang")).x).toBeCloseTo(270, 6);
+      });
+    });
+  });
+
+  describe("view", () => {
+    const gridLineCount = () => screen.getAllByTestId("grid-line").length;
+
+    it("spreads the points out from the center when zoomed in, keeping dot sizes", () => {
+      store.setPoints([{ caseId: "1", x: 0.75, y: 0.5 }, ...kPoints.slice(1)]);
+      store.zoomIn();
+      renderGraph(store);
+      // 12 + 0.875 × 276
+      expect(point("the cat sat")).toHaveAttribute("transform", "translate(253.5 150)");
+      expect(point("the bird sang")).toHaveAttribute("transform", "translate(150 150)");
+      expect(within(point("the cat sat")).getByTestId("dot")).toHaveAttribute("r", "6");
+    });
+
+    it("draws the active point's copy on top where the view puts the point", () => {
+      store.zoomIn();
+      renderGraph(store);
+      // The center point stays put at level 1, so focus one that moves
+      act(() => point("a dog ran").focus());
+      expect(screen.getByTestId("active-point"))
+        .toHaveAttribute("transform", point("a dog ran").getAttribute("transform"));
+      act(() => store.panTo(0.6, 0.4));
+      expect(screen.getByTestId("active-point"))
+        .toHaveAttribute("transform", point("a dog ran").getAttribute("transform"));
+    });
+
+    it("moves the points when the view changes after drawing", () => {
+      renderGraph(store);
+      expect(point("a dog ran")).toHaveAttribute("transform", "translate(288 12)");
+      act(() => store.panTo(0.6, 0.5));
+      // 0.1 of the 276px padded width to the left
+      expect(point("a dog ran")).toHaveAttribute("transform", "translate(260.4 12)");
+      act(() => store.fitAll());
+      expect(point("a dog ran")).toHaveAttribute("transform", "translate(288 12)");
+    });
+
+    it("draws fewer grid lines zoomed in and more zoomed out", () => {
+      renderGraph(store);
+      expect(gridLineCount()).toBe(14);
+      act(() => store.zoomIn());
+      expect(gridLineCount()).toBeLessThan(14);
+      act(() => store.zoomOut());
+      act(() => store.zoomOut());
+      expect(gridLineCount()).toBeGreaterThan(14);
+    });
+  });
+
   describe("status", () => {
     it.each([
       ["too-few", kTooFewMessage],
@@ -279,6 +568,10 @@ describe("Graph", () => {
       expect(plot()).toHaveAttribute("tabindex", "0");
       expect(kPhrases.map(phrase => point(phrase).getAttribute("tabindex"))).toEqual(["-1", "-1", "-1", "-1"]);
 
+      for (const name of ["Zoom in", "Zoom out", "Fit all"]) {
+        await user.tab();
+        expect(screen.getByRole("button", { name })).toHaveFocus();
+      }
       await user.tab();
       expect(plot()).toHaveFocus();
       await user.keyboard("{ArrowRight}");
@@ -296,7 +589,7 @@ describe("Graph", () => {
     it("moves to the next point with Right or Down, and to the previous with Left or Up", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowRight}{ArrowDown}");
       expect(point("a dog ran")).toHaveFocus();
       await user.keyboard("{ArrowRight}");
@@ -310,7 +603,7 @@ describe("Graph", () => {
     it("stops at the first and last points", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowRight}{ArrowUp}");
       expect(point("the cat sat")).toHaveFocus();
       await user.keyboard("{End}{ArrowDown}");
@@ -320,7 +613,7 @@ describe("Graph", () => {
     it("moves to the first point with Home and the last with End", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{End}");
       expect(point("a fish swam")).toHaveFocus();
       await user.keyboard("{Home}");
@@ -332,7 +625,7 @@ describe("Graph", () => {
     store.setPoints(kPoints.slice().reverse());
     renderGraph(store);
     expect(pointPhrases()).toEqual(kPhrases);
-    await user.tab();
+    await tabToPlot(user);
     await user.keyboard("{ArrowRight}");
     expect(point("the cat sat")).toHaveFocus();
     // Sorting the table changes the order, not the positions
@@ -346,7 +639,7 @@ describe("Graph", () => {
   it("starts from the last point when Left or Up is pressed on the plot", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowLeft}");
       expect(point("a fish swam")).toHaveFocus();
     });
@@ -354,7 +647,7 @@ describe("Graph", () => {
     it.each(["{Enter}", " "])("passes the focused point to selectPoint with %p", async key => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard(`{ArrowRight}{ArrowRight}${key}`);
       expect(selectPoint).toHaveBeenCalledWith(store, "2", false);
     });
@@ -362,7 +655,7 @@ describe("Graph", () => {
     it.each(["{Enter}", " "])("passes the focused point to selectPoint, extending, with Shift+%p", async key => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard(`{ArrowRight}{Shift>}${key}{/Shift}`);
       expect(selectPoint).toHaveBeenCalledWith(store, "1", true);
     });
@@ -370,7 +663,7 @@ describe("Graph", () => {
     it("selects nothing when Enter or Space is pressed on the plot itself", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{Enter} ");
       expect(selectPoint).not.toHaveBeenCalled();
     });
@@ -378,7 +671,7 @@ describe("Graph", () => {
     it("clears the selection with Escape, from the plot or from a point", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{Escape}{ArrowRight}{Escape}");
       expect(clearCodapSelection).toHaveBeenCalledTimes(2);
     });
@@ -396,7 +689,7 @@ describe("Graph", () => {
     it("ignores a held Enter or Space, which would select over and over", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowRight}");
       expect(fireEvent.keyDown(point("the cat sat"), { key: "Enter", repeat: true })).toBe(false);
       expect(fireEvent.keyDown(point("the cat sat"), { key: " ", repeat: true, shiftKey: true })).toBe(false);
@@ -443,7 +736,7 @@ describe("Graph", () => {
     it("leaves focus on the plot after a click on empty space", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.tab();
+      await tabToPlot(user);
       await user.keyboard("{ArrowRight}");
       expect(point("the cat sat")).toHaveFocus();
       await user.click(plot());
@@ -541,6 +834,16 @@ describe("Graph", () => {
         store.setTestPhrasePoints([testPoint(2, 1.2, 0.5, "3")], { 2: "placed" });
         renderGraph(store);
         expect(symbolPoint("Diamond test phrase: a bird")).toHaveAttribute("transform", "translate(288 150)");
+      });
+
+      it("draws a symbol whose neighbor is off-screen so the symbol is off-screen too, not at the plot's edge", () => {
+        // Case 4, at (1, 0), is drawn at (460.5, 460.5) at level 2
+        store.setTestPhrasePoints([testPoint(4, 1, 0, "4", -1, 0)], { 4: "placed" });
+        store.zoomIn();
+        store.zoomIn();
+        renderGraph(store);
+        expect(point("a fish swam")).toHaveAttribute("transform", "translate(460.5 460.5)");
+        expect(symbolPoint("Star test phrase: a fish")).toHaveAttribute("transform", "translate(442.5 460.5)");
       });
 
       it("keeps a symbol clear of another phrase's dot", () => {
@@ -668,7 +971,7 @@ describe("Graph", () => {
       it.each(["{Enter}", " "])("selects the focused symbol with %p, and adds it with Shift", async key => {
         const user = userEvent.setup();
         renderGraph(store);
-        await user.tab();
+        await tabToPlot(user);
         await user.keyboard(`{End}${key}`);
         expect(selectTestPhrase).toHaveBeenLastCalledWith(store, 4, false);
         await user.keyboard(`{Shift>}${key}{/Shift}`);
@@ -678,7 +981,7 @@ describe("Graph", () => {
       it("clears everything with Escape from a symbol", async () => {
         const user = userEvent.setup();
         renderGraph(store);
-        await user.tab();
+        await tabToPlot(user);
         await user.keyboard("{End}{Escape}");
         expect(clearCodapSelection).toHaveBeenCalledWith(store);
       });
@@ -688,7 +991,7 @@ describe("Graph", () => {
       it("moves from the last case point to the symbols, in slot order", async () => {
         const user = userEvent.setup();
         renderGraph(store);
-        await user.tab();
+        await tabToPlot(user);
         await user.keyboard("{ArrowLeft}");
         expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
         await user.keyboard("{Home}{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}");
@@ -702,7 +1005,7 @@ describe("Graph", () => {
       it("keeps the keyboard position on a symbol whose slot is edited from outside the plot", async () => {
         const user = userEvent.setup();
         renderGraph(store);
-        await user.tab();
+        await tabToPlot(user);
         await user.keyboard("{End}");
         expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
         // Leave the plot, as for editing the slot's field
@@ -721,7 +1024,7 @@ describe("Graph", () => {
       it("moves focus to the first point when the focused symbol's slot is edited", async () => {
         const user = userEvent.setup();
         renderGraph(store);
-        await user.tab();
+        await tabToPlot(user);
         await user.keyboard("{End}");
         expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
         act(() => store.setEditingSlot(4));

@@ -91,6 +91,7 @@
 
 .dropdown-listbox {
   outline: none;
+  padding: $dropdown-list-padding 0;
 }
 
 .dropdown-item {
@@ -100,14 +101,16 @@
   font-family: $font-family;
   font-size: 14px;
   height: $dropdown-item-height;
+  margin: 0 $dropdown-item-inset;
   outline: none;
   overflow: hidden;
-  padding: 7px 10px;
+  padding: 7px $dropdown-item-padding 7px
+    ($dropdown-check-offset + $dropdown-check-size + $dropdown-check-gap);
+  position: relative;
   text-overflow: ellipsis;
   white-space: nowrap;
 
   &[data-hovered],
-  &[data-selected],
   &[data-focus-visible] {
     background-color: $dropdown-item-highlight;
   }
@@ -119,10 +122,14 @@
   }
 }
 
-// Hovering (or keyboard focusing) another item removes the highlight from the selected one
-.dropdown-listbox:has(.dropdown-item[data-hovered]) .dropdown-item[data-selected]:not([data-hovered]),
-.dropdown-listbox:has(.dropdown-item[data-focus-visible]) .dropdown-item[data-selected]:not([data-focus-visible]) {
-  background-color: white;
+// Out of the text's flow, so a long label still ends in an ellipsis
+.dropdown-check {
+  color: $accent-color;
+  height: $dropdown-check-size;
+  left: $dropdown-check-offset;
+  position: absolute;
+  top: calc(50% - #{$dropdown-check-size} / 2);
+  width: $dropdown-check-size;
 }
 
 // Forced-colors mode (e.g. Windows High Contrast) removes box-shadows and replaces colors with
@@ -158,7 +165,6 @@
     forced-color-adjust: none;
 
     &[data-hovered],
-    &[data-selected],
     &[data-focus-visible] {
       background-color: Highlight;
       color: HighlightText;
@@ -169,10 +175,8 @@
     }
   }
 
-  // As in normal mode, hovering or focusing another item removes the selected one's highlight
-  .dropdown-listbox:has(.dropdown-item[data-hovered]) .dropdown-item[data-selected]:not([data-hovered]),
-  .dropdown-listbox:has(.dropdown-item[data-focus-visible]) .dropdown-item[data-selected]:not([data-focus-visible]) {
-    background-color: Canvas;
-    color: CanvasText;
+  // The item's system color, highlighted or not
+  .dropdown-check {
+    color: inherit;
   }
 }

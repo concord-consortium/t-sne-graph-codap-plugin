@@ -66,6 +66,22 @@ describe("Dropdown", () => {
     expect(optionNames()).not.toContain("Select");
   });
 
+  it("shows a check beside the selected item only, and none on the 'Select' item", async () => {
+    const user = userEvent.setup();
+    render(<ControlledDropdown />);
+    await user.click(button());
+    expect(screen.queryAllByTestId("dropdown-check")).toHaveLength(0);
+    await user.click(screen.getByRole("option", { name: "Another Data Table" }));
+
+    await user.click(button());
+    const checks = screen.getAllByTestId("dropdown-check");
+    expect(checks).toHaveLength(1);
+    expect(screen.getByRole("option", { name: "Another Data Table" })).toContainElement(checks[0]);
+    // Screen readers hear aria-selected instead
+    expect(checks[0]).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByRole("option", { name: "Another Data Table" })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("works with the keyboard alone", async () => {
     const user = userEvent.setup();
     const onChange = jest.fn();
