@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { AxeBuilder } from "@axe-core/playwright";
-import { expect, type FrameLocator, type Page } from "@playwright/test";
+import { expect, type FrameLocator, type Locator, type Page } from "@playwright/test";
 import { exposeCodapDocument, saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 import { kHierarchicalPhrases as kFixturePhrases } from "./fixtures/hierarchical-phrases";
@@ -1148,4 +1148,239 @@ test("keeps the zoom buttons' frame, icons and focus visible in forced-colors mo
   await expect(zoomButton(plugin, "Fit all")).toHaveAttribute("aria-disabled", "true");
   expect(await zoomButton(plugin, "Fit all").locator(".zoom-icon").evaluate(el => getComputedStyle(el).opacity))
     .toBe("1");
+});
+
+// ---- Tooltips ----
+
+// Dots in the flat fixture that no other dot's 24px target covers
+const kIsolatedDot = "Every voice across the globe";
+const kUnlabeledDot = "People I have never met";
+// Near the plot's right edge, and near its middle with a long phrase
+const kRightEdgeDot = "None of us are by ourselves";
+const kMiddleDot = "Everyone around the world shares this";
+
+const tooltip = (plugin: FrameLocator) => plugin.getByTestId("point-tooltip");
+// A point's center in the plot, from its transform
+const centerOf = async (element: Locator) => {
+  const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(await element.getAttribute("transform") ?? "") ?? [];
+  return { x: Number(x), y: Number(y) };
+};
+// Moves the mouse onto a point's center, without Playwright's check that nothing covers it
+const hoverPoint = async (page: Page, plugin: FrameLocator, element: Locator) => {
+  const { x, y } = await onPage(plugin, await centerOf(element));
+  await page.mouse.move(x, y);
+};
+// An element's center on the page
+const boxCenter = async (element: Locator) => {
+  const box = await element.boundingBox();
+  if (!box) throw new Error("The element is not visible");
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+};
+// The tooltip's fill, and its border's color: the first, inset, box-shadow
+const tooltipColors = (plugin: FrameLocator) => tooltip(plugin).evaluate(box => {
+  const { backgroundColor, boxShadow } = getComputedStyle(box);
+  const pointer = box.querySelector("[data-testid=pointer-border]");
+  return { fill: backgroundColor, border: /^rgba?\([^)]*\)/.exec(boxShadow)?.[0],
+    pointer: pointer && getComputedStyle(pointer).fill };
+});
+// From the point's center to the pointer's colored tip, and the box's size and side, and whether it is
+// inside the graph area. Read in one step, so all come from the same render.
+const tooltipFit = (element: Locator) => element.evaluate((p: SVGGElement) => {
+  const center = p.getScreenCTM();
+  const border = document.querySelector<SVGPolygonElement>("[data-testid=pointer-border]");
+  const box = document.querySelector<HTMLElement>("[data-testid=point-tooltip]");
+  const area = document.querySelector("[data-testid=graph-area]")?.getBoundingClientRect();
+  const ctm = border?.getScreenCTM();
+  if (!center || !border || !box || !area || !ctm) throw new Error("No tooltip is showing");
+  const tip = border.points[0];
+  const rect = box.getBoundingClientRect();
+  return {
+    tipX: ctm.a * tip.x + ctm.c * tip.y + ctm.e - center.e,
+    tipY: ctm.b * tip.x + ctm.d * tip.y + ctm.f - center.f,
+    width: rect.width, height: rect.height, side: box.dataset.side,
+    inside: rect.left >= area.left && rect.right <= area.right && rect.top >= area.top && rect.bottom <= area.bottom
+  };
+});
+// The colored tip stops 1px short of a dot's center (`kTooltipTipGap`), on the box's side
+const expectTipOnDot = ({ tipX, tipY, side }: { tipX: number, tipY: number, side?: string }) => {
+  expect(tipX).toBeCloseTo(side === "left" ? -1 : 1, 1);
+  expect(tipY).toBeCloseTo(0, 1);
+};
+
+test("shows a dot's phrase in its label's colors while the pointer is on it, aimed at its center",
+  async ({ page }) => {
+    const plugin = await openFlatPlot(page);
+    await hoverPoint(page, plugin, point(plugin, kIsolatedDot));
+    await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
+    // Similar's spec fill, and its dot color for the border and the pointer
+    expect(await tooltipColors(plugin))
+      .toEqual({ fill: "rgb(192, 207, 255)", border: "rgb(81, 105, 255)", pointer: "rgb(81, 105, 255)" });
+    const fit = await tooltipFit(point(plugin, kIsolatedDot));
+    expectTipOnDot(fit);
+    expect(fit.side).toBe("right");
+    expect(fit.inside).toBe(true);
+    expect(Math.round(fit.height)).toBe(24);
+
+    const empty = await onPage(plugin, await emptySpot(plugin));
+    await page.mouse.move(empty.x, empty.y);
+    await expect(tooltip(plugin)).toHaveCount(0);
+
+    await hoverPoint(page, plugin, point(plugin, kUnlabeledDot));
+    await expect(tooltip(plugin)).toHaveText(kUnlabeledDot);
+    expect(await tooltipColors(plugin))
+      .toEqual({ fill: "rgb(209, 209, 209)", border: "rgb(148, 148, 148)", pointer: "rgb(148, 148, 148)" });
+  });
+
+test("puts the tooltip on the left of a dot near the plot's right edge, inside the graph area", async ({ page }) => {
+  const plugin = await openFlatPlot(page);
+  await hoverPoint(page, plugin, point(plugin, kRightEdgeDot));
+  await expect(tooltip(plugin)).toHaveText(kRightEdgeDot);
+  const fit = await tooltipFit(point(plugin, kRightEdgeDot));
+  expect(fit.side).toBe("left");
+  expectTipOnDot(fit);
+  expect(fit.inside).toBe(true);
+});
+
+test("narrows a long phrase's tooltip over a dot near the middle, so it fits beside the dot", async ({ page }) => {
+  const plugin = await openFlatPlot(page);
+  await hoverPoint(page, plugin, point(plugin, kMiddleDot));
+  await expect(tooltip(plugin)).toHaveText(kMiddleDot);
+  const fit = await tooltipFit(point(plugin, kMiddleDot));
+  // Too wide on one line for either side of a central dot, so it wraps to two
+  expect(fit.width).toBeLessThan(150);
+  expect(Math.round(fit.height)).toBe(40);
+  expectTipOnDot(fit);
+  expect(fit.inside).toBe(true);
+});
+
+test("shows a test phrase in the test-phrase colors, and cuts a long one short at 240px and two lines",
+  async ({ page }) => {
+    const plugin = await openFlatPlot(page);
+    // Wide enough that a 240px box fits beside any point
+    await resizeTileBy(page, 260, 0);
+    await expect.poll(async () => (await plotLayout(plugin)).left).toBeGreaterThan(100);
+
+    await enterTestPhrase(plugin, 0, kTestPhrases[0].text);
+    await hoverPoint(page, plugin, symbolPoint(plugin, 0));
+    await expect(tooltip(plugin)).toHaveText(kTestPhrases[0].text);
+    expect(await tooltipColors(plugin))
+      .toEqual({ fill: "rgb(203, 203, 255)", border: "rgb(46, 0, 127)", pointer: "rgb(46, 0, 127)" });
+    // The square reaches 6.65px from its center: the tip is 0.65px further out than on a dot
+    const square = await tooltipFit(symbolPoint(plugin, 0));
+    expect(Math.abs(square.tipX)).toBeCloseTo(1.65, 1);
+    expect(square.tipY).toBeCloseTo(0, 1);
+
+    const long = `${"people in every country ".repeat(11)}agree`.slice(0, 255);
+    await enterTestPhrase(plugin, 1, long);
+    await hoverPoint(page, plugin, symbolPoint(plugin, 1));
+    await expect(tooltip(plugin)).toHaveText(long);
+    const fit = await tooltipFit(symbolPoint(plugin, 1));
+    expect(fit.width).toBeCloseTo(240, 0);
+    expect(fit.height).toBeCloseTo(40, 0);
+    // The text runs past the two lines shown, which end in an ellipsis
+    expect(await plugin.getByTestId("point-tooltip-text").evaluate(text =>
+      ({ isCut: text.scrollHeight > text.clientHeight, lines: getComputedStyle(text).webkitLineClamp })))
+      .toEqual({ isCut: true, lines: "2" });
+  });
+
+test("shows the tooltip for the point the arrow keys reach, and moves it with them", async ({ page }) => {
+  const plugin = await openFlatPlot(page);
+  await tabToPlot(plugin);
+  await expect(tooltip(plugin)).toHaveCount(0);
+  const focusedPhrase = () => plugin.locator(".graph-plot .point:focus").evaluate(p =>
+    (p.getAttribute("aria-label") ?? "").replace(/, [^,]*$/, ""));
+  await page.keyboard.press("ArrowRight");
+  const first = await focusedPhrase();
+  await expect(tooltip(plugin)).toHaveText(first);
+  await page.keyboard.press("ArrowRight");
+  const second = await focusedPhrase();
+  expect(second).not.toBe(first);
+  await expect(tooltip(plugin)).toHaveText(second);
+  expectTipOnDot(await tooltipFit(plugin.locator(".graph-plot .point:focus")));
+});
+
+test("shows no tooltip during a drag, and places it at the dot's new position after", async ({ page }) => {
+  const plugin = await openFlatPlot(page);
+  await zoomButton(plugin, "Zoom in").click();
+  const before = await centerOf(point(plugin, kMiddleDot));
+  await expect.poll(async () => (await centerOf(point(plugin, kMiddleDot))).y).not.toBeCloseTo(189, 0);
+
+  const start = await onPage(plugin, await emptySpot(plugin));
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 20, start.y, { steps: 5 });
+  await expect(plugin.locator(".graph-plot")).toHaveAttribute("data-dragging", "true");
+  await expect(tooltip(plugin)).toHaveCount(0);
+  await page.mouse.move(start.x + 40, start.y, { steps: 5 });
+  await page.mouse.up();
+  await expect.poll(async () => (await centerOf(point(plugin, kMiddleDot))).x - before.x).toBeCloseTo(40, 0);
+
+  await hoverPoint(page, plugin, point(plugin, kMiddleDot));
+  await expect(tooltip(plugin)).toHaveText(kMiddleDot);
+  expectTipOnDot(await tooltipFit(point(plugin, kMiddleDot)));
+});
+
+test.describe("tooltips with a touch screen", () => {
+  test.use({ hasTouch: true });
+
+  test("shows a tapped dot's tooltip until a tap elsewhere", async ({ page }) => {
+    const plugin = await openFlatPlot(page);
+    const cdp = await page.context().newCDPSession(page);
+    // A real touch, as a finger gives
+    const tap = async (at: { x: number, y: number }) => {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] });
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    };
+    const tapPoint = async (phrase: string) => tap(await onPage(plugin, await centerOf(point(plugin, phrase))));
+
+    await tapPoint(kIsolatedDot);
+    await expect(point(plugin, kIsolatedDot)).toBeFocused();
+    await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
+    await expect.poll(() => pressedPhrases(plugin)).toEqual([kIsolatedDot]);
+
+    await tapPoint(kUnlabeledDot);
+    await expect(point(plugin, kUnlabeledDot)).toBeFocused();
+    await expect(tooltip(plugin)).toHaveText(kUnlabeledDot);
+    await expect.poll(() => pressedPhrases(plugin)).toEqual([kUnlabeledDot]);
+
+    await tap(await onPage(plugin, await emptySpot(plugin)));
+    await expect(tooltip(plugin)).toHaveCount(0);
+    await expect(plot(plugin)).toBeFocused();
+    await expect.poll(() => pressedPhrases(plugin)).toEqual([]);
+
+    await tapPoint(kIsolatedDot);
+    await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
+    await tap(await boxCenter(zoomButton(plugin, "Zoom in")));
+    await expect(tooltip(plugin)).toHaveCount(0);
+  });
+});
+
+test("keeps the tooltip inside a narrow graph area", async ({ page }) => {
+  const plugin = await openFlatPlot(page);
+  await resizeTileBy(page, -120, 0);
+  await expect.poll(async () => (await plotLayout(plugin)).area.width).toBeLessThan(200);
+  const { area } = await plotLayout(plugin);
+
+  // Near the right edge: narrowed to the room on the left, with the pointer on the dot
+  await hoverPoint(page, plugin, point(plugin, kRightEdgeDot));
+  await expect(tooltip(plugin)).toHaveText(kRightEdgeDot);
+  const edge = await tooltipFit(point(plugin, kRightEdgeDot));
+  expect(edge.inside).toBe(true);
+  expect(edge.width).toBeLessThan(area.width - 8);
+  expectTipOnDot(edge);
+
+  // Near the middle, under 80px each side: the box stays inside and the pointer's tip falls short of the dot
+  await hoverPoint(page, plugin, point(plugin, kMiddleDot));
+  await expect(tooltip(plugin)).toHaveText(kMiddleDot);
+  const middle = await tooltipFit(point(plugin, kMiddleDot));
+  expect(middle.inside).toBe(true);
+  expect(Math.abs(middle.tipX)).toBeGreaterThan(5);
+  expect(middle.tipY).toBeCloseTo(0, 1);
+});
+
+test("has no accessibility violations with a tooltip showing", async ({ page }) => {
+  const plugin = await openFlatPlot(page);
+  await hoverPoint(page, plugin, point(plugin, kIsolatedDot));
+  await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
+  expect(await axeViolations(page)).toEqual([]);
 });
