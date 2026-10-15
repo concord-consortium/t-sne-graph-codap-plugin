@@ -51,8 +51,8 @@ export const placePhrase = (
 ): IPhrasePlacement | "no-words" => {
   const query = vectorize(layout.model, phrase);
   if (isZero(query)) return "no-words";
+  // A word in the query is in some row too, so a row is found
   const neighborIndex = nearestRow(layout.matrix, query);
-  if (neighborIndex < 0) return "no-words";
 
   const randn = gaussian(mulberry32(slotSeed(seed, slot)));
   const jitterX = kJitterStandardDeviation * randn();

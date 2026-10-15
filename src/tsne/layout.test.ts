@@ -260,6 +260,14 @@ describe("offsetFromNeighbor", () => {
       expect(angleOf(result)).toBeCloseTo(120, 6);
     });
 
+    it("takes the earliest of two ring points with the same clearance", () => {
+      // Dots on every ring point but ±15°, placed in mirror pairs so the two tie exactly
+      const others = [0, 180, 30, -30, 45, -45, 60, -60, 75, -75, 90, -90, 105, -105, 120, -120, 135, -135,
+        150, -150, 165, -165].map(ring);
+      // +15° is visited first
+      expect(angleOf(offsetFromNeighbor(neighbor, neighbor, right, bounds, others))).toBeCloseTo(15, 6);
+    });
+
     it("skips ring points outside the area and ring points on other dots, near a corner", () => {
       // Pushed left, out of the bottom-left corner: straight up is the first ring point inside, and a
       // dot sits there, so the search goes on to the first point inside and clear of it, at −30°

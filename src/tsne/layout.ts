@@ -153,13 +153,8 @@ export const offsetFromNeighbor = (
   }
 
   // A tiny plot: no candidate is inside
-  const outside = (value: number, min: number, max: number) => value < min || value > max;
-  const x = neighbor.x + kMinNeighborOffsetPx * direction.dx;
-  const y = neighbor.y + kMinNeighborOffsetPx * direction.dy;
-  const dx = outside(x, bounds.left, bounds.right) ? -direction.dx : direction.dx;
-  const dy = outside(y, bounds.top, bounds.bottom) ? -direction.dy : direction.dy;
   return clampToBounds({
-    x: neighbor.x + kMinNeighborOffsetPx * dx,
-    y: neighbor.y + kMinNeighborOffsetPx * dy
+    x: neighbor.x + kMinNeighborOffsetPx * direction.dx,
+    y: neighbor.y + kMinNeighborOffsetPx * direction.dy
   }, bounds);
 };
