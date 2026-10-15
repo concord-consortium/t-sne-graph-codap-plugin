@@ -451,6 +451,27 @@ describe("view", () => {
       expect(x.some(position => position > right)).toBe(true);
     });
 
+    it.each([square, wide])("draws each line where the view draws its place in the data, on $width x $height",
+      size => {
+        // Zoomed and panned on both axes, so the padding term and the y flip both matter
+        const view: IView = { zoomLevel: 2, centerX: 0.4, centerY: 0.3 };
+        const inner = { width: size.width - 2 * kGraphPadding, height: size.height - 2 * kGraphPadding };
+        // Fit-view line i is at i / 8 of the plot; drawn where the view puts that unit-square point
+        const expected = (length: number, toPixel: (i: number) => number) => {
+          const lines: number[] = [];
+          for (let i = -50; i <= 50; i++) {
+            const pixel = Math.round(toPixel(i));
+            if (pixel > 0 && pixel < length) lines.push(pixel + 0.5);
+          }
+          return lines;
+        };
+        const xs = expected(size.width, i => toPixels(
+          applyView({ x: (i * size.width / 8 - kGraphPadding) / inner.width, y: 0.5 }, view), size).x);
+        const ys = expected(size.height, i => toPixels(
+          applyView({ x: 0.5, y: 1 - (i * size.height / 8 - kGraphPadding) / inner.height }, view), size).y);
+        expect(gridLines(size, view)).toEqual({ x: xs, y: ys });
+      });
+
     it("moves the lines with a pan", () => {
       const panned = gridLines(square, { zoomLevel: 0, centerX: 0.6, centerY: 0.5 }).x;
       // 0.1 of the 276px padded width

@@ -92,6 +92,19 @@ describe("Graph", () => {
       expect(screen.getByTestId("grid")).toHaveAttribute("aria-hidden", "true");
     });
 
+    it("gives each grid line its own key, even when lines share a pixel on a tiny plot", () => {
+      jest.mocked(HTMLElement.prototype.getBoundingClientRect).mockReturnValue(
+        { width: 7, height: 7, x: 0, y: 0, top: 0, left: 0, right: 7, bottom: 7, toJSON: () => undefined });
+      const consoleError = jest.spyOn(console, "error").mockImplementation(() => undefined);
+      renderGraph(store);
+      const positions = screen.getAllByTestId("grid-line").map(line => line.getAttribute("x1"));
+      // Two lines at the same pixel
+      expect(new Set(positions.slice(0, 7)).size).toBeLessThan(7);
+      const keyWarnings = consoleError.mock.calls.filter(([message]) => String(message).includes("same key"));
+      consoleError.mockRestore();
+      expect(keyWarnings).toEqual([]);
+    });
+
     it("draws one 12px dot per point, in its label's color, inside the 12px padding", () => {
       renderGraph(store);
       expect(pointPhrases()).toEqual(kPhrases);

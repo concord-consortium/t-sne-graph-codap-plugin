@@ -363,10 +363,10 @@ export const Graph = observer(() => {
         }}
       >
         <g className="grid" data-testid="grid" aria-hidden="true">
-          {grid.x.map(x =>
-            <line key={`x${x}`} data-testid="grid-line" x1={x} x2={x} y1={0} y2={size.height} />)}
-          {grid.y.map(y =>
-            <line key={`y${y}`} data-testid="grid-line" x1={0} x2={size.width} y1={y} y2={y} />)}
+          {grid.x.map((x, i) =>
+            <line key={`x${i}`} data-testid="grid-line" x1={x} x2={x} y1={0} y2={size.height} />)}
+          {grid.y.map((y, i) =>
+            <line key={`y${i}`} data-testid="grid-line" x1={0} x2={size.width} y1={y} y2={y} />)}
         </g>
         {points.map(point => {
           const { x, y } = viewPixels(point, view, size);
