@@ -113,6 +113,31 @@ describe("ZoomControls", () => {
     expect(announcement()).toHaveTextContent(/^Zoom 100%$/);
   });
 
+  describe("a repeated message is a new node, so screen readers hear it again", () => {
+    it("after the view is reset elsewhere, as by a Phrase Column change", async () => {
+      const user = userEvent.setup();
+      renderControls(store);
+      await user.click(zoomIn());
+      const first = within(announcement()).getByText("Zoom 150%");
+      act(() => store.resetView());
+      await user.click(zoomIn());
+      const second = within(announcement()).getByText("Zoom 150%");
+      expect(second).not.toBe(first);
+      expect(first).not.toBeInTheDocument();
+    });
+
+    it("after a pan between two Fit all clicks", async () => {
+      const user = userEvent.setup();
+      store.panTo(0.4, 0.5);
+      renderControls(store);
+      await user.click(fitAll());
+      const first = within(announcement()).getByText("Zoom 100%, whole plot");
+      act(() => store.panTo(0.3, 0.5));
+      await user.click(fitAll());
+      expect(within(announcement()).getByText("Zoom 100%, whole plot")).not.toBe(first);
+    });
+  });
+
   it("works from the keyboard", async () => {
     const user = userEvent.setup();
     renderControls(store);

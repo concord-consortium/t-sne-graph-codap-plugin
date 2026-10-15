@@ -31,12 +31,13 @@ const ZoomButton = ({ label, isDisabled, onPress, children }: IZoomButtonProps) 
 /** Zoom in, zoom out and fit all, in the graph area's top-left corner. */
 export const ZoomControls = observer(() => {
   const store = useStore();
-  const [announcement, setAnnouncement] = useState("");
+  // A new key per click makes a new node, which the live region announces even when the text repeats
+  const [announcement, setAnnouncement] = useState({ text: "", key: 0 });
   const { hasGraph } = store;
 
   const act = (action: () => void) => () => {
     action();
-    setAnnouncement(zoomAnnouncement(store));
+    setAnnouncement(({ key }) => ({ text: zoomAnnouncement(store), key: key + 1 }));
   };
 
   return (
@@ -50,7 +51,9 @@ export const ZoomControls = observer(() => {
       <ZoomButton label="Fit all" isDisabled={!hasGraph || store.isFitView} onPress={act(store.fitAll)}>
         <FitAllIcon className="zoom-icon" aria-hidden="true" />
       </ZoomButton>
-      <p className="visually-hidden" aria-live="polite" data-testid="zoom-announcement">{announcement}</p>
+      <p className="visually-hidden" aria-live="polite" data-testid="zoom-announcement">
+        <span key={announcement.key}>{announcement.text}</span>
+      </p>
     </div>
   );
 });
