@@ -5,11 +5,12 @@ import { observer } from "mobx-react-lite";
 import { Point, TestPhrasePoint } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
+import { kTestPhraseColor } from "../tsne/labels";
 import {
   applyView, directionToPixels, gridLines, IPosition, ISize, IView, offsetFromNeighbor, paddedBounds, panToInclude,
   toPixels, worldBounds
 } from "../tsne/layout";
-import { kPlotSymbolExtents, kTestPhraseColor, symbolName, symbolPath, symbolReach } from "./phrase-symbol";
+import { kPlotSymbolExtents, symbolName, symbolPath, symbolReach } from "./phrase-symbol";
 import { ZoomControls } from "./zoom-controls";
 import "./graph.scss";
 

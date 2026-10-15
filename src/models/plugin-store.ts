@@ -2,7 +2,7 @@ import { Instance, SnapshotIn, types } from "mobx-state-tree";
 import {
   clampView, IDirection, IPosition, IView, kFitView, kMaxZoomLevel, kMinZoomLevel, scaleForLevel
 } from "../tsne/layout";
-import { groupLabels, ILabelEntry, kUnlabeled, kUnlabeledColor } from "../tsne/labels";
+import { groupLabels, ILabelEntry, kUnlabeled, kUnlabeledColor, tooltipFill } from "../tsne/labels";
 import { randomSeed } from "../tsne/random";
 
 // A table in the CODAP document, as listed by getListOfDataContexts
@@ -234,6 +234,11 @@ export const PluginStore = types
     },
     labelForCase(caseId: string) {
       return self.entryByCaseId.get(caseId)?.label ?? kUnlabeled;
+    }
+  }))
+  .views(self => ({
+    tooltipFillForCase(caseId: string) {
+      return tooltipFill(self.colorForCase(caseId));
     }
   }))
   .actions(self => {

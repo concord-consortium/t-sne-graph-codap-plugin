@@ -1,7 +1,6 @@
 import React from "react";
 import { PhraseSymbol } from "../models/plugin-store";
-
-export const kTestPhraseColor = "#2e007f";
+import { kTestPhraseColor } from "../tsne/labels";
 
 // Larger side in px. The triangle and star overflow the box slightly; it doesn't clip.
 export const kButtonSymbolBox = 16;

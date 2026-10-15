@@ -412,6 +412,20 @@ describe("PluginStore plot data", () => {
     expect(store.labelForCase("99")).toBe("Unlabeled");
   });
 
+  it("gives each case its label's tooltip fill, the Unlabeled one for a blank or unknown case", () => {
+    const store = graphStore();
+    expect(kCaseIds.map(caseId => store.tooltipFillForCase(caseId)))
+      .toEqual(["#c0cfff", "#ffbfb2", "#c0cfff", "#d1d1d1"]);
+    expect(store.tooltipFillForCase("99")).toBe("#d1d1d1");
+  });
+
+  it("mixes a tooltip fill for a fifth label", () => {
+    const store = graphStore();
+    store.setCases(["a", "b", "c", "d", "e"].map((label, i) =>
+      ({ caseId: `${i + 1}`, values: { phrase: `phrase ${i}`, label } })));
+    expect(store.tooltipFillForCase("5")).toBe(`color-mix(in srgb, ${kLabelColors[4]} 35%, white)`);
+  });
+
   it("recolors at once when the Label Column changes", () => {
     const store = graphStore();
     store.setLabelAttribute(undefined);

@@ -1,10 +1,9 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { kPhraseSymbols, PhraseSymbol } from "../models/plugin-store";
+import { kTestPhraseColor } from "../tsne/labels";
 import { kMinNeighborOffsetPx } from "../tsne/layout";
-import {
-  kButtonSymbolExtents, kPlotSymbolExtents, kTestPhraseColor, PhraseSymbolIcon, symbolPath, symbolReach
-} from "./phrase-symbol";
+import { kButtonSymbolExtents, kPlotSymbolExtents, PhraseSymbolIcon, symbolPath, symbolReach } from "./phrase-symbol";
 
 // The [x, y] points of an "M x yL x y…Z" path
 const points = (path: string) =>
