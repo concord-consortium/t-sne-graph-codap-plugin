@@ -64,6 +64,14 @@
   .active-point {
     pointer-events: none;
   }
+
+  // Mitered rings would spike far past the triangle's and star's points
+  .test-phrase-point path {
+    stroke-linejoin: miter;
+  }
+  .test-phrase-point:is([data-symbol="triangle"], [data-symbol="star"]) path {
+    stroke-linejoin: round;
+  }
 }
 
 .graph-status {

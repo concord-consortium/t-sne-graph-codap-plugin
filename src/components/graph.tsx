@@ -2,10 +2,11 @@ import React, {
   KeyboardEvent, MouseEvent, useEffect, useId, useLayoutEffect, useMemo, useRef, useState
 } from "react";
 import { observer } from "mobx-react-lite";
-import { Point } from "../models/plugin-store";
+import { Point, TestPhrasePoint } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
-import { clearCodapSelection, selectPoint } from "../models/selection-sync";
-import { ISize, toPixels } from "../tsne/layout";
+import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
+import { directionToPixels, IPosition, ISize, offsetFromNeighbor, paddedBounds, toPixels } from "../tsne/layout";
+import { kPlotSymbolExtents, kTestPhraseColor, symbolName, symbolPath, symbolReach } from "./phrase-symbol";
 import "./graph.scss";
 
 const kGridCells = 8;
@@ -16,11 +17,22 @@ const kOutlineRadius = kPointRadius + 0.5;
 const kSelectionRingRadius = kPointRadius + 2;
 const kSelectionEdgeRadius = kPointRadius + 3.5;
 const kFocusRingRadius = kPointRadius + 5;
+// Symbol rings are its path stroked; half of each width lands outside. Set inline, or the dots' CSS
+// widths win.
+const kSymbolOutlineWidth = 2;
+const kSymbolRingWidth = 6;
+const kSymbolEdgeWidth = 8;
+const kSymbolFocusOuterWidth = 12;
+
+const caseKey = (caseId: string) => `case:${caseId}`;
+const slotKey = (slot: number) => `slot:${slot}`;
+const slotFromKey = (key: string) => key.startsWith("slot:") ? Number(key.slice(5)) : undefined;
 
 export const kTooFewMessage = "Add at least 4 phrases to see the plot.";
 export const kErrorMessage = "Something went wrong while making the plot.";
 export const kKeyboardHelp =
-  "Arrow keys, Home and End move between phrases. Enter selects; Shift+Enter adds or removes; Escape clears.";
+  "Arrow keys, Home and End move between phrases, then test phrases. " +
+  "Enter selects; Shift+Enter adds or removes; Escape clears.";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
@@ -56,8 +68,10 @@ const PointMarks = ({ color, selected }: IPointMarksProps) => (
   </>
 );
 
+/** One Tab stop; arrow keys move through the case points, then the test phrases. */
 export const Graph = observer(() => {
   const store = useStore();
+  const maskIdPrefix = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const helpId = useId();
@@ -66,11 +80,11 @@ export const Graph = observer(() => {
   // A square centered in the area, at whole pixels so the grid lines stay sharp; the bands around it
   // are the area's background
   const side = Math.floor(Math.min(area.width, area.height));
-  const size = { width: side, height: side };
+  const size = useMemo(() => ({ width: side, height: side }), [side]);
   const offset = { left: Math.floor((area.width - side) / 2), top: Math.floor((area.height - side) / 2) };
 
-  // Remembered while a recompute empties the plot, so focus can return to the same case
-  const [activeCaseId, setActiveCaseId] = useState<string>();
+  // Kept while a recompute empties the plot, so focus can return
+  const [activeKey, setActiveKey] = useState<string>();
   const focusWithin = useRef(false);
   // Set when a recompute removed the focused point, until focus is back on a point
   const restoringFocus = useRef(false);
@@ -86,16 +100,22 @@ export const Graph = observer(() => {
     });
     return ordered;
   }, [store.points, store.rows]);
-  const caseIds = useMemo(() => points.map(point => point.caseId), [points]);
   const phrases = useMemo(() => new Map(store.rows.map(row => [row.caseId, row.phrase])), [store.rows]);
-  const activeExists = activeCaseId !== undefined && caseIds.includes(activeCaseId);
+  const testPoints = useMemo(
+    () => store.testPhrasePoints.filter(point => store.placedSlots.has(point.slot)).sort((a, b) => a.slot - b.slot),
+    [store.testPhrasePoints, store.placedSlots]);
+  const keys = useMemo(
+    () => [...points.map(point => caseKey(point.caseId)), ...testPoints.map(point => slotKey(point.slot))],
+    [points, testPoints]);
+  const activeExists = activeKey !== undefined && keys.includes(activeKey);
 
-  // If the remembered case is gone, use the first point
+  // If the remembered point is gone while focus is in the plot, use the first point. From outside,
+  // keep it: a test phrase's point is only hidden while its field is edited, and comes back.
   useEffect(() => {
-    if (activeCaseId !== undefined && caseIds.length > 0 && !caseIds.includes(activeCaseId)) {
-      setActiveCaseId(caseIds[0]);
+    if (focusWithin.current && activeKey !== undefined && keys.length > 0 && !keys.includes(activeKey)) {
+      setActiveKey(keys[0]);
     }
-  }, [activeCaseId, caseIds]);
+  }, [activeKey, keys]);
 
   // When a recompute removes the focused point, hold focus on the plot, then return it to the
   // active point. Focus the user put on the plot stays there.
@@ -104,36 +124,42 @@ export const Graph = observer(() => {
     if (!focusWithin.current || !svg) return;
     const focusLost = !svg.contains(document.activeElement);
     if (!focusLost && !restoringFocus.current) return;
-    const target = activeExists ? pointRefs.current.get(activeCaseId) : svg;
+    const target = activeExists ? pointRefs.current.get(activeKey) : svg;
     if (target && document.activeElement !== target) target.focus();
     restoringFocus.current = !activeExists;
   });
 
-  const moveTo = (caseId: string | undefined) => {
-    if (caseId === undefined) return;
-    setActiveCaseId(caseId);
-    pointRefs.current.get(caseId)?.focus();
+  const moveTo = (key: string | undefined) => {
+    if (key === undefined) return;
+    setActiveKey(key);
+    pointRefs.current.get(key)?.focus();
+  };
+
+  const select = (key: string, extend: boolean) => {
+    const slot = slotFromKey(key);
+    if (slot !== undefined) selectTestPhrase(store, slot, extend);
+    else selectPoint(store, key.slice("case:".length), extend);
   };
 
   const handleKeyDown = (event: KeyboardEvent<SVGSVGElement>) => {
     // Leave shortcuts such as Alt+Arrow to the browser
     if (event.altKey || event.ctrlKey || event.metaKey) return;
-    const index = activeExists ? caseIds.indexOf(activeCaseId) : -1;
-    const last = caseIds.length - 1;
+    const index = activeExists ? keys.indexOf(activeKey) : -1;
+    const last = keys.length - 1;
     switch (event.key) {
       case "ArrowRight":
       case "ArrowDown":
-        moveTo(caseIds[index < 0 ? 0 : Math.min(index + 1, last)]);
+        moveTo(keys[index < 0 ? 0 : Math.min(index + 1, last)]);
         break;
       case "ArrowLeft":
       case "ArrowUp":
-        moveTo(caseIds[index < 0 ? last : Math.max(index - 1, 0)]);
+        moveTo(keys[index < 0 ? last : Math.max(index - 1, 0)]);
         break;
       case "Home":
-        moveTo(caseIds[0]);
+        moveTo(keys[0]);
         break;
       case "End":
-        moveTo(caseIds[last]);
+        moveTo(keys[last]);
         break;
       case "Enter":
       case " ":
@@ -141,7 +167,7 @@ export const Graph = observer(() => {
         if (event.repeat) break;
         // These keys on the plot itself select nothing
         if (event.target === svgRef.current || !activeExists) return;
-        selectPoint(store, activeCaseId, event.shiftKey);
+        select(activeKey, event.shiftKey);
         break;
       case "Escape":
         clearCodapSelection(store);
@@ -158,19 +184,47 @@ export const Graph = observer(() => {
     if (!event.shiftKey) clearCodapSelection(store);
   };
 
-  const handlePointClick = (event: MouseEvent<SVGGElement>, caseId: string) => {
+  const handlePointClick = (event: MouseEvent<SVGGElement>, key: string) => {
     event.stopPropagation();
-    setActiveCaseId(caseId);
-    selectPoint(store, caseId, event.shiftKey);
+    setActiveKey(key);
+    select(key, event.shiftKey);
   };
 
-  const activePoint = activeExists ? points.find(point => point.caseId === activeCaseId) : undefined;
+  const pointRef = (key: string) => (element: SVGGElement | null) => {
+    if (element) pointRefs.current.set(key, element);
+    else pointRefs.current.delete(key);
+  };
+
+  // In slot order: each symbol keeps clear of every dot and of the lower slots' symbols. Includes the
+  // hidden slot being edited, so the others don't move into its place meanwhile.
+  const testPointPixels = useMemo(() => {
+    const bounds = paddedBounds(size);
+    const casePixels = store.points.map(point => ({ caseId: point.caseId, ...toPixels(point, size) }));
+    const placed = new Map<number, IPosition>();
+    store.testPhrasePoints.slice().sort((a, b) => a.slot - b.slot).forEach((point: TestPhrasePoint) => {
+      const pixels = toPixels(point, size);
+      const neighbor = casePixels.find(({ caseId }) => caseId === point.neighborCaseId);
+      if (!neighbor) {
+        placed.set(point.slot, { x: Math.min(bounds.right, Math.max(bounds.left, pixels.x)),
+          y: Math.min(bounds.bottom, Math.max(bounds.top, pixels.y)) });
+        return;
+      }
+      const others = [...casePixels.filter(({ caseId }) => caseId !== point.neighborCaseId), ...placed.values()];
+      placed.set(point.slot,
+        offsetFromNeighbor(neighbor, pixels, directionToPixels(point.direction, size), bounds, others));
+    });
+    return placed;
+  }, [store.points, store.testPhrasePoints, size]);
+
+  // A test phrase is drawn after the case points, so only a case point needs drawing again on top
+  const activePoint = activeExists ? points.find(point => caseKey(point.caseId) === activeKey) : undefined;
   const activePixels = activePoint && toPixels(activePoint, size);
   const hasPoints = points.length > 0;
   const hasLabels = store.labelAttributeName !== undefined;
+  const testPhraseCount = testPoints.length > 0 ? ` and ${plural(testPoints.length, "test phrase")}` : "";
   const label = !hasPoints ? "t-SNE plot"
-    : hasLabels ? `t-SNE plot of ${plural(points.length, "phrase")} in ${plural(store.labelEntries.length, "label")}`
-    : `t-SNE plot of ${plural(points.length, "phrase")}`;
+    : (hasLabels ? `t-SNE plot of ${plural(points.length, "phrase")} in ${plural(store.labelEntries.length, "label")}`
+      : `t-SNE plot of ${plural(points.length, "phrase")}`) + testPhraseCount;
   const pointName = (caseId: string) => {
     const phrase = phrases.get(caseId) ?? caseId;
     return hasLabels ? `${phrase}, ${store.labelForCase(caseId)}` : phrase;
@@ -218,21 +272,19 @@ export const Graph = observer(() => {
         {points.map(point => {
           const { x, y } = toPixels(point, size);
           const selected = store.isSelected(point.caseId);
+          const key = caseKey(point.caseId);
           return (
             <g
-              key={point.caseId}
-              ref={element => {
-                if (element) pointRefs.current.set(point.caseId, element);
-                else pointRefs.current.delete(point.caseId);
-              }}
+              key={key}
+              ref={pointRef(key)}
               className="point"
               transform={`translate(${x} ${y})`}
               role="button"
               aria-label={pointName(point.caseId)}
               aria-pressed={selected}
-              tabIndex={point.caseId === activeCaseId ? 0 : -1}
-              onClick={event => handlePointClick(event, point.caseId)}
-              onFocus={() => setActiveCaseId(point.caseId)}
+              tabIndex={key === activeKey ? 0 : -1}
+              onClick={event => handlePointClick(event, key)}
+              onFocus={() => setActiveKey(key)}
             >
               <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
               <PointMarks color={store.colorForCase(point.caseId)} selected={selected} />
@@ -248,6 +300,54 @@ export const Graph = observer(() => {
               selected={store.isSelected(activePoint.caseId)} />
           </g>
         )}
+        {testPoints.map(point => {
+          const { x, y } = testPointPixels.get(point.slot) ?? { x: 0, y: 0 };
+          const selected = store.isSlotSelected(point.slot);
+          const symbol = store.symbolForSlot(point.slot);
+          const extent = kPlotSymbolExtents[symbol];
+          const path = symbolPath(symbol, extent);
+          const key = slotKey(point.slot);
+          const maskId = `${maskIdPrefix}-focus-${point.slot}`;
+          // The focus ring's reach, plus 1px: half the stroke past the path, or up to √2 times that at a
+          // mitered 90° corner. Too big is harmless.
+          const maskSize = 2 * (symbolReach(symbol, extent) + kSymbolFocusOuterWidth / 2 * Math.SQRT2 + 1);
+          const maskOrigin = -maskSize / 2;
+          return (
+            <g
+              key={key}
+              ref={pointRef(key)}
+              className="point test-phrase-point"
+              transform={`translate(${x} ${y})`}
+              role="button"
+              aria-label={`${symbolName(symbol)} test phrase: ${store.testPhrases[point.slot]}`}
+              aria-pressed={selected}
+              tabIndex={key === activeKey ? 0 : -1}
+              data-symbol={symbol}
+              data-testid="test-phrase-point"
+              onClick={event => handlePointClick(event, key)}
+              onFocus={() => setActiveKey(key)}
+            >
+              <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
+              {selected && <path className="selection-edge" data-testid="selection-edge" d={path}
+                style={{ strokeWidth: kSymbolEdgeWidth }} />}
+              {selected && <path className="selection-ring" data-testid="selection-ring" d={path}
+                style={{ strokeWidth: kSymbolRingWidth }} />}
+              <path className="dot-outline" data-testid="dot-outline" d={path}
+                style={{ strokeWidth: kSymbolOutlineWidth }} />
+              <path className="symbol" data-testid="symbol" d={path} fill={kTestPhraseColor} />
+              {/* Focus ring: 4–6px outside the symbol's edges, a wide stroke with its inner part masked out */}
+              <mask id={maskId} data-testid="focus-mask" maskUnits="userSpaceOnUse" x={maskOrigin} y={maskOrigin}
+                width={maskSize} height={maskSize}>
+                <path d={path} fill="white" stroke="white" strokeWidth={kSymbolFocusOuterWidth}
+                  data-testid="focus-mask-outer" />
+                <path d={path} fill="black" stroke="black" strokeWidth={kSymbolEdgeWidth}
+                  data-testid="focus-mask-inner" />
+              </mask>
+              <path className="focus-ring" data-testid="focus-ring" d={path} mask={`url(#${maskId})`}
+                style={{ strokeWidth: kSymbolFocusOuterWidth }} />
+            </g>
+          );
+        })}
       </svg>
       <p className="visually-hidden" id={helpId}>{kKeyboardHelp}</p>
       <p className="graph-status" role="status" aria-live="polite">{message}</p>

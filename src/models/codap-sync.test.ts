@@ -8,7 +8,7 @@ import { IPluginStore, PluginStore } from "./plugin-store";
 jest.mock("@concord-consortium/codap-plugin-api", () => ({
   addDataContextChangeListener: jest.fn(),
   addDataContextsListListener: jest.fn(),
-  codapInterface: { init: jest.fn(), on: jest.fn() },
+  codapInterface: { init: jest.fn(), on: jest.fn(), sendRequest: jest.fn() },
   getAttributeList: jest.fn(),
   getCollectionList: jest.fn(),
   getListOfDataContexts: jest.fn(),
@@ -134,6 +134,7 @@ describe("startCodapSync", () => {
     columnIds = new Map();
     fakeCodap();
     api.codapInterface.init.mockResolvedValue(undefined);
+    api.codapInterface.sendRequest.mockResolvedValue({ success: true });
     store = PluginStore.create();
   });
 
@@ -162,7 +163,8 @@ describe("startCodapSync", () => {
     init.resolve(savedSelections);
     await started;
     expect(stateHandler()()).toEqual({
-      success: true, values: { version: 1, ...savedSelections, phraseAttributeId: "2", labelAttributeId: "1" }
+      success: true, values: { version: 1, ...savedSelections, phraseAttributeId: "2", labelAttributeId: "1",
+        testPhrases: ["", "", "", "", ""] }
     });
   });
 
@@ -197,6 +199,46 @@ describe("startCodapSync", () => {
     // Once the user chooses a table, the store is what gets saved
     store.setDataContext("Phrases");
     expect(stateHandler()()).toEqual({ success: true, values: getSnapshot(store) });
+  });
+
+  describe("marking the document changed", () => {
+    const kDirty = { action: "notify", resource: "interactiveFrame", values: { dirty: true } };
+    const dirtyRequests = () => api.codapInterface.sendRequest.mock.calls.filter(([message]) =>
+      JSON.stringify(message) === JSON.stringify(kDirty));
+
+    it("doesn't while restoring and fetching, even as the fetches fill in the saved state", async () => {
+      api.codapInterface.init.mockResolvedValue(savedSelections);
+      await startCodapSync(store);
+      await flush();
+      // The fetches added the columns' IDs
+      expect(store.phraseAttributeId).toBe("2");
+      expect(dirtyRequests()).toHaveLength(0);
+    });
+
+    it("does when a selection or a test phrase changes after startup", async () => {
+      await startCodapSync(store);
+      store.setDataContext("Phrases");
+      expect(dirtyRequests().length).toBeGreaterThan(0);
+      api.codapInterface.sendRequest.mockClear();
+      store.setTestPhrase(0, "the cat");
+      expect(dirtyRequests()).toHaveLength(1);
+    });
+
+    it("logs CODAP's reason when it refuses", async () => {
+      api.codapInterface.sendRequest.mockResolvedValue({ success: false, values: { error: "busy" } });
+      await startCodapSync(store);
+      store.setTestPhrase(0, "the cat");
+      await flush();
+      expect(consoleError).toHaveBeenCalledWith("Unable to mark the document as changed:", "busy");
+    });
+
+    it("logs an error when CODAP can't be told", async () => {
+      api.codapInterface.sendRequest.mockRejectedValue(new Error("closed"));
+      await startCodapSync(store);
+      store.setTestPhrase(0, "the cat");
+      await flush();
+      expect(consoleError).toHaveBeenCalledWith("Unable to mark the document as changed:", "closed");
+    });
   });
 
   it("retries init when it fails", async () => {

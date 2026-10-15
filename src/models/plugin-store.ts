@@ -1,5 +1,5 @@
 import { Instance, SnapshotIn, types } from "mobx-state-tree";
-import { IPosition } from "../tsne/layout";
+import { IDirection, IPosition } from "../tsne/layout";
 import { groupLabels, ILabelEntry, kUnlabeled, kUnlabeledColor } from "../tsne/labels";
 import { randomSeed } from "../tsne/random";
 
@@ -39,6 +39,47 @@ export interface Point extends IPosition {
 
 export type ComputeStatus = "idle" | "computing" | "done" | "too-few" | "error";
 
+// In slot order
+export const kPhraseSymbols = ["square", "triangle", "diamond", "plus", "star"] as const;
+export type PhraseSymbol = typeof kPhraseSymbols[number];
+export const kTestPhraseSlots = kPhraseSymbols.length;
+// A sanity bound, not a product rule
+export const kMaxTestPhraseLength = 255;
+
+// Unit-square units; jitter can put it slightly outside [0, 1]
+export interface TestPhrasePoint extends IPosition {
+  slot: number;
+  neighborCaseId: string;
+  // Unit vector away from the neighbor
+  direction: IDirection;
+}
+
+// No status: waiting for placement
+export type PlacementStatus = "placed" | "no-words" | "empty";
+
+const emptyTestPhrases = () => new Array<string>(kTestPhraseSlots).fill("");
+
+// Never ends on the first half of a surrogate pair. Longer characters (flags, families) can still be
+// cut at the limit; it is only a sanity bound.
+const capPhrase = (text: string) => {
+  const last = text.charCodeAt(kMaxTestPhraseLength - 1);
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? kMaxTestPhraseLength - 1 : kMaxTestPhraseLength);
+};
+
+// "" always means no phrase
+export const normalizeTestPhrase = (text: string) =>
+  capPhrase(text.trim().replace(/\s+/g, " "));
+
+// Always five phrases, whatever a saved document holds. Each is cleaned up as a typed phrase is:
+// trimmed, with each run of spaces made one space, and cut to 255 characters. Anything but a list
+// gives five empty phrases; MST would reject it, and the whole saved state with it.
+const normalizeTestPhrases = (phrases: unknown) => Array.isArray(phrases)
+  ? emptyTestPhrases().map((empty, slot) => {
+    const phrase: unknown = phrases[slot];
+    return typeof phrase === "string" ? normalizeTestPhrase(phrase) : empty;
+  })
+  : emptyTestPhrases();
+
 export interface LabelEntry extends ILabelEntry {
   // All of the label's rows are selected
   isSelected: boolean;
@@ -61,8 +102,14 @@ export const PluginStore = types
     labelAttributeName: types.maybe(types.string),
     labelAttributeId: types.maybe(types.string),
     // Same seed, same picture when the document is reopened
-    tsneSeed: types.maybe(types.number)
+    tsneSeed: types.maybe(types.number),
+    // Survive table changes: they belong to the document
+    testPhrases: types.optional(types.array(types.string), emptyTestPhrases)
   })
+  // Input normalization, not a version migration
+  .preProcessSnapshot(snapshot => snapshot && "testPhrases" in snapshot
+    ? { ...snapshot, testPhrases: normalizeTestPhrases(snapshot.testPhrases) }
+    : snapshot)
   .volatile(() => ({
     dataContexts: [] as DataContextInfo[],
     attributes: [] as AttributeInfo[],
@@ -70,7 +117,14 @@ export const PluginStore = types
     points: [] as Point[],
     computeStatus: "idle" as ComputeStatus,
     // Replaced, not mutated, so views update
-    selectedCaseIds: new Set<string>()
+    selectedCaseIds: new Set<string>(),
+    // Only placed slots
+    testPhrasePoints: [] as TestPhrasePoint[],
+    placementStatus: {} as Record<number, PlacementStatus>,
+    // Its point is hidden while editing
+    editingSlot: undefined as number | undefined,
+    // Plugin-owned, since test phrases aren't CODAP cases. Replaced, not mutated.
+    selectedSlots: new Set<number>()
   }))
   .views(self => ({
     // Phrase Column lists only leaf columns, so there is one phrase per point
@@ -103,6 +157,16 @@ export const PluginStore = types
     },
     get hasGraph() {
       return self.points.length > 0;
+    },
+    // Placed and not being edited
+    get placedSlots() {
+      return new Set(self.testPhrasePoints.map(point => point.slot).filter(slot => slot !== self.editingSlot));
+    },
+    isSlotSelected(slot: number) {
+      return self.selectedSlots.has(slot);
+    },
+    symbolForSlot(slot: number): PhraseSymbol {
+      return kPhraseSymbols[slot];
     }
   }))
   .views(self => ({
@@ -144,6 +208,10 @@ export const PluginStore = types
     const clearLayout = () => {
       self.points = [];
       self.computeStatus = "idle";
+      // The phrases stay
+      self.testPhrasePoints = [];
+      self.placementStatus = {};
+      self.selectedSlots = new Set();
     };
     // An existing seed is never replaced
     const ensureTsneSeed = () => {
@@ -240,6 +308,30 @@ export const PluginStore = types
       },
       setSelectedCaseIds(caseIds: Iterable<string>) {
         self.selectedCaseIds = new Set(caseIds);
+      },
+      /** A change drops the slot's point, status and selection, so the old point never shows for the
+       * new phrase. */
+      setTestPhrase(slot: number, text: string) {
+        if (slot < 0 || slot >= kTestPhraseSlots) return;
+        const phrase = normalizeTestPhrase(text);
+        if (phrase === self.testPhrases[slot]) return;
+        self.testPhrases[slot] = phrase;
+        self.testPhrasePoints = self.testPhrasePoints.filter(point => point.slot !== slot);
+        const { [slot]: _dropped, ...status } = self.placementStatus;
+        self.placementStatus = status;
+        if (self.selectedSlots.has(slot)) {
+          self.selectedSlots = new Set([...self.selectedSlots].filter(selected => selected !== slot));
+        }
+      },
+      setTestPhrasePoints(points: TestPhrasePoint[], status: Record<number, PlacementStatus>) {
+        self.testPhrasePoints = points;
+        self.placementStatus = status;
+      },
+      setEditingSlot(slot: number | undefined) {
+        self.editingSlot = slot;
+      },
+      setSelectedSlots(slots: Iterable<number>) {
+        self.selectedSlots = new Set(slots);
       }
     };
   });

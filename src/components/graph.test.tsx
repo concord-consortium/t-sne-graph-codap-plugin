@@ -1,13 +1,15 @@
 import React from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { CaseInfo, IPluginStore, Point, PluginStore } from "../models/plugin-store";
+import { CaseInfo, IPluginStore, Point, PluginStore, TestPhrasePoint } from "../models/plugin-store";
 import { StoreProvider } from "../models/store-context";
-import { clearCodapSelection, selectPoint } from "../models/selection-sync";
+import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
 import { kLabelColors, kUnlabeledColor } from "../tsne/labels";
 import { Graph, kErrorMessage, kKeyboardHelp, kTooFewMessage } from "./graph";
+import { kPlotSymbolExtents, symbolReach } from "./phrase-symbol";
 
-jest.mock("../models/selection-sync", () => ({ clearCodapSelection: jest.fn(), selectPoint: jest.fn() }));
+jest.mock("../models/selection-sync",
+  () => ({ clearCodapSelection: jest.fn(), selectPoint: jest.fn(), selectTestPhrase: jest.fn() }));
 
 const kCases: CaseInfo[] = [
   { caseId: "1", values: { phrase: "the cat sat", label: "Similar" } },
@@ -47,6 +49,7 @@ describe("Graph", () => {
   beforeEach(() => {
     jest.mocked(selectPoint).mockReset();
     jest.mocked(clearCodapSelection).mockReset();
+    jest.mocked(selectTestPhrase).mockReset();
     // jsdom has no layout
     jest.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
       { width: 300, height: 300, x: 0, y: 0, top: 0, left: 0, right: 300, bottom: 300, toJSON: () => undefined });
@@ -55,6 +58,7 @@ describe("Graph", () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
+    delete (globalThis as ResizeGlobal).ResizeObserver;
   });
 
   describe("drawing", () => {
@@ -230,7 +234,7 @@ describe("Graph", () => {
       expect(clearCodapSelection).not.toHaveBeenCalled();
     });
 
-    it("passes a shift-clicked point to selectPoint, extending", async () => {
+    it("passes a Shift-clicked point to selectPoint, extending", async () => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.keyboard("{Shift>}");
@@ -246,7 +250,7 @@ describe("Graph", () => {
       expect(selectPoint).not.toHaveBeenCalled();
     });
 
-    it("clears the selection on a click on empty space, but not on a shift-click", async () => {
+    it("clears the selection on a click on empty space, but not on a Shift-click", async () => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.keyboard("{Shift>}");
@@ -465,6 +469,264 @@ describe("Graph", () => {
       expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
       act(() => store.setPoints(kPoints.slice(1)));
       expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
+    });
+  });
+
+  describe("test phrases", () => {
+    const testPoint = (slot: number, x: number, y: number, neighborCaseId: string, dx = 1, dy = 0): TestPhrasePoint =>
+      ({ slot, x, y, neighborCaseId, direction: { dx, dy } });
+    const symbolPoints = () => screen.queryAllByTestId("test-phrase-point");
+    const symbolPoint = (name: string) => screen.getByRole("button", { name });
+    const symbolCenter = (name: string) => {
+      const [, x, y] = /translate\(([\d.]+) ([\d.]+)\)/.exec(symbolPoint(name).getAttribute("transform") ?? "") ?? [];
+      return { x: Number(x), y: Number(y) };
+    };
+
+    // 300 × 300: case 3 at (150, 150), case 1 at (12, 288)
+    beforeEach(() => {
+      store.setTestPhrase(0, "the cat");
+      store.setTestPhrase(2, "a bird");
+      store.setTestPhrase(4, "a fish");
+      store.setTestPhrasePoints([
+        // On its neighbor
+        testPoint(0, 0.5, 0.5, "3"),
+        // Far from its neighbor
+        testPoint(2, 0.25, 0.75, "3"),
+        // On the corner point, pushed outward; the nearest ring point inside is straight up
+        testPoint(4, 0, 0, "1", -1, 0)
+      ], { 0: "placed", 1: "empty", 2: "placed", 3: "empty", 4: "placed" });
+    });
+
+    describe("drawing", () => {
+      it("draws each placed slot's symbol after the case points, in slot order, named by symbol and phrase", () => {
+        renderGraph(store);
+        expect(pointNames()).toEqual([
+          "the cat sat, Similar", "a dog ran, Opposite", "the bird sang, Similar", "a fish swam, Unlabeled",
+          "Square test phrase: the cat", "Diamond test phrase: a bird", "Star test phrase: a fish"
+        ]);
+        expect(symbolPoints().map(element => element.getAttribute("data-symbol")))
+          .toEqual(["square", "diamond", "star"]);
+      });
+
+      it("fills each symbol with the test-phrase color, with an outline and a 24px hit area", () => {
+        renderGraph(store);
+        const square = symbolPoint("Square test phrase: the cat");
+        expect(within(square).getByTestId("symbol")).toHaveAttribute("fill", "#2e007f");
+        // The spec's 13.3px plot square
+        expect(within(square).getByTestId("symbol"))
+          .toHaveAttribute("d", "M-6.65 -6.65L6.65 -6.65L6.65 6.65L-6.65 6.65Z");
+        expect(within(square).getByTestId("dot-outline")).toHaveStyle({ strokeWidth: "2" });
+        expect(within(square).getByTestId("hit-area")).toHaveAttribute("r", "12");
+      });
+
+      it("pushes a symbol on its neighbor's dot out to 18px, along its direction", () => {
+        renderGraph(store);
+        expect(symbolPoint("Square test phrase: the cat")).toHaveAttribute("transform", "translate(168 150)");
+      });
+
+      it("leaves a symbol far from its neighbor where it was placed", () => {
+        renderGraph(store);
+        expect(symbolPoint("Diamond test phrase: a bird")).toHaveAttribute("transform", "translate(81 81)");
+      });
+
+      it("takes the ring point nearest its direction that is inside the plot", () => {
+        // Pushed outward from the bottom-left corner: straight up is the first inside
+        renderGraph(store);
+        const { x, y } = symbolCenter("Star test phrase: a fish");
+        expect(x).toBeCloseTo(12, 6);
+        expect(y).toBeCloseTo(270, 6);
+      });
+
+      it("clamps a symbol placed past the edge into the padded area", () => {
+        store.setTestPhrasePoints([testPoint(2, 1.2, 0.5, "3")], { 2: "placed" });
+        renderGraph(store);
+        expect(symbolPoint("Diamond test phrase: a bird")).toHaveAttribute("transform", "translate(288 150)");
+      });
+
+      it("keeps a symbol clear of another phrase's dot", () => {
+        // Placed on case 4, far from its neighbor, case 3
+        store.setTestPhrasePoints([testPoint(2, 1, 0, "3")], { 2: "placed" });
+        renderGraph(store);
+        const { x, y } = symbolCenter("Diamond test phrase: a bird");
+        expect(Math.hypot(x - 288, y - 288)).toBeGreaterThanOrEqual(18 - 1e-6);
+        expect(Math.hypot(x - 150, y - 150)).toBeCloseTo(18, 6);
+      });
+
+      it("keeps a higher slot's symbol in place while a lower slot is hidden for editing", () => {
+        // Both on case 3, pushed the same way
+        store.setTestPhrasePoints([testPoint(0, 0.5, 0.5, "3"), testPoint(2, 0.5, 0.5, "3")],
+          { 0: "placed", 2: "placed" });
+        renderGraph(store);
+        const before = symbolCenter("Diamond test phrase: a bird");
+        act(() => store.setEditingSlot(0));
+        expect(pointNames()).not.toContain("Square test phrase: the cat");
+        expect(symbolCenter("Diamond test phrase: a bird")).toEqual(before);
+        act(() => store.setEditingSlot(undefined));
+        expect(symbolCenter("Diamond test phrase: a bird")).toEqual(before);
+      });
+
+      it("keeps a higher slot's symbol clear of a lower slot's", () => {
+        // Both on case 3, pushed the same way
+        store.setTestPhrasePoints([testPoint(0, 0.5, 0.5, "3"), testPoint(2, 0.5, 0.5, "3")],
+          { 0: "placed", 2: "placed" });
+        renderGraph(store);
+        const square = symbolCenter("Square test phrase: the cat");
+        const diamond = symbolCenter("Diamond test phrase: a bird");
+        expect(square).toEqual({ x: 168, y: 150 });
+        expect(Math.hypot(diamond.x - square.x, diamond.y - square.y)).toBeGreaterThanOrEqual(18 - 1e-6);
+        expect(Math.hypot(diamond.x - 150, diamond.y - 150)).toBeCloseTo(18, 6);
+      });
+
+      it("keeps the 18px push when the plot is resized", () => {
+        let resize: ResizeCallback | undefined;
+        (globalThis as ResizeGlobal).ResizeObserver = jest.fn((callback: ResizeCallback) => {
+          resize = callback;
+          return { observe: jest.fn(), disconnect: jest.fn() };
+        });
+        renderGraph(store);
+        act(() => resize?.([{ contentRect: { width: 600, height: 200 } }]));
+        // The plot is a 200px square, so case 3 is at (100, 100)
+        expect(symbolPoint("Square test phrase: the cat")).toHaveAttribute("transform", "translate(118 100)");
+      });
+
+      it("hides the symbol of a slot being edited", () => {
+        renderGraph(store);
+        act(() => store.setEditingSlot(0));
+        expect(pointNames()).not.toContain("Square test phrase: the cat");
+        act(() => store.setEditingSlot(undefined));
+        expect(pointNames()).toContain("Square test phrase: the cat");
+      });
+
+      it("shows the selection rings in the symbol's shape and aria-pressed on selected slots only", () => {
+        store.setSelectedSlots([2]);
+        renderGraph(store);
+        const diamond = symbolPoint("Diamond test phrase: a bird");
+        expect(diamond).toHaveAttribute("aria-pressed", "true");
+        expect(symbolPoint("Square test phrase: the cat")).toHaveAttribute("aria-pressed", "false");
+        const path = within(diamond).getByTestId("symbol").getAttribute("d");
+        expect(within(diamond).getByTestId("selection-ring")).toHaveAttribute("d", path);
+        expect(within(diamond).getByTestId("selection-ring")).toHaveStyle({ strokeWidth: "6" });
+        expect(within(diamond).getByTestId("selection-edge")).toHaveStyle({ strokeWidth: "8" });
+        expect(within(symbolPoint("Square test phrase: the cat")).queryByTestId("selection-ring")).toBeNull();
+      });
+
+      it("sizes the focus mask to cover the focus ring at a mitered corner", () => {
+        renderGraph(store);
+        const mask = within(symbolPoint("Diamond test phrase: a bird")).getByTestId("focus-mask");
+        // At the diamond's 90° tips the 12px stroke reaches 6 × √2 past the path
+        const ringReach = symbolReach("diamond", kPlotSymbolExtents.diamond) + 6 * Math.SQRT2;
+        expect(Number(mask.getAttribute("width"))).toBeGreaterThanOrEqual(2 * ringReach);
+        expect(Number(mask.getAttribute("x"))).toBeLessThanOrEqual(-ringReach);
+      });
+
+      it("masks the focus ring to the band 4–6px outside the symbol's edges", () => {
+        renderGraph(store);
+        const square = symbolPoint("Square test phrase: the cat");
+        const focusRing = within(square).getByTestId("focus-ring");
+        const maskId = focusRing.getAttribute("mask")?.match(/^url\(#(.+)\)$/)?.[1];
+        expect(maskId).toBeDefined();
+        const mask = within(square).getByTestId("focus-mask");
+        expect(mask).toHaveAttribute("id", maskId);
+        expect(focusRing).toHaveStyle({ strokeWidth: "12" });
+        // Kept out to 6px outside the symbol, cut away up to 4px outside
+        const outer = within(mask).getByTestId("focus-mask-outer");
+        const inner = within(mask).getByTestId("focus-mask-inner");
+        expect(outer).toHaveAttribute("fill", "white");
+        expect(outer).toHaveAttribute("stroke", "white");
+        expect(outer).toHaveAttribute("stroke-width", "12");
+        expect(inner).toHaveAttribute("fill", "black");
+        expect(inner).toHaveAttribute("stroke", "black");
+        expect(inner).toHaveAttribute("stroke-width", "8");
+        [outer, inner].forEach(path => expect(path).toHaveAttribute("d", within(square).getByTestId("symbol")
+          .getAttribute("d")));
+      });
+
+      it("counts the test phrases in the plot's label", () => {
+        renderGraph(store);
+        expect(plot()).toHaveAccessibleName("t-SNE plot of 4 phrases in 3 labels and 3 test phrases");
+        act(() => store.setTestPhrasePoints([testPoint(0, 0.5, 0.5, "3")], { 0: "placed" }));
+        expect(plot()).toHaveAccessibleName("t-SNE plot of 4 phrases in 3 labels and 1 test phrase");
+        act(() => store.setTestPhrasePoints([], {}));
+        expect(plot()).toHaveAccessibleName("t-SNE plot of 4 phrases in 3 labels");
+      });
+    });
+
+    describe("selecting", () => {
+      it("selects a clicked symbol, and adds it with Shift", async () => {
+        const user = userEvent.setup();
+        renderGraph(store);
+        await user.click(symbolPoint("Diamond test phrase: a bird"));
+        expect(selectTestPhrase).toHaveBeenLastCalledWith(store, 2, false);
+        await user.keyboard("{Shift>}");
+        await user.click(symbolPoint("Square test phrase: the cat"));
+        await user.keyboard("{/Shift}");
+        expect(selectTestPhrase).toHaveBeenLastCalledWith(store, 0, true);
+        expect(selectPoint).not.toHaveBeenCalled();
+        expect(clearCodapSelection).not.toHaveBeenCalled();
+      });
+
+      it.each(["{Enter}", " "])("selects the focused symbol with %p, and adds it with Shift", async key => {
+        const user = userEvent.setup();
+        renderGraph(store);
+        await user.tab();
+        await user.keyboard(`{End}${key}`);
+        expect(selectTestPhrase).toHaveBeenLastCalledWith(store, 4, false);
+        await user.keyboard(`{Shift>}${key}{/Shift}`);
+        expect(selectTestPhrase).toHaveBeenLastCalledWith(store, 4, true);
+      });
+
+      it("clears everything with Escape from a symbol", async () => {
+        const user = userEvent.setup();
+        renderGraph(store);
+        await user.tab();
+        await user.keyboard("{End}{Escape}");
+        expect(clearCodapSelection).toHaveBeenCalledWith(store);
+      });
+    });
+
+    describe("keyboard order", () => {
+      it("moves from the last case point to the symbols, in slot order", async () => {
+        const user = userEvent.setup();
+        renderGraph(store);
+        await user.tab();
+        await user.keyboard("{ArrowLeft}");
+        expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
+        await user.keyboard("{Home}{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}");
+        expect(symbolPoint("Square test phrase: the cat")).toHaveFocus();
+        await user.keyboard("{ArrowRight}");
+        expect(symbolPoint("Diamond test phrase: a bird")).toHaveFocus();
+        await user.keyboard("{ArrowLeft}{ArrowLeft}");
+        expect(point("a fish swam")).toHaveFocus();
+      });
+
+      it("keeps the keyboard position on a symbol whose slot is edited from outside the plot", async () => {
+        const user = userEvent.setup();
+        renderGraph(store);
+        await user.tab();
+        await user.keyboard("{End}");
+        expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
+        // Leave the plot, as for editing the slot's field
+        await user.tab();
+        expect(symbolPoint("Star test phrase: a fish")).not.toHaveFocus();
+        expect(plot()).not.toHaveFocus();
+        act(() => store.setEditingSlot(4));
+        // Hidden meanwhile, so the plot itself is the Tab stop
+        expect(plot()).toHaveAttribute("tabindex", "0");
+        act(() => store.setEditingSlot(undefined));
+        expect(symbolPoint("Star test phrase: a fish")).toHaveAttribute("tabindex", "0");
+        await user.tab({ shift: true });
+        expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
+      });
+
+      it("moves focus to the first point when the focused symbol's slot is edited", async () => {
+        const user = userEvent.setup();
+        renderGraph(store);
+        await user.tab();
+        await user.keyboard("{End}");
+        expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
+        act(() => store.setEditingSlot(4));
+        expect(point("the cat sat")).toHaveFocus();
+      });
     });
   });
 });

@@ -1,0 +1,210 @@
+@use "sass:color";
+@use "../styles/variables" as *;
+
+@function dimmed($color) {
+  @return color.change($color, $alpha: $disabled-opacity);
+}
+
+.test-phrases {
+  font-size: 14px;
+  padding-left: $test-phrase-column-padding;
+}
+
+.test-phrases-heading {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 16px;
+  margin: 0 0 6px;
+}
+
+.test-phrases-list {
+  display: flex;
+  flex-direction: column;
+  gap: $key-entry-gap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.test-phrase-row {
+  align-items: center;
+  display: flex;
+  gap: $test-phrase-field-gap;
+  height: $key-entry-height;
+}
+
+// Inset box-shadow focus border, so the symbol doesn't shift
+.test-phrase-symbol {
+  align-items: center;
+  background: none;
+  border: none;
+  border-radius: $key-entry-radius;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  flex: none;
+  height: $test-phrase-symbol-button-size;
+  justify-content: center;
+  outline: none;
+  padding: 0;
+  width: $test-phrase-symbol-button-size;
+
+  // Pressed overrides hover; focus adds its border
+  &[data-hovered] {
+    background-color: $key-entry-fill-hover;
+  }
+  &[data-pressed] {
+    background-color: $key-entry-fill-pressed;
+  }
+  &[data-focus-visible] {
+    background-color: $key-entry-fill-hover;
+    box-shadow: inset 0 0 0 2px $focus-color;
+  }
+
+  // No point: no fills, but still in the Tab order, so the focus border stays
+  &[aria-disabled="true"] {
+    background: none;
+    cursor: default;
+
+    &[data-focus-visible] {
+      background-color: white;
+    }
+  }
+
+  // Rings extend past the 16px box
+  svg {
+    overflow: visible;
+  }
+}
+
+// Half of each stroke lands outside: outline 1px, ring 3px, edge 4px. Joins as in graph.scss.
+.symbol-outline,
+.symbol-selection-ring,
+.symbol-selection-edge {
+  fill: none;
+  stroke-linejoin: miter;
+
+  svg:is([data-symbol="triangle"], [data-symbol="star"]) & {
+    stroke-linejoin: round;
+  }
+}
+
+.symbol-outline {
+  stroke: $dot-outline-color;
+  stroke-width: 2px;
+}
+
+.symbol-selection-ring,
+.symbol-selection-edge {
+  stroke: none;
+}
+
+// Hover previews the ring at half strength; selected and pressed show it in full
+.test-phrase-symbol[data-hovered]:not([aria-disabled="true"]) .symbol-selection-ring {
+  stroke: color.change($selection-ring-color, $alpha: 0.5);
+  stroke-width: 6px;
+}
+.test-phrase-symbol[data-pressed]:not([aria-disabled="true"]),
+.test-phrase-symbol[aria-pressed="true"] {
+  .symbol-selection-ring {
+    stroke: $selection-ring-color;
+    stroke-width: 6px;
+  }
+  .symbol-selection-edge {
+    stroke: $dot-outline-color;
+    stroke-width: 8px;
+  }
+}
+
+// 35% while the slot has no point; full color once it does, and while it is edited
+.test-phrase-symbol:not([data-placed]) svg {
+  opacity: $disabled-opacity;
+}
+
+// Inset box-shadow borders, so the 2px focus border doesn't shift the text
+.test-phrase-input {
+  background-color: white;
+  border: none;
+  border-radius: $test-phrase-field-radius;
+  box-shadow: inset 0 0 0 1px $test-phrase-field-border;
+  box-sizing: border-box;
+  color: $text-color;
+  font: inherit;
+  height: $key-entry-height;
+  outline: none;
+  padding: 0 6px;
+  // body sets user-select: none
+  user-select: text;
+  width: $test-phrase-field-width;
+
+  &::placeholder {
+    color: $test-phrase-placeholder-color;
+    opacity: 1;
+  }
+
+  // In this order: the no-words fill outlasts hover, focus wins over both, and a focused no-words
+  // field keeps its fill under the focus border, so Enter, which keeps focus, still shows it
+  &[data-hovered] {
+    background-color: $test-phrase-field-fill-hover;
+  }
+  &.no-words {
+    background-color: $test-phrase-no-words-fill;
+    box-shadow: inset 0 0 0 2px $test-phrase-no-words-border;
+  }
+  &[data-focused] {
+    background-color: white;
+    box-shadow: inset 0 0 0 2px $focus-color;
+  }
+  &.no-words[data-focused] {
+    background-color: $test-phrase-no-words-fill;
+  }
+}
+
+// Still focusable: dim each color, not opacity, so the focus border stays full
+.test-phrase-row[data-disabled] {
+  .test-phrase-symbol svg {
+    opacity: $disabled-opacity;
+  }
+
+  .test-phrase-input {
+    background-color: dimmed(white);
+    box-shadow: inset 0 0 0 1px dimmed($test-phrase-field-border);
+    color: dimmed($text-color);
+    cursor: default;
+
+    &::placeholder {
+      color: dimmed($test-phrase-placeholder-color);
+    }
+
+    &[data-focused] {
+      box-shadow: inset 0 0 0 2px $focus-color;
+    }
+  }
+}
+
+// Forced colors drop box-shadows: the borders and focus border
+@media (forced-colors: active) {
+  // Color and rings identify the symbol
+  .test-phrase-symbol svg {
+    forced-color-adjust: none;
+  }
+
+  .test-phrase-symbol[data-focus-visible] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+
+  .test-phrase-input {
+    border: 1px solid CanvasText;
+
+    &[data-focused] {
+      outline: 2px solid Highlight;
+      outline-offset: -2px;
+    }
+  }
+
+  .test-phrase-row[data-disabled] .test-phrase-input {
+    border-color: GrayText;
+    color: GrayText;
+  }
+}
