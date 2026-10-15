@@ -109,7 +109,6 @@ export const selectPoint = async (store: IPluginStore, caseId: string, extend: b
   const others = store.cases
     .filter(({ caseId: id }) => id !== caseId && store.isSelected(id))
     .map(({ caseId: id }) => id);
-  // A removal keeps the test phrases, as Shift does elsewhere
   const expected = store.selectedSlots.size > 0 && others.length > 0 ? new Set(others) : undefined;
   if (expected) expectedRemovals.set(store, expected);
   const accepted = await requestCodapSelection(store, others, false);

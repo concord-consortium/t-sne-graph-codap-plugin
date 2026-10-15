@@ -685,7 +685,7 @@ test("places a test phrase beside its nearest phrase, hides it while editing, an
     await expect(symbolButton(plugin, 0)).toHaveAttribute("aria-disabled", "true");
     expect(await symbolOpacity(plugin, 0)).toBe("0.35");
 
-    // (a) Nothing is placed while typing; Tab commits, and the symbol appears beside its neighbor
+    // Nothing is placed while typing; Tab commits, and the symbol appears beside its neighbor
     await testField(plugin, 0).fill(kTestPhrases[0].text);
     await expect(symbolPoint(plugin, 0)).toHaveCount(0);
     await testField(plugin, 0).press("Tab");
@@ -697,14 +697,14 @@ test("places a test phrase beside its nearest phrase, hides it while editing, an
     expect(await symbolOpacity(plugin, 0)).toBe("1");
     const placed = await symbolPoint(plugin, 0).getAttribute("transform");
 
-    // (b) Editing hides the point; Return brings it back in the same place
+    // Editing hides the point; Enter brings it back in the same place
     await testField(plugin, 0).click();
     await expect(symbolPoint(plugin, 0)).toHaveCount(0);
     expect(await symbolOpacity(plugin, 0)).toBe("1");
     await testField(plugin, 0).press("Enter");
     await expect(symbolPoint(plugin, 0)).toHaveAttribute("transform", placed ?? "");
 
-    // (c) Clearing the field removes the point and dims the symbol
+    // Clearing the field removes the point and dims the symbol
     await enterTestPhrase(plugin, 0, "");
     await expect(symbolPoint(plugin, 0)).toHaveCount(0);
     await expect(testField(plugin, 0)).toHaveValue("");
@@ -720,7 +720,7 @@ test("restores the test phrases and their points after the document is saved and
     Promise.all(kSymbols.map((_symbol, slot) => symbolPoint(frame, slot).getAttribute("transform")));
   const placed = await transforms(plugin);
 
-  // (d) The phrases and their points come back in the same places, with no typing
+  // The phrases and their points come back in the same places, with no typing
   const saved = await saveCodapDocument(page);
   await openDocument(page, saved);
   const reopened = pluginFrame(page);
@@ -744,7 +744,7 @@ test("selects test phrases with the symbol button and on the plot, together with
   await expect(symbolPoint(plugin, 0)).toBeVisible();
   const caseRow = "Everyone around the world shares this";
 
-  // (e) The symbol button selects the point alone; CODAP has no selection
+  // The symbol button selects the point alone; CODAP has no selection
   await symbolButton(plugin, 0).click();
   await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-pressed", "true");
   await expect(symbolButton(plugin, 0)).toHaveAttribute("aria-pressed", "true");
@@ -780,7 +780,7 @@ test("selects test phrases with the symbol button and on the plot, together with
   await tableCell(page, caseRow).click();
   await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow]);
 
-  // A shift-click on a table row keeps it
+  // A Shift-click on a table row keeps it
   await symbolPoint(plugin, 0).click();
   await expect.poll(() => pressedPhrases(plugin)).toEqual([`Square test phrase: ${kTestPhrases[0].text}`]);
   await tableCell(page, caseRow).click({ modifiers: ["Shift"] });
@@ -789,7 +789,7 @@ test("selects test phrases with the symbol button and on the plot, together with
 
 test("explains a phrase with no words in common, and gives it no point", async ({ page }) => {
   const plugin = await openFlatPlot(page);
-  // (f) Interim behavior until design decides (plan §7)
+  // Interim behavior until design decides
   await enterTestPhrase(plugin, 1, "zebra quilt");
   await expect(testField(plugin, 1)).toHaveAccessibleDescription(kNoWordsText);
   await expect(symbolButton(plugin, 1)).toHaveAccessibleDescription(kNoWordsText);
@@ -837,7 +837,7 @@ test("never shows an edited phrase at its old place", async ({ page }) => {
     }).observe(document.body, { attributes: true, childList: true, subtree: true });
   });
 
-  // (g) The old point goes before the new one comes, and the new phrase never shows at the old place
+  // The old point goes before the new one comes, and the new phrase never shows at the old place
   const newText = kTestPhrases[1].text;
   await enterTestPhrase(plugin, 0, newText);
   await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-label", `Square test phrase: ${newText}`);
@@ -850,7 +850,7 @@ test("never shows an edited phrase at its old place", async ({ page }) => {
 
 test("has no accessibility violations with test phrases, one selected and one with no words", async ({ page }) => {
   const plugin = await openFlatPlot(page);
-  // (h) Placed, selected, empty, and no-words slots
+  // Placed, selected, empty, and no-words slots
   await enterTestPhrase(plugin, 0, kTestPhrases[0].text);
   await enterTestPhrase(plugin, 1, "zebra quilt");
   await symbolButton(plugin, 0).click();

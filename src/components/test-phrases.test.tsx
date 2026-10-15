@@ -148,7 +148,7 @@ describe("TestPhrases", () => {
       expect(store.testPhrasePoints).toEqual([]);
     });
 
-    it("follows phrases restored into the store", () => {
+    it("follows phrases set in the store", () => {
       renderTestPhrases(store);
       act(() => store.setTestPhrase(4, "a fish"));
       expect(field(4)).toHaveValue("a fish");

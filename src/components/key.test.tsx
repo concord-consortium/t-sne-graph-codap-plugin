@@ -108,7 +108,7 @@ describe("Key", () => {
       expect(selectInCodap).toHaveBeenCalledWith(store, ["4"], false);
     });
 
-    it("adds a shift-clicked label's points to the selection", async () => {
+    it("adds a Shift-clicked label's points to the selection", async () => {
       const user = userEvent.setup();
       renderKey(store);
       await user.keyboard("{Shift>}");

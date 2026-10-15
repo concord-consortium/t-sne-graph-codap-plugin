@@ -26,9 +26,9 @@ export const startGraphController = (store: IPluginStore) => {
   // The worker's finished layout; caseIds in its phrase order
   let doneLayout: { requestId: number, caseIds: string[] } | undefined;
 
-  // No plot is left: clear a progress layout an error interrupted. No placement reply will drop a
-  // stale slot selection, so drop it here. Only if non-empty: replacing the Set disturbs an
-  // in-progress selection read.
+  // No plot is left: clear any points, including a progress layout an error interrupted. No
+  // placement reply will drop a stale slot selection, so drop it here, only if non-empty (see
+  // refreshSelection in selection-sync.ts).
   const endWithoutPlacement = (status: "idle" | "too-few" | "error") => {
     store.setPoints([]);
     store.setTestPhrasePoints([], {});

@@ -654,7 +654,7 @@ describe("startGraphController test-phrase placement", () => {
     store.setSelectedSlots([0]);
     const selected = store.selectedSlots;
     lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(3), "empty", "empty", "empty", "empty"]);
-    // Same Set: an in-progress selection read isn't disturbed
+    // The same Set, as refreshSelection in selection-sync.ts needs
     expect(store.selectedSlots).toBe(selected);
   });
 
@@ -667,7 +667,7 @@ describe("startGraphController test-phrase placement", () => {
     expect(worker.placeRequests).toHaveLength(1);
   });
 
-  it("answers every slot empty when there are no phrases", () => {
+  it("marks every slot empty when there are no phrases", () => {
     stop = startGraphController(store);
     finishLayout();
     expect(lastWorker().lastPlaceRequest.phrases).toEqual([null, null, null, null, null]);

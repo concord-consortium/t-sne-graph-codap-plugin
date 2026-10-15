@@ -234,7 +234,7 @@ describe("Graph", () => {
       expect(clearCodapSelection).not.toHaveBeenCalled();
     });
 
-    it("passes a shift-clicked point to selectPoint, extending", async () => {
+    it("passes a Shift-clicked point to selectPoint, extending", async () => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.keyboard("{Shift>}");
@@ -250,7 +250,7 @@ describe("Graph", () => {
       expect(selectPoint).not.toHaveBeenCalled();
     });
 
-    it("clears the selection on a click on empty space, but not on a shift-click", async () => {
+    it("clears the selection on a click on empty space, but not on a Shift-click", async () => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.keyboard("{Shift>}");
@@ -508,7 +508,7 @@ describe("Graph", () => {
           .toEqual(["square", "diamond", "star"]);
       });
 
-      it("fills each symbol with the test-phrase color, with a white outline and a 24px hit area", () => {
+      it("fills each symbol with the test-phrase color, with an outline and a 24px hit area", () => {
         renderGraph(store);
         const square = symbolPoint("Square test phrase: the cat");
         expect(within(square).getByTestId("symbol")).toHaveAttribute("fill", "#2e007f");
@@ -619,7 +619,7 @@ describe("Graph", () => {
         expect(Number(mask.getAttribute("x"))).toBeLessThanOrEqual(-ringReach);
       });
 
-      it("masks the focus ring to the band 4–6px outside the symbol", () => {
+      it("masks the focus ring to the band 4–6px outside the symbol's edges", () => {
         renderGraph(store);
         const square = symbolPoint("Square test phrase: the cat");
         const focusRing = within(square).getByTestId("focus-ring");

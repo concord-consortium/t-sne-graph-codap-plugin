@@ -505,12 +505,6 @@ describe("PluginStore test phrases", () => {
     expect(store.testPhrases[0]).toBe(`${"a".repeat(253)}🇺`);
   });
 
-  it("caps a committed phrase at 255 characters", () => {
-    const store = PluginStore.create();
-    store.setTestPhrase(0, "y".repeat(300));
-    expect(store.testPhrases[0]).toHaveLength(kMaxTestPhraseLength);
-  });
-
   it("drops the slot's point, status and selection on a changed commit", () => {
     const store = placedStore();
     store.setTestPhrase(0, "the kitten");
@@ -595,7 +589,7 @@ describe("PluginStore test phrases", () => {
     expect(store.selectedSlots.size).toBe(0);
   });
 
-  it("keeps placements when the same table, another Phrase Column or a Label Column is chosen", () => {
+  it("keeps placements when the same table or another Phrase Column is chosen, or the Label Column is cleared", () => {
     const store = placedStore();
     store.setDataContext("Phrases");
     store.setPhraseAttribute("notes");

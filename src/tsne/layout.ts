@@ -34,7 +34,7 @@ export interface ILayoutTransform {
 }
 
 // Enough that no plot symbol covers a dot: the ring radius around the neighbor, and the clearance
-// from every other dot
+// from every other dot and lower slot's symbol
 export const kMinNeighborOffsetPx = 18;
 // Points on that ring, 15° apart
 export const kOffsetCandidates = 24;
@@ -134,7 +134,7 @@ const ringCandidates = (neighbor: IPosition, direction: IDirection, bounds: IBou
 
 /** Clamps the point into the bounds. If it is within `kMinNeighborOffsetPx` of its neighbor or of
  * any of `others`, moves it to the first point on the ring around the neighbor, nearest `direction`
- * (unit, in pixels), that clears every other dot; in a crowded area, to the one with the most
+ * (unit, in pixels), that clears all of `others`; in a crowded area, to the one with the most
  * clearance. Bounds under twice the minimum across can't hold the ring. */
 export const offsetFromNeighbor = (
   neighbor: IPosition, point: IPosition, direction: IDirection, bounds: IBounds,

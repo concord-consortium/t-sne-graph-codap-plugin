@@ -40,7 +40,7 @@ const selectListener = () => {
   expect(calls).toHaveLength(1);
   return calls[0][3] as unknown as ClientHandler;
 };
-// `extend` is true for addCasesToSelection and table shift-clicks
+// `extend` is true for addCasesToSelection and table Shift-clicks
 const notifySelect = (table: string, extend?: boolean) =>
   selectListener()({ action: "notify", resource: `dataContextChangeNotice[${table}]`,
     values: extend === undefined
@@ -253,7 +253,7 @@ describe("selection-sync", () => {
       expect(api.selectCases).toHaveBeenCalledWith("Phrases", ["100"]);
     });
 
-    it("adds an unselected point on a shift-click", async () => {
+    it("adds an unselected point on a Shift-click", async () => {
       store.setSelectedCaseIds(["101"]);
       await selectPoint(store, "100", true);
       expect(api.addCasesToSelection).toHaveBeenCalledWith("Phrases", ["100"]);
@@ -266,7 +266,7 @@ describe("selection-sync", () => {
       expect(api.addCasesToSelection).not.toHaveBeenCalled();
     });
 
-    it("removes a selected point on a shift-click, keeping the other selected leaf cases", async () => {
+    it("removes a selected point on a Shift-click, keeping the other selected leaf cases", async () => {
       store.setSelectedCaseIds(["100", "102"]);
       await selectPoint(store, "100", true);
       expect(api.selectCases).toHaveBeenCalledWith("Phrases", ["102"]);
@@ -364,7 +364,7 @@ describe("selection-sync", () => {
       expect(slots()).toEqual([]);
     });
 
-    it("keeps the slots on a table shift-click: an extending notice", async () => {
+    it("keeps the slots on a table Shift-click: an extending notice", async () => {
       codapSelection = [leaf(101)];
       notifySelect("Phrases", true);
       await flush();
@@ -415,7 +415,7 @@ describe("selection-sync", () => {
       expect(slots()).toEqual([2]);
       await selectInCodap(store, ["100", "101"]);
       expect(slots()).toEqual([]);
-      // The echo lists only the newly selected case
+      // CODAP's notice names only the new case; the read returns both
       codapSelection = [leaf(100), leaf(101)];
       notifySelect("Phrases", false);
       await flush();

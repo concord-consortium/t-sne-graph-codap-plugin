@@ -29,7 +29,7 @@ export interface IPlaceRequest {
   type: "place";
   // Echoed back with layoutRequestId, so stale replies can be ignored
   placementId: number;
-  // The layout to place into; any other gets "no-layout"
+  // The layout to place into; if it is not the retained one, every non-empty slot gets "no-layout"
   layoutRequestId: number;
   // One per slot; null if empty
   phrases: (string | null)[];

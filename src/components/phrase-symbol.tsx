@@ -70,8 +70,7 @@ interface IPhraseSymbolIconProps {
   className?: string;
 }
 
-/** Decorative; its control names it. The outline and rings are the path stroked behind the fill,
- * styled by state in CSS. */
+/** Decorative; its control names it. The outline and rings are styled by state in CSS. */
 export const PhraseSymbolIcon = ({ symbol, className }: IPhraseSymbolIconProps) => {
   const half = kButtonSymbolBox / 2;
   const path = symbolPath(symbol, kButtonSymbolExtents[symbol]);

@@ -335,7 +335,7 @@ export const Graph = observer(() => {
               <path className="dot-outline" data-testid="dot-outline" d={path}
                 style={{ strokeWidth: kSymbolOutlineWidth }} />
               <path className="symbol" data-testid="symbol" d={path} fill={kTestPhraseColor} />
-              {/* Focus ring: the band 4–6px outside the symbol, a wide stroke with its inner part masked out */}
+              {/* Focus ring: 4–6px outside the symbol's edges, a wide stroke with its inner part masked out */}
               <mask id={maskId} data-testid="focus-mask" maskUnits="userSpaceOnUse" x={maskOrigin} y={maskOrigin}
                 width={maskSize} height={maskSize}>
                 <path d={path} fill="white" stroke="white" strokeWidth={kSymbolFocusOuterWidth}

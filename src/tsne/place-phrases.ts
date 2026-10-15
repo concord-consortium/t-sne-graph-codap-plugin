@@ -1,9 +1,9 @@
-// Port of the original page's addUserPhrase
+// Port of addUserPhrase from the AI_and_ELA page this plugin replaces
 import { applyTransform, IDirection, ILayoutTransform, IPosition, unitDirection } from "./layout";
 import { gaussian, mulberry32 } from "./random";
 import { ITfidfModel, vectorize } from "./tfidf";
 
-// In raw t-SNE units, as in the original
+// In raw t-SNE units, as on that page
 export const kJitterStandardDeviation = 0.2;
 
 /** Rows are in the layout's phrase order. */
@@ -24,8 +24,8 @@ const dot = (a: readonly number[], b: readonly number[]) => a.reduce((sum, value
 
 const isZero = (row: readonly number[]) => row.every(value => value === 0);
 
-/** Highest cosine among non-zero rows; ties go to the lowest index. Zero rows are skipped: a unit
- * query is distance 1 from them, nearer than any real row with cosine < 0.5. */
+/** Highest cosine among non-zero rows; ties go to the lowest index. Rows with no vocabulary words
+ * are never chosen. */
 export const nearestRow = (matrix: readonly (readonly number[])[], query: readonly number[]) => {
   let best = -1;
   let bestScore = -Infinity;

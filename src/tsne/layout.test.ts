@@ -220,7 +220,7 @@ describe("offsetFromNeighbor", () => {
     const nearestOther = (point: { x: number, y: number }, others: { x: number, y: number }[]) =>
       Math.min(...others.map(other => distance(point, other)));
 
-    it("moves along the direction when no other dot is near, as before", () => {
+    it("moves along the direction when no other dot is near", () => {
       const far = [{ x: 30, y: 30 }, { x: 270, y: 270 }];
       expect(angleOf(offsetFromNeighbor(neighbor, neighbor, right, bounds, far))).toBeCloseTo(0, 6);
     });
