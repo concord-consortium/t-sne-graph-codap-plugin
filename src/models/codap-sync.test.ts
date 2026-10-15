@@ -2,7 +2,7 @@ import * as codapApi from "@concord-consortium/codap-plugin-api";
 import { ClientHandler, IResult } from "@concord-consortium/codap-plugin-api";
 import { reaction } from "mobx";
 import { getSnapshot } from "mobx-state-tree";
-import { kMaxInitAttempts, startCodapSync } from "./codap-sync";
+import { kMarkChangedIntervalMs, kMaxInitAttempts, startCodapSync } from "./codap-sync";
 import { IPluginStore, PluginStore } from "./plugin-store";
 
 jest.mock("@concord-consortium/codap-plugin-api", () => ({
@@ -140,6 +140,7 @@ describe("startCodapSync", () => {
 
   afterEach(() => {
     consoleError.mockRestore();
+    jest.useRealTimers();
   });
 
   it("connects with the plugin name, tile size and its own interactiveState handler", async () => {
@@ -217,11 +218,39 @@ describe("startCodapSync", () => {
 
     it("does when a selection or a test phrase changes after startup", async () => {
       await startCodapSync(store);
+      jest.useFakeTimers();
       store.setDataContext("Phrases");
-      expect(dirtyRequests().length).toBeGreaterThan(0);
+      expect(dirtyRequests()).toHaveLength(1);
+      jest.advanceTimersByTime(kMarkChangedIntervalMs);
       api.codapInterface.sendRequest.mockClear();
       store.setTestPhrase(0, "the cat");
       expect(dirtyRequests()).toHaveLength(1);
+    });
+
+    it("sends one message for many quick changes, such as a drag, then one for the changes since", async () => {
+      await startCodapSync(store);
+      jest.useFakeTimers();
+      for (let i = 1; i <= 20; i++) store.panTo(0.5 - i / 100, 0.5);
+      expect(dirtyRequests()).toHaveLength(1);
+      jest.advanceTimersByTime(kMarkChangedIntervalMs - 1);
+      expect(dirtyRequests()).toHaveLength(1);
+      // The changes during the interval, as one message
+      jest.advanceTimersByTime(1);
+      expect(dirtyRequests()).toHaveLength(2);
+      // Nothing more changed
+      jest.advanceTimersByTime(10 * kMarkChangedIntervalMs);
+      expect(dirtyRequests()).toHaveLength(2);
+    });
+
+    it("sends at once again after a quiet interval", async () => {
+      await startCodapSync(store);
+      jest.useFakeTimers();
+      store.zoomIn();
+      expect(dirtyRequests()).toHaveLength(1);
+      jest.advanceTimersByTime(kMarkChangedIntervalMs);
+      expect(dirtyRequests()).toHaveLength(1);
+      store.zoomIn();
+      expect(dirtyRequests()).toHaveLength(2);
     });
 
     it("logs CODAP's reason when it refuses", async () => {
