@@ -246,3 +246,42 @@ export const gridLines = ({ width, height }: ISize, view: IView, padding = kGrap
   const offsetY = innerHeight > 0 ? padding * (1 - scale) + innerHeight * (0.5 - scale * (1 - view.centerY)) : 0;
   return { x: axisGridLines(width, scaleX, offsetX), y: axisGridLines(height, scaleY, offsetY) };
 };
+
+// Tooltip placement: the pointer's tip is 6px inside a dot's edge (its center), and the box starts 10px
+// past the tip
+export const kTooltipMargin = 4;
+const kTooltipTipInset = 6;
+const kTooltipTipToBox = 10;
+const kTooltipPointerHalfHeight = 6;
+const kTooltipRadius = 4;
+
+export interface ITooltipPlacement {
+  left: number;
+  top: number;
+  side: "right" | "left";
+  pointerOffset: number;
+}
+
+// A box too big for the area keeps its start margin and overflows the far edge
+const clampBox = (start: number, boxLength: number, areaLength: number) =>
+  Math.max(kTooltipMargin, Math.min(areaLength - kTooltipMargin - boxLength, start));
+
+/** Places a tooltip box beside a point in `area` (all in the area's pixels). Right of the point unless
+ * that overflows, then left; then clamped `kTooltipMargin` inside the area. A box too big for the area
+ * starts `kTooltipMargin` from its left or top and overflows the right or bottom. A vertical clamp slides the
+ * pointer to stay on the point, as far as the box's straight edge allows. A horizontal clamp can't move
+ * the pointer, so its tip falls short of the point: containment wins. */
+export const placeTooltip = (
+  { x, y }: IPosition, halfExtent: number, { width, height }: ISize, area: ISize
+): ITooltipPlacement => {
+  const tipInset = Math.max(0, halfExtent - kTooltipTipInset);
+  const rightLeft = x + tipInset + kTooltipTipToBox;
+  const side = rightLeft + width > area.width - kTooltipMargin ? "left" : "right";
+  const unclampedLeft = side === "right" ? rightLeft : x - tipInset - kTooltipTipToBox - width;
+  const left = clampBox(unclampedLeft, width, area.width);
+  const top = clampBox(y - height / 2, height, area.height);
+  // Keeps the pointer off the rounded corners
+  const maxOffset = Math.max(0, height / 2 - kTooltipPointerHalfHeight - kTooltipRadius);
+  const pointerOffset = clamp(y - (top + height / 2), -maxOffset, maxOffset);
+  return { left, top, side, pointerOffset };
+};
