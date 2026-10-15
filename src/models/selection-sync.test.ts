@@ -223,6 +223,12 @@ describe("selection-sync", () => {
       expect(api.addCasesToSelection).not.toHaveBeenCalled();
     });
 
+    it("leaves an empty slot selection as it is", async () => {
+      const slots = store.selectedSlots;
+      await selectInCodap(store, ["100"]);
+      expect(store.selectedSlots).toBe(slots);
+    });
+
     it("logs an error when CODAP refuses the request", async () => {
       api.selectCases.mockResolvedValueOnce({ success: false, values: { error: "busy" } });
       await selectInCodap(store, ["100"]);
@@ -311,6 +317,16 @@ describe("selection-sync", () => {
       await selectTestPhrase(store, 3);
       expect(store.selectedSlots).toBe(selected);
       expect(api.selectCases).not.toHaveBeenCalled();
+    });
+
+    it("keeps the slot, and the cases, when CODAP refuses to clear its selection", async () => {
+      store.setSelectedCaseIds(["100"]);
+      api.selectCases.mockResolvedValueOnce({ success: false, values: { error: "busy" } });
+      await selectTestPhrase(store, 2);
+      expect(consoleError).toHaveBeenCalled();
+      // Both show as selected until CODAP's next notice
+      expect(Array.from(store.selectedSlots)).toEqual([2]);
+      expect(Array.from(store.selectedCaseIds)).toEqual(["100"]);
     });
 
     it("removes a selected slot when extending, without asking CODAP", async () => {
@@ -550,6 +566,36 @@ describe("selection-sync", () => {
         expect(slots()).toEqual([2]);
         // No notice came; a table click that selects exactly the cases left is a table click
         codapSelection = [leaf(100)];
+        notifySelect("Phrases", false);
+        await flush();
+        expect(slots()).toEqual([]);
+      });
+
+      it("keeps a newer removal's record when an older removal is refused", async () => {
+        codapSelection = [leaf(100), leaf(101), leaf(102)];
+        notifySelect("Phrases", true);
+        await flush();
+        const older = deferred<IResult>();
+        api.selectCases.mockReturnValueOnce(older.promise);
+        const olderRemoval = selectPoint(store, "102", true);
+        // Before CODAP answers the older removal
+        await selectPoint(store, "101", true);
+        older.resolve({ success: false, values: { error: "busy" } });
+        await olderRemoval;
+        codapSelection = [leaf(100), leaf(102)];
+        notifySelect("Phrases", false);
+        await flush();
+        expect(slots()).toEqual([2]);
+      });
+
+      it("recognizes only the newest of two removals made before either notice", async () => {
+        codapSelection = [leaf(100), leaf(101), leaf(102)];
+        notifySelect("Phrases", true);
+        await flush();
+        await selectPoint(store, "102", true);
+        await selectPoint(store, "101", true);
+        // The older removal's notice doesn't match the newer record
+        codapSelection = [leaf(100), leaf(101)];
         notifySelect("Phrases", false);
         await flush();
         expect(slots()).toEqual([]);

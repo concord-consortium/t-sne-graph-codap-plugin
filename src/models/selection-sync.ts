@@ -96,7 +96,7 @@ const requestCodapSelection = async (store: IPluginStore, caseIds: string[], ext
 /** Adds to the selection when `extend` is true; otherwise replaces it, test phrases included. The
  * store's cases follow CODAP's notice. */
 export const selectInCodap = (store: IPluginStore, caseIds: string[], extend = false) => {
-  if (!extend) store.setSelectedSlots([]);
+  if (!extend && store.selectedSlots.size > 0) store.setSelectedSlots([]);
   return requestCodapSelection(store, caseIds, extend);
 };
 
