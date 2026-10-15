@@ -179,6 +179,41 @@ describe("PluginStore column choices", () => {
     store.updateAttributeChoices();
     expect(store.phraseAttributeName).toBeUndefined();
   });
+
+  describe("and the view", () => {
+    const zoomed = { zoomLevel: 2, centerX: 0.2, centerY: 0.7 };
+    const zoomedChoicesStore = () => {
+      const store = choicesStore();
+      store.zoomIn();
+      store.zoomIn();
+      store.panTo(zoomed.centerX, zoomed.centerY);
+      return store;
+    };
+
+    it("keeps the view when a chosen column is renamed: same column, same picture", () => {
+      const store = zoomedChoicesStore();
+      store.setAttributes(rename(rename(kAttributes, "2", "text"), "1", "category"));
+      store.updateAttributeChoices();
+      expect(store.phraseAttributeName).toBe("text");
+      expect(store.view).toEqual(zoomed);
+    });
+
+    it("resets the view when the Phrase Column is gone", () => {
+      const store = zoomedChoicesStore();
+      store.setAttributes(kAttributes.filter(attr => attr.id !== "2"));
+      store.updateAttributeChoices();
+      expect(store.phraseAttributeName).toBeUndefined();
+      expect(store.view).toEqual(kFitView);
+    });
+
+    it("keeps the view when only the Label Column is gone", () => {
+      const store = zoomedChoicesStore();
+      store.setAttributes(kAttributes.filter(attr => attr.id !== "1"));
+      store.updateAttributeChoices();
+      expect(store.labelAttributeName).toBeUndefined();
+      expect(store.view).toEqual(zoomed);
+    });
+  });
 });
 
 describe("PluginStore snapshot version", () => {

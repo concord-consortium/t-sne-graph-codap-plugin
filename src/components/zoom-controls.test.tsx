@@ -43,18 +43,6 @@ describe("ZoomControls", () => {
     expect([zoomIn(), zoomOut(), fitAll()].map(disabled)).toEqual([false, false, true]);
   });
 
-  it("zooms in and out, and fits all", async () => {
-    const user = userEvent.setup();
-    renderControls(store);
-    await user.click(zoomIn());
-    expect(store.view.zoomLevel).toBe(1);
-    await user.click(zoomOut());
-    await user.click(zoomOut());
-    expect(store.view.zoomLevel).toBe(-1);
-    await user.click(fitAll());
-    expect(store.isFitView).toBe(true);
-  });
-
   it("enables fit all once the view has changed, including a pan at level 0", () => {
     renderControls(store);
     act(() => store.zoomIn());
@@ -96,19 +84,33 @@ describe("ZoomControls", () => {
     expect(store.view.zoomLevel).toBe(1);
   });
 
-  it("announces the new zoom after each click", async () => {
+  it("zooms in and out and fits all, announcing the new zoom after each click", async () => {
     const user = userEvent.setup();
     renderControls(store);
     expect(announcement()).toHaveAttribute("aria-live", "polite");
     expect(announcement()).toHaveTextContent("");
     await user.click(zoomIn());
+    expect(store.view.zoomLevel).toBe(1);
     expect(announcement()).toHaveTextContent("Zoom 150%");
     await user.click(zoomIn());
+    expect(store.view.zoomLevel).toBe(2);
     expect(announcement()).toHaveTextContent("Zoom 225%");
     await user.click(fitAll());
+    expect(store.isFitView).toBe(true);
     expect(announcement()).toHaveTextContent("Zoom 100%, whole plot");
     await user.click(zoomOut());
+    expect(store.view.zoomLevel).toBe(-1);
     expect(announcement()).toHaveTextContent("Zoom 67%");
+  });
+
+  it("leaves out \"whole plot\" at 100% when the view is panned", async () => {
+    const user = userEvent.setup();
+    store.zoomOut();
+    store.panTo(0.4, 0.5);
+    renderControls(store);
+    await user.click(zoomIn());
+    expect(store.view.zoomLevel).toBe(0);
+    expect(announcement()).toHaveTextContent(/^Zoom 100%$/);
   });
 
   it("works from the keyboard", async () => {

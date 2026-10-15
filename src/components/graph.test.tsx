@@ -316,12 +316,17 @@ describe("Graph", () => {
         expect(clearCodapSelection).toHaveBeenCalledTimes(1);
       });
 
-    it("keeps the first finger's drag when a second finger touches the plot", () => {
+    // touch-action: none, which stops the document scrolling, is in graph.scss; Playwright checks it
+    it("drags with a finger, and keeps the first finger's drag when a second finger touches the plot", () => {
       renderGraph(store);
       const touch = { pointerType: "touch" };
       press(100, 100, touch);
       move(110, 100, touch);
       press(200, 200, { ...touch, pointerId: 2 });
+      // The second finger's moves change nothing
+      move(300, 300, { ...touch, pointerId: 2 });
+      expect(store.view.centerX).toBeCloseTo(0.5 - 10 / kInner, 12);
+      expect(store.view.centerY).toBe(0.5);
       move(120, 100, touch);
       expect(store.view.centerX).toBeCloseTo(0.5 - 20 / kInner, 12);
       fireEvent.pointerUp(plot(), { pointerId: 2, clientX: 200, clientY: 200 });
@@ -330,23 +335,6 @@ describe("Graph", () => {
       expect(store.view.centerX).toBeCloseTo(0.5 - 30 / kInner, 12);
       fireEvent.pointerUp(plot(), { pointerId: 1, clientX: 130, clientY: 100 });
       expect(plot()).not.toHaveAttribute("data-dragging");
-    });
-
-    it("ignores another pointer during a drag", () => {
-      renderGraph(store);
-      press(100, 100);
-      move(110, 100);
-      const { centerX } = store.view;
-      move(300, 100, { pointerId: 2 });
-      expect(store.view.centerX).toBe(centerX);
-    });
-
-    // touch-action: none, which stops the document scrolling, is in graph.scss; Playwright checks it
-    it("drags with a finger like a mouse", () => {
-      renderGraph(store);
-      press(100, 100, { pointerType: "touch" });
-      move(90, 100, { pointerType: "touch" });
-      expect(store.view.centerX).toBeCloseTo(0.5 + 10 / kInner, 12);
     });
 
     it("does not drag from a point, or with another button", () => {

@@ -233,8 +233,9 @@ const axisGridLines = (length: number, scale: number, offset: number) => {
   const lines: number[] = [];
   for (let i = first; i <= last; i++) {
     // Written so that the fit view (scale 1, offset 0) gives exactly i × length / kGridCells
-    const position = scale * (i * length / kGridCells) + offset;
-    if (position > 0 && position < length) lines.push(Math.round(position) + 0.5);
+    const pixel = Math.round(scale * (i * length / kGridCells) + offset);
+    // Checked on the drawn pixel, so no line falls on or past an edge
+    if (pixel > 0 && pixel < length) lines.push(pixel + 0.5);
   }
   return lines;
 };

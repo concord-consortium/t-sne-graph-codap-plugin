@@ -221,10 +221,11 @@ describe("startCodapSync", () => {
       jest.useFakeTimers();
       store.setDataContext("Phrases");
       expect(dirtyRequests()).toHaveLength(1);
+      // After a quiet interval, the next change is sent at once
       jest.advanceTimersByTime(kMarkChangedIntervalMs);
-      api.codapInterface.sendRequest.mockClear();
-      store.setTestPhrase(0, "the cat");
       expect(dirtyRequests()).toHaveLength(1);
+      store.setTestPhrase(0, "the cat");
+      expect(dirtyRequests()).toHaveLength(2);
     });
 
     it("sends one message for many quick changes, such as a drag, then one for the changes since", async () => {
@@ -239,17 +240,6 @@ describe("startCodapSync", () => {
       expect(dirtyRequests()).toHaveLength(2);
       // Nothing more changed
       jest.advanceTimersByTime(10 * kMarkChangedIntervalMs);
-      expect(dirtyRequests()).toHaveLength(2);
-    });
-
-    it("sends at once again after a quiet interval", async () => {
-      await startCodapSync(store);
-      jest.useFakeTimers();
-      store.zoomIn();
-      expect(dirtyRequests()).toHaveLength(1);
-      jest.advanceTimersByTime(kMarkChangedIntervalMs);
-      expect(dirtyRequests()).toHaveLength(1);
-      store.zoomIn();
       expect(dirtyRequests()).toHaveLength(2);
     });
 

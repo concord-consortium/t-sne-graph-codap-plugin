@@ -101,14 +101,20 @@ test("restores the selections after the document is saved and reopened", async (
   await expect(dropdown(reopened, "Label Column")).toHaveText("Attribute Name");
 });
 
-// A fixture document with a plugin tile added
+// The t-SNE seed is otherwise random, so each run would have a different layout, and a point a test
+// clicks could be drawn under the zoom buttons, which take the click. With this seed no point in
+// either fixture is within 30px of the buttons (checked with the plugin's own layout code).
+const kFixtureSeed = 1;
+
+// A fixture document with a plugin tile added, its layout fixed by kFixtureSeed
 const documentWithPlugin = (file: string) => {
   const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", file), "utf8"));
   const pluginTileId = "WEBVtsnePlugin";
   const row = Object.values(fixture.content.rowMap)[0] as { tiles: Record<string, object> };
   row.tiles[pluginTileId] = { tileId: pluginTileId, x: 420, y: 5, width: 680, height: 334, zIndex: 2 };
   fixture.content.tileMap[pluginTileId] = {
-    id: pluginTileId, name: "t-SNE Plot", content: { type: "CodapWebView", subType: "plugin", url: kPluginUrl }
+    id: pluginTileId, name: "t-SNE Plot",
+    content: { type: "CodapWebView", subType: "plugin", url: kPluginUrl, state: { version: 1, tsneSeed: kFixtureSeed } }
   };
   return fixture;
 };
@@ -276,6 +282,22 @@ const renameColumn = async (page: Page, name: string, newName: string) => {
   await nameInput.press("Enter");
 };
 
+// What kFixtureSeed promises: no point within 30px of the zoom buttons, so none is under them. If a
+// change to the layout code breaks it, this fails here rather than as a click that times out.
+const expectPointsClearOfZoomButtons = async (plugin: FrameLocator) => {
+  const plotBox = await plugin.locator(".graph-plot").boundingBox();
+  const zoomBox = await plugin.locator(".zoom-controls").boundingBox();
+  if (!plotBox || !zoomBox) throw new Error("The plot or its zoom buttons are not visible");
+  const right = zoomBox.x - plotBox.x + zoomBox.width + 30;
+  const bottom = zoomBox.y - plotBox.y + zoomBox.height + 30;
+  const underButtons = await plugin.locator(".graph-plot .point").evaluateAll((points, edges) =>
+    points.filter(p => {
+      const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(p.getAttribute("transform") ?? "") ?? [];
+      return Number(x) < edges.right && Number(y) < edges.bottom;
+    }).map(p => p.getAttribute("aria-label")), { right, bottom });
+  expect(underButtons, "points near the zoom buttons; choose another kFixtureSeed").toEqual([]);
+};
+
 // With reduced motion only the final layout shows, so visible points mean the layout is done.
 const openPlot = async (page: Page, labelColumn?: string) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -287,6 +309,7 @@ const openPlot = async (page: Page, labelColumn?: string) => {
   await choose(plugin, "Phrase Column", "phrase");
   if (labelColumn) await choose(plugin, "Label Column", labelColumn);
   await expect(plugin.locator(".graph-plot .point")).toHaveCount(9);
+  await expectPointsClearOfZoomButtons(plugin);
   return plugin;
 };
 
@@ -682,6 +705,7 @@ const openFlatPlot = async (page: Page, document: object = documentWithPlugin("f
   await choose(plugin, "Phrase Column", "phrase");
   await choose(plugin, "Label Column", "label");
   await expect(plugin.locator(".graph-plot .point:not(.test-phrase-point)")).toHaveCount(40);
+  await expectPointsClearOfZoomButtons(plugin);
   return plugin;
 };
 
@@ -924,13 +948,15 @@ test("zooms in and out about the center, fits all again, and stops at the larges
   // (b) Zooming in moves a point near the edge outward, 1.5 times as far from the center
   await zoomButton(plugin, "Zoom in").click();
   await expect(zoomButton(plugin, "Fit all")).not.toHaveAttribute("aria-disabled");
+  // Read only once the zoomed picture is drawn
+  await expect.poll(() => pointCenters(plugin)).not.toEqual(fit);
   const zoomed = (await pointCenters(plugin))[far];
   expect(zoomed.x - 150).toBeCloseTo(1.5 * (fit[far].x - 150), 1);
   expect(zoomed.y - 150).toBeCloseTo(1.5 * (fit[far].y - 150), 1);
   await expect(plugin.getByTestId("zoom-announcement")).toHaveText("Zoom 150%");
 
   await zoomButton(plugin, "Fit all").click();
-  expect(await pointCenters(plugin)).toEqual(fit);
+  await expect.poll(() => pointCenters(plugin)).toEqual(fit);
   await expect(zoomButton(plugin, "Fit all")).toHaveAttribute("aria-disabled", "true");
   await expect(plugin.getByTestId("zoom-announcement")).toHaveText("Zoom 100%, whole plot");
 
@@ -954,6 +980,9 @@ test("pans with a mouse drag, which keeps CODAP's selection; a click still clear
   await page.mouse.down();
   await page.mouse.move(start.x + 40, start.y, { steps: 10 });
   await page.mouse.up();
+  // Read only once the last move is drawn
+  const [first] = Object.keys(before);
+  await expect.poll(async () => (await pointCenters(plugin))[first].x - before[first].x).toBeCloseTo(40, 1);
   const after = await pointCenters(plugin);
   Object.keys(before).forEach(phrase => {
     expect(after[phrase].x - before[phrase].x).toBeCloseTo(40, 1);
@@ -969,16 +998,14 @@ test("pans with a mouse drag, which keeps CODAP's selection; a click still clear
 test.describe("with a touch screen", () => {
   test.use({ hasTouch: true });
 
-  test("pans with a finger drag, without scrolling the document, and keeps the first finger's drag",
+  // Without touch-action: none the browser takes the gesture over (nothing here can scroll, but it
+  // cancels the pointer) and the pan stops short, so the full 40px is the check
+  test("pans the full distance with a finger drag, and keeps the first finger's drag past a second finger",
     async ({ page }) => {
       const plugin = await openFlatPlot(page);
       await point(plugin, "Everyone around the world shares this").click();
       await expect.poll(() => tableSelectionCount(page)).toBe(1);
       const before = await pointCenters(plugin);
-      const scrolled = () => page.evaluate(() =>
-        Array.from(document.querySelectorAll("*")).filter(el => el.scrollTop !== 0 || el.scrollLeft !== 0).length +
-        Math.abs(window.scrollX) + Math.abs(window.scrollY));
-      const scrolledBefore = await scrolled();
 
       // Real touches, so the browser applies touch-action
       const cdp = await page.context().newCDPSession(page);
@@ -994,9 +1021,11 @@ test.describe("with a touch screen", () => {
       for (let dy = 25; dy <= 40; dy += 5) await touch("touchMove", [{ x: start.x, y: start.y + dy }]);
       await touch("touchEnd", []);
 
+      const [phrase] = Object.keys(before);
+      await expect.poll(async () => (await pointCenters(plugin))[phrase].y - before[phrase].y).toBeCloseTo(40, 1);
       const after = await pointCenters(plugin);
-      Object.keys(before).forEach(phrase => expect(after[phrase].y - before[phrase].y).toBeCloseTo(40, 1));
-      expect(await scrolled()).toBe(scrolledBefore);
+      Object.keys(before).forEach(name => expect(after[name].y - before[name].y).toBeCloseTo(40, 1));
+      // The second finger's tap selected nothing and cleared nothing
       expect(await tableSelectionCount(page)).toBe(1);
     });
 });
@@ -1022,14 +1051,21 @@ test("keeps the focused point inside the plot while arrowing through a zoomed-in
 
 test("restores the zoom and pan after the document is saved and reopened", async ({ page }) => {
   const plugin = await openFlatPlot(page);
+  const fit = await pointCenters(plugin);
   await zoomButton(plugin, "Zoom in").click();
   await zoomButton(plugin, "Zoom in").click();
-  const start = await onPage(plugin, { x: 150, y: 150 });
+  await expect.poll(() => pointCenters(plugin)).not.toEqual(fit);
+  const zoomed = await pointCenters(plugin);
+  // From empty space, so the press starts a drag and isn't a click on a point
+  const start = await onPage(plugin, await emptySpot(plugin));
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(start.x - 30, start.y + 20, { steps: 10 });
   await page.mouse.up();
+  const [phrase] = Object.keys(zoomed);
+  await expect.poll(async () => (await pointCenters(plugin))[phrase].x - zoomed[phrase].x).toBeCloseTo(-30, 1);
   const before = await pointCenters(plugin);
+  expect(before[phrase].y - zoomed[phrase].y).toBeCloseTo(20, 1);
 
   // (f) Same zoom and center
   const saved = await saveCodapDocument(page);
@@ -1044,14 +1080,14 @@ test("returns to the whole plot when the Phrase Column is cleared and chosen aga
   const plugin = await openFlatPlot(page);
   const fit = await pointCenters(plugin);
   await zoomButton(plugin, "Zoom in").click();
-  expect(await pointCenters(plugin)).not.toEqual(fit);
+  await expect.poll(() => pointCenters(plugin)).not.toEqual(fit);
 
   // (g) A new picture starts at the fit view
   await choose(plugin, "Phrase Column", "Select, clear selection");
   await expect(plugin.locator(".graph-plot .point")).toHaveCount(0);
   await choose(plugin, "Phrase Column", "phrase");
   await expect(plugin.locator(".graph-plot .point")).toHaveCount(40);
-  expect(await pointCenters(plugin)).toEqual(fit);
+  await expect.poll(() => pointCenters(plugin)).toEqual(fit);
   await expect(zoomButton(plugin, "Fit all")).toHaveAttribute("aria-disabled", "true");
 });
 

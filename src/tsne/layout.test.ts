@@ -436,10 +436,6 @@ describe("view", () => {
       expect(y).toEqual(today(size.height));
     });
 
-    it("keeps the first vertical line at 38.5px on a 300px plot", () => {
-      expect(gridLines(square, kFitView).x[0]).toBe(38.5);
-    });
-
     it("draws fewer lines at level 1", () => {
       const { x, y } = gridLines(square, level1);
       expect(x.length).toBeLessThan(7);
@@ -469,12 +465,12 @@ describe("view", () => {
             x.forEach(position => {
               expect(onHalfPixel(position)).toBe(true);
               expect(position).toBeGreaterThan(0);
-              expect(position).toBeLessThan(size.width + 0.5);
+              expect(position).toBeLessThan(size.width);
             });
             y.forEach(position => {
               expect(onHalfPixel(position)).toBe(true);
               expect(position).toBeGreaterThan(0);
-              expect(position).toBeLessThan(size.height + 0.5);
+              expect(position).toBeLessThan(size.height);
             });
           });
         });
