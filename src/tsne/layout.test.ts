@@ -1,8 +1,8 @@
 import {
-  applyTransform, applyView, clampView, directionToPixels, fitLayout, gridLines, IView, kFitView, kGraphPadding,
-  kMaxZoomLevel, kMinNeighborOffsetPx, kMinZoomLevel, kOffsetCandidates, kTooltipMargin, kZoomFactor,
-  normalizeLayout, offsetFromNeighbor, paddedBounds, panToInclude, placeTooltip, scaleForLevel, toPixels,
-  unitDirection, worldBounds
+  applyTransform, applyView, clampView, directionToPixels, fitLayout, gridLines, IPosition, IView, kFitView,
+  kGraphPadding, kMaxZoomLevel, kMinNeighborOffsetPx, kMinZoomLevel, kOffsetCandidates, kTooltipMargin,
+  kTooltipMinWidth, kTooltipTipToBox, kZoomFactor, normalizeLayout, offsetFromNeighbor, paddedBounds,
+  panToInclude, placeTooltip, pointerShapes, scaleForLevel, toPixels, tooltipMaxWidth, unitDirection, worldBounds
 } from "./layout";
 
 describe("normalizeLayout", () => {
@@ -506,56 +506,62 @@ describe("placeTooltip", () => {
   const dot = 6;
   // Half the diamond's 18.8px plot extent
   const diamond = 9.4;
+  // 11px: the pointer's 10px, and its tip 1px short of the point
+  const reach = kTooltipTipToBox;
 
-  it("puts the box 10px right of a dot's center, vertically centered", () => {
+  it("puts the box right of a dot, with the pointer's tip by its center, vertically centered", () => {
+    expect(kTooltipTipToBox).toBe(11);
     expect(placeTooltip({ x: 100, y: 150 }, dot, box, area))
-      .toEqual({ left: 110, top: 138, side: "right", pointerOffset: 0 });
+      .toEqual({ left: 100 + reach, top: 138, side: "right", pointerOffset: 0, tipOffset: 0 });
   });
 
   it("keeps the tip 6px inside a larger symbol's edge", () => {
     const { left, side } = placeTooltip({ x: 100, y: 150 }, diamond, box, area);
     expect(side).toBe("right");
-    // Tip at 103.4, box 10px past it
-    expect(left).toBeCloseTo(113.4, 12);
+    // Tip at 103.4
+    expect(left).toBeCloseTo(103.4 + reach, 12);
   });
 
   it("flips to the left near the right edge, with the tip 6px inside the symbol's left edge", () => {
     const forDot = placeTooltip({ x: 250, y: 150 }, dot, box, area);
-    expect(forDot).toEqual({ left: 250 - 10 - 86, top: 138, side: "left", pointerOffset: 0 });
+    expect(forDot).toEqual({ left: 250 - reach - 86, top: 138, side: "left", pointerOffset: 0, tipOffset: 0 });
     const forDiamond = placeTooltip({ x: 250, y: 150 }, diamond, box, area);
     expect(forDiamond.side).toBe("left");
     // Tip at 246.6
-    expect(forDiamond.left + box.width + 10).toBeCloseTo(246.6, 12);
+    expect(forDiamond.left + box.width + reach).toBeCloseTo(246.6, 12);
   });
 
   it("stays on the right while it fits within the margin", () => {
     // Right edge exactly at 300 − 4
-    expect(placeTooltip({ x: 200, y: 150 }, dot, box, area).side).toBe("right");
-    expect(placeTooltip({ x: 201, y: 150 }, dot, box, area).side).toBe("left");
+    const lastRight = 300 - kTooltipMargin - 86 - reach;
+    expect(placeTooltip({ x: lastRight, y: 150 }, dot, box, area).side).toBe("right");
+    expect(placeTooltip({ x: lastRight + 0.01, y: 150 }, dot, box, area).side).toBe("left");
   });
 
   it("clamps at the top and bottom, sliding the pointer by the shift", () => {
     // Centered top would be 2: moved down 2
     expect(placeTooltip({ x: 100, y: 14 }, dot, box, area))
-      .toEqual({ left: 110, top: kTooltipMargin, side: "right", pointerOffset: -2 });
+      .toEqual({ left: 100 + reach, top: kTooltipMargin, side: "right", pointerOffset: -2, tipOffset: -2 });
     // Centered top would be 274: moved up 2
     expect(placeTooltip({ x: 100, y: 286 }, dot, box, area))
-      .toEqual({ left: 110, top: 300 - kTooltipMargin - 24, side: "right", pointerOffset: 2 });
+      .toEqual({ left: 100 + reach, top: 300 - kTooltipMargin - 24, side: "right", pointerOffset: 2, tipOffset: 2 });
   });
 
-  it("slides the pointer no closer than the corner radius to the box's top or bottom", () => {
-    // A 24px box: (24 − 12) / 2 − 4 = 2px either way
-    expect(placeTooltip({ x: 100, y: 0 }, dot, box, area).pointerOffset).toBe(-2);
+  it("keeps the pointer's base off the rounded corners, and tilts the tip the rest of the way to the point", () => {
+    // A 24px box: the base slides (24 − 12) / 2 − 4 = 2px either way. A dot on the padded edge needs 4.
+    expect(placeTooltip({ x: 100, y: 12 }, dot, box, area)).toMatchObject({ pointerOffset: -2, tipOffset: -4 });
+    expect(placeTooltip({ x: 100, y: 0 }, dot, box, area)).toMatchObject({ pointerOffset: -2, tipOffset: -16 });
     // A two-line, 40px box: 10px either way
     const tall = { width: 86, height: 40 };
-    expect(placeTooltip({ x: 100, y: 16 }, dot, tall, area).pointerOffset).toBe(-8);
-    expect(placeTooltip({ x: 100, y: 300 }, dot, tall, area).pointerOffset).toBe(10);
+    expect(placeTooltip({ x: 100, y: 16 }, dot, tall, area)).toMatchObject({ pointerOffset: -8, tipOffset: -8 });
+    expect(placeTooltip({ x: 100, y: 12 }, dot, tall, area)).toMatchObject({ pointerOffset: -10, tipOffset: -12 });
+    expect(placeTooltip({ x: 100, y: 300 }, dot, tall, area)).toMatchObject({ pointerOffset: 10, tipOffset: 24 });
   });
 
   it("clamps at the left when flipped in a narrow area", () => {
     const narrow = { width: 120, height: 300 };
     expect(placeTooltip({ x: 40, y: 150 }, dot, { width: 100, height: 24 }, narrow))
-      .toEqual({ left: kTooltipMargin, top: 138, side: "left", pointerOffset: 0 });
+      .toEqual({ left: kTooltipMargin, top: 138, side: "left", pointerOffset: 0, tipOffset: 0 });
   });
 
   it("puts a box as wide as the area minus 8px 4px from both edges", () => {
@@ -568,7 +574,7 @@ describe("placeTooltip", () => {
   it("starts a box too big for the area 4px from its left and top, overflowing the right and bottom", () => {
     const tiny = { width: 80, height: 30 };
     expect(placeTooltip({ x: 40, y: 15 }, dot, { width: 100, height: 40 }, tiny))
-      .toEqual({ left: kTooltipMargin, top: kTooltipMargin, side: "left", pointerOffset: -9 });
+      .toEqual({ left: kTooltipMargin, top: kTooltipMargin, side: "left", pointerOffset: -9, tipOffset: -9 });
   });
 
   it("keeps the box inside when it can't also aim at a central point: containment wins", () => {
@@ -579,9 +585,77 @@ describe("placeTooltip", () => {
     expect(left).toBe(kTooltipMargin);
     expect(left + wide.width).toBeLessThanOrEqual(narrow.width - kTooltipMargin);
     // The pointer stays on the box's right edge; its tip is short of the point by the clamped amount
-    const unclampedLeft = 80 - 10 - wide.width;
-    const tip = left + wide.width + 10;
-    expect(tip - 80).toBe(left - unclampedLeft);
+    const unclampedLeft = 80 - reach - wide.width;
+    const tip = left + wide.width + reach;
+    expect(tip - 80).toBeCloseTo(left - unclampedLeft, 12);
     expect(pointerOffset).toBe(0);
+  });
+});
+
+describe("tooltipMaxWidth", () => {
+  const area = { width: 300, height: 300 };
+  const reach = kTooltipTipToBox;
+
+  it("keeps the max width when the box fits on the right or the left", () => {
+    expect(tooltipMaxWidth({ x: 100, y: 150 }, 6, 168, 240, area)).toBe(240);
+    expect(tooltipMaxWidth({ x: 250, y: 150 }, 6, 168, 240, area)).toBe(240);
+  });
+
+  it("narrows a box that fits on neither side to the room beside the point, so the pointer stays on it", () => {
+    // 135px each side of a central dot: 300 − 4 − 150 − 11, and 150 − 11 − 4
+    const maxWidth = tooltipMaxWidth({ x: 150, y: 150 }, 6, 168, 240, area);
+    expect(maxWidth).toBe(135);
+    const { left, side } = placeTooltip({ x: 150, y: 150 }, 6, { width: maxWidth, height: 40 }, area);
+    expect(side).toBe("right");
+    expect(left).toBe(150 + reach);
+  });
+
+  it("uses the roomier side, in whole pixels, less a larger symbol's reach", () => {
+    // Right: 300 − 4 − 120 − 11 = 165; left: 120 − 11 − 4 = 105
+    expect(tooltipMaxWidth({ x: 120, y: 150 }, 6, 200, 240, area)).toBe(165);
+    // A diamond reaches 3.4px further: 131.6
+    expect(tooltipMaxWidth({ x: 150, y: 150 }, 9.4, 168, 240, area)).toBe(131);
+  });
+
+  it("keeps the max width when the room is under the minimum, so containment wins", () => {
+    const small = { width: 150, height: 300 };
+    // 60px each side
+    expect(tooltipMaxWidth({ x: 75, y: 150 }, 6, 120, 142, small)).toBe(142);
+    // Just over the minimum each side narrows
+    const x = kTooltipMinWidth + 0.4 + kTooltipMargin + reach;
+    expect(tooltipMaxWidth({ x, y: 150 }, 6, 200, 240, { width: 2 * x, height: 300 })).toBe(kTooltipMinWidth);
+  });
+
+  it("never widens past the max width", () => {
+    // A point past a tiny area's edge has more room than the area
+    expect(tooltipMaxWidth({ x: 100, y: 150 }, 6, 86, 0, { width: 6, height: 300 })).toBe(0);
+  });
+});
+
+describe("pointerShapes", () => {
+  // To 2 decimals
+  const corners = (points: IPosition[]) => points.map(({ x, y }) => [Number(x.toFixed(2)), Number(y.toFixed(2))]);
+
+  it("draws the spec's pointer: 10px from the box to the tip, a 1.5px border inside, 1px outline out", () => {
+    const { outline, border, fill } = pointerShapes({ pointerOffset: 0, tipOffset: 0 });
+    expect(corners(border)).toEqual([[-10, 0], [1.5, -6], [1.5, 6]]);
+    // 1.5px in from both sides meets 1.5 / sin(atan(6 / 11.5)) = 3.24px in from the tip
+    expect(corners(fill)).toEqual([[-6.76, 0], [1.5, -4.31], [1.5, 4.31]]);
+    // Pointed: 1px out from both sides meets 2.16px past the tip. Stops at the box's outer edge.
+    expect(corners(outline)).toEqual([[-12.16, 0], [0, -6.35], [0, 6.35]]);
+  });
+
+  it("slides the base by the pointer offset, and puts the tip at the tip offset", () => {
+    expect(corners(pointerShapes({ pointerOffset: 2, tipOffset: 2 }).border)).toEqual([[-10, 2], [1.5, -4], [1.5, 8]]);
+    expect(corners(pointerShapes({ pointerOffset: -2, tipOffset: -14 }).border))
+      .toEqual([[-10, -14], [1.5, -8], [1.5, 4]]);
+  });
+
+  it.each([-14, 14])("keeps the outline pointed past the tip when tilted %ipx", tipOffset => {
+    const { outline, border } = pointerShapes({ pointerOffset: 0, tipOffset });
+    const [[outlineX]] = corners(outline);
+    const [[tipX]] = corners(border);
+    expect(outlineX).toBeLessThan(tipX);
+    expect(outline).toHaveLength(3);
   });
 });

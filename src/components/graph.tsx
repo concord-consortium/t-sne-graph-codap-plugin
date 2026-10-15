@@ -5,12 +5,13 @@ import { observer } from "mobx-react-lite";
 import { Point, TestPhrasePoint } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
-import { kTestPhraseColor } from "../tsne/labels";
+import { kTestPhraseColor, kTestPhraseTooltipFill } from "../tsne/labels";
 import {
   applyView, directionToPixels, gridLines, IPosition, ISize, IView, offsetFromNeighbor, paddedBounds, panToInclude,
   toPixels, worldBounds
 } from "../tsne/layout";
 import { kPlotSymbolExtents, symbolName, symbolPath, symbolReach } from "./phrase-symbol";
+import { PointTooltip } from "./point-tooltip";
 import { ZoomControls } from "./zoom-controls";
 import "./graph.scss";
 
@@ -112,6 +113,27 @@ export const Graph = observer(() => {
   // The click after a drag isn't a background click
   const ignoreClick = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
+  // The point under a mouse or pen
+  const [hoverKey, setHoverKey] = useState<string>();
+  // The point with DOM focus, and whether that focus came from the keyboard or a touch
+  const [focused, setFocused] = useState<{ key: string, showsTooltip: boolean }>();
+  // The last input in the plugin: a pointer type, or undefined for the keyboard
+  const lastPointerType = useRef<string | undefined>(undefined);
+
+  // On the whole document, so a Tab from the panel back to a point counts as the keyboard. Leaving the
+  // plugin resets it, so a Tab in from CODAP does too.
+  useEffect(() => {
+    const handlePointer = (event: globalThis.PointerEvent) => { lastPointerType.current = event.pointerType; };
+    const handleKey = () => { lastPointerType.current = undefined; };
+    document.addEventListener("pointerdown", handlePointer, true);
+    document.addEventListener("keydown", handleKey, true);
+    window.addEventListener("blur", handleKey);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointer, true);
+      document.removeEventListener("keydown", handleKey, true);
+      window.removeEventListener("blur", handleKey);
+    };
+  }, []);
 
   const { computeStatus } = store;
   const { zoomLevel, centerX, centerY } = store.view;
@@ -135,6 +157,12 @@ export const Graph = observer(() => {
     () => [...points.map(point => caseKey(point.caseId)), ...testPoints.map(point => slotKey(point.slot))],
     [points, testPoints]);
   const activeExists = activeKey !== undefined && keys.includes(activeKey);
+
+  // A removed point gets no pointerleave, and may not blur
+  useEffect(() => {
+    if (hoverKey !== undefined && !keys.includes(hoverKey)) setHoverKey(undefined);
+    if (focused && !keys.includes(focused.key)) setFocused(undefined);
+  }, [hoverKey, focused, keys]);
 
   // If the remembered point is gone while focus is in the plot, use the first point. From outside,
   // keep it: a test phrase's point is only hidden while its field is edited, and comes back.
@@ -217,7 +245,11 @@ export const Graph = observer(() => {
 
   // Only from the background: a press on a point is a click on it. An empty plot has no view to move.
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
-    if (!store.hasGraph || event.button !== 0 || (event.target as Element).closest(".point")) return;
+    if ((event.target as Element).closest(".point")) return;
+    // Not every browser blurs a point on a press here, and a touch may leave its tooltip showing
+    const svg = svgRef.current;
+    if (svg && document.activeElement !== svg && svg.contains(document.activeElement)) svg.focus();
+    if (!store.hasGraph || event.button !== 0) return;
     // A second finger doesn't take over a drag
     if (drag.current) return;
     // In case the last drag's click never came
@@ -263,10 +295,24 @@ export const Graph = observer(() => {
     setIsDragging(false);
   };
 
+  // Browsers focus a clicked point for a mouse, but not reliably for a tap
   const handlePointClick = (event: MouseEvent<SVGGElement>, key: string) => {
     event.stopPropagation();
-    setActiveKey(key);
+    moveTo(key);
     select(key, event.shiftKey);
+  };
+
+  // A finger has no hover; a tap shows the tooltip by focusing the point
+  const handlePointerEnter = (event: PointerEvent<SVGGElement>, key: string) => {
+    if (event.pointerType === "mouse" || event.pointerType === "pen") setHoverKey(key);
+  };
+
+  const handlePointerLeave = (key: string) => {
+    setHoverKey(current => current === key ? undefined : current);
+  };
+
+  const handlePointBlur = (key: string) => {
+    setFocused(current => current?.key === key ? undefined : current);
   };
 
   const pointRef = (key: string) => (element: SVGGElement | null) => {
@@ -296,17 +342,24 @@ export const Graph = observer(() => {
     return placed;
   }, [store.points, store.testPhrasePoints, size, view]);
 
-  // A point given keyboard focus outside the padded area pans into view. By its drawn position: the
-  // ring search can put a symbol 18px from its dot. Not on a mouse press, which would move the dot from under the
-  // pointer before release and make the click land on the background. (jsdom always matches
-  // :focus-visible.)
+  // Where a point is drawn: through the view, or where the ring search put a symbol, which can be 18px from
+  // its dot
+  const drawnPixel = (key: string) => {
+    const slot = slotFromKey(key);
+    if (slot !== undefined) return testPointPixels.get(slot);
+    const caseId = key.slice("case:".length);
+    const casePoint = store.points.find(point => point.caseId === caseId);
+    return casePoint && viewPixels(casePoint, view, size);
+  };
+
+  // A point given keyboard focus outside the padded area pans into view. Not on a press, which would move
+  // the dot from under the pointer before release and make the click land on the background.
   const handlePointFocus = (key: string) => {
     setActiveKey(key);
-    const slot = slotFromKey(key);
-    const caseId = key.slice("case:".length);
-    const casePoint = slot === undefined ? store.points.find(point => point.caseId === caseId) : undefined;
-    const pixel = slot !== undefined ? testPointPixels.get(slot) : casePoint && viewPixels(casePoint, view, size);
-    if (!pixel || !pointRefs.current.get(key)?.matches(":focus-visible")) return;
+    const pointerType = lastPointerType.current;
+    setFocused({ key, showsTooltip: pointerType === undefined || pointerType === "touch" });
+    const pixel = drawnPixel(key);
+    if (!pixel || pointerType !== undefined) return;
     const panned = panToInclude(view, pixel, size);
     if (panned !== view) store.panTo(panned.centerX, panned.centerY);
   };
@@ -324,6 +377,21 @@ export const Graph = observer(() => {
     const phrase = phrases.get(caseId) ?? caseId;
     return hasLabels ? `${phrase}, ${store.labelForCase(caseId)}` : phrase;
   };
+  // Hover wins; the anchor is the drawn position in the graph area
+  const focusTooltipKey = focused?.showsTooltip ? focused.key : undefined;
+  const tooltipKey = isDragging ? undefined : hoverKey ?? focusTooltipKey;
+  const tooltip = (() => {
+    const pixel = tooltipKey !== undefined && keys.includes(tooltipKey) ? drawnPixel(tooltipKey) : undefined;
+    if (tooltipKey === undefined || !pixel) return undefined;
+    const slot = slotFromKey(tooltipKey);
+    if (slot !== undefined) {
+      return { text: store.testPhrases[slot], color: kTestPhraseColor, fill: kTestPhraseTooltipFill, pixel,
+        halfExtent: kPlotSymbolExtents[store.symbolForSlot(slot)] / 2 };
+    }
+    const caseId = tooltipKey.slice("case:".length);
+    return { text: phrases.get(caseId) ?? "", color: store.colorForCase(caseId), fill: store.tooltipFillForCase(caseId),
+      pixel, halfExtent: kPointRadius };
+  })();
   const message = computeStatus === "too-few" ? kTooFewMessage : computeStatus === "error" ? kErrorMessage : "";
   const grid = gridLines(size, view);
 
@@ -384,6 +452,9 @@ export const Graph = observer(() => {
               tabIndex={key === activeKey ? 0 : -1}
               onClick={event => handlePointClick(event, key)}
               onFocus={() => handlePointFocus(key)}
+              onBlur={() => handlePointBlur(key)}
+              onPointerEnter={event => handlePointerEnter(event, key)}
+              onPointerLeave={() => handlePointerLeave(key)}
             >
               <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
               <PointMarks color={store.colorForCase(point.caseId)} selected={selected} />
@@ -425,6 +496,9 @@ export const Graph = observer(() => {
               data-testid="test-phrase-point"
               onClick={event => handlePointClick(event, key)}
               onFocus={() => handlePointFocus(key)}
+              onBlur={() => handlePointBlur(key)}
+              onPointerEnter={event => handlePointerEnter(event, key)}
+              onPointerLeave={() => handlePointerLeave(key)}
             >
               <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
               {selected && <path className="selection-edge" data-testid="selection-edge" d={path}
@@ -448,6 +522,10 @@ export const Graph = observer(() => {
           );
         })}
       </svg>
+      {tooltip && (
+        <PointTooltip text={tooltip.text} color={tooltip.color} fill={tooltip.fill} halfExtent={tooltip.halfExtent}
+          anchor={{ x: tooltip.pixel.x + offset.left, y: tooltip.pixel.y + offset.top }} area={area} />
+      )}
       <p className="visually-hidden" id={helpId}>{kKeyboardHelp}</p>
       <p className="graph-status" role="status" aria-live="polite">{message}</p>
     </div>

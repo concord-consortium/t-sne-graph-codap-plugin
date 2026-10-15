@@ -247,20 +247,53 @@ export const gridLines = ({ width, height }: ISize, view: IView, padding = kGrap
   return { x: axisGridLines(width, scaleX, offsetX), y: axisGridLines(height, scaleY, offsetY) };
 };
 
-// Tooltip placement: the pointer's tip is 6px inside a dot's edge (its center), and the box starts 10px
-// past the tip
+// Tooltip placement. The pointer is 11.5px from its tip to its base, which is 12px tall and on the box's
+// inner edge, past the 1.5px border. Its tip goes on the point (a dot's center, 6px inside a larger symbol's
+// edge), less `kTooltipTipGap`.
 export const kTooltipMargin = 4;
-const kTooltipTipInset = 6;
-const kTooltipTipToBox = 10;
-const kTooltipPointerHalfHeight = 6;
+// Narrower than this, a box beside a central point shows too little text; containment wins instead
+export const kTooltipMinWidth = 80;
+// $tooltip-border-width, $tooltip-radius and the box's white outline in _variables.scss
+const kTooltipBorderWidth = 1.5;
 const kTooltipRadius = 4;
+const kTooltipOutlineWidth = 1;
+const kTooltipPointerLength = 11.5;
+const kTooltipPointerHalfHeight = 6;
+// On a dot of its own color the colored tip can't be seen, and the white outline's tip reaches about 2.16px
+// past it (1 / sin(atan(6 / 11.5))). Each looked off center when it was on the point; 1px short of it looks
+// right.
+const kTooltipTipGap = 1;
+// From the point to the box's outer edge
+export const kTooltipTipToBox = kTooltipPointerLength - kTooltipBorderWidth + kTooltipTipGap;
+const kTooltipTipInset = 6;
 
 export interface ITooltipPlacement {
   left: number;
   top: number;
   side: "right" | "left";
+  // Below the box's center: the pointer's base center, and its tip, which is at the point's height
   pointerOffset: number;
+  tipOffset: number;
 }
+
+// For a box right and left of a point: from the point to the box's near edge, and the room inside the margins
+const tooltipRoom = (x: number, halfExtent: number, areaWidth: number) => {
+  const reach = Math.max(0, halfExtent - kTooltipTipInset) + kTooltipTipToBox;
+  return { reach, right: areaWidth - kTooltipMargin - (x + reach), left: x - reach - kTooltipMargin };
+};
+
+/** The max width for a box `width` wide (at `maxWidth`) beside a point: `maxWidth` when the box fits on a
+ * side. Otherwise the room on the roomier side, so the text wraps sooner and the pointer stays on the
+ * point; but `maxWidth` when that room is under `kTooltipMinWidth`. */
+export const tooltipMaxWidth = (
+  { x }: IPosition, halfExtent: number, width: number, maxWidth: number, area: ISize
+) => {
+  const { right, left } = tooltipRoom(x, halfExtent, area.width);
+  if (width <= right || width <= left) return maxWidth;
+  // Whole pixels, so a box measured at a fraction past it still fits
+  const room = Math.floor(Math.max(right, left));
+  return room >= kTooltipMinWidth ? Math.min(room, maxWidth) : maxWidth;
+};
 
 // A box too big for the area keeps its start margin and overflows the far edge
 const clampBox = (start: number, boxLength: number, areaLength: number) =>
@@ -269,19 +302,71 @@ const clampBox = (start: number, boxLength: number, areaLength: number) =>
 /** Places a tooltip box beside a point in `area` (all in the area's pixels). Right of the point unless
  * that overflows, then left; then clamped `kTooltipMargin` inside the area. A box too big for the area
  * starts `kTooltipMargin` from its left or top and overflows the right or bottom. A vertical clamp slides the
- * pointer to stay on the point, as far as the box's straight edge allows. A horizontal clamp can't move
- * the pointer, so its tip falls short of the point: containment wins. */
+ * pointer's base as far as the box's straight edge allows, and tilts the pointer the rest of the way, so
+ * its tip stays on the point. A horizontal clamp can't move the pointer, so its tip falls short of the
+ * point: containment wins. */
 export const placeTooltip = (
   { x, y }: IPosition, halfExtent: number, { width, height }: ISize, area: ISize
 ): ITooltipPlacement => {
-  const tipInset = Math.max(0, halfExtent - kTooltipTipInset);
-  const rightLeft = x + tipInset + kTooltipTipToBox;
-  const side = rightLeft + width > area.width - kTooltipMargin ? "left" : "right";
-  const unclampedLeft = side === "right" ? rightLeft : x - tipInset - kTooltipTipToBox - width;
-  const left = clampBox(unclampedLeft, width, area.width);
+  const room = tooltipRoom(x, halfExtent, area.width);
+  const side = width > room.right ? "left" : "right";
+  const left = clampBox(side === "right" ? x + room.reach : x - room.reach - width, width, area.width);
   const top = clampBox(y - height / 2, height, area.height);
-  // Keeps the pointer off the rounded corners
+  const tipOffset = y - (top + height / 2);
+  // Keeps the base off the rounded corners
   const maxOffset = Math.max(0, height / 2 - kTooltipPointerHalfHeight - kTooltipRadius);
-  const pointerOffset = clamp(y - (top + height / 2), -maxOffset, maxOffset);
-  return { left, top, side, pointerOffset };
+  return { left, top, side, pointerOffset: clamp(tipOffset, -maxOffset, maxOffset), tipOffset };
+};
+
+// One side of the pointer: a point on it and its direction
+interface ILine {
+  point: IPosition;
+  direction: IPosition;
+}
+
+const cross = (a: IPosition, b: IPosition) => a.x * b.y - a.y * b.x;
+
+// `amount` px away from `inside`; negative moves toward it
+const offsetLine = (from: IPosition, to: IPosition, inside: IPosition, amount: number): ILine => {
+  const direction = { x: to.x - from.x, y: to.y - from.y };
+  const length = Math.hypot(direction.x, direction.y);
+  const normal = { x: -direction.y / length, y: direction.x / length };
+  const sign = normal.x * (inside.x - from.x) + normal.y * (inside.y - from.y) > 0 ? -1 : 1;
+  return { point: { x: from.x + sign * amount * normal.x, y: from.y + sign * amount * normal.y }, direction };
+};
+
+const intersect = (a: ILine, b: ILine): IPosition => {
+  const between = { x: b.point.x - a.point.x, y: b.point.y - a.point.y };
+  const t = cross(between, b.direction) / cross(a.direction, b.direction);
+  return { x: a.point.x + t * a.direction.x, y: a.point.y + t * a.direction.y };
+};
+
+const atX = ({ point, direction }: ILine, x: number): IPosition =>
+  ({ x, y: point.y + (x - point.x) * direction.y / direction.x });
+
+// The sides of the triangle `tip`, `top`, `bottom`, moved `amount` out
+const offsetSides = (tip: IPosition, top: IPosition, bottom: IPosition, amount: number) => {
+  const inside = { x: (tip.x + top.x + bottom.x) / 3, y: (tip.y + top.y + bottom.y) / 3 };
+  return [offsetLine(tip, top, inside, amount), offsetLine(tip, bottom, inside, amount)];
+};
+
+/** The corners of the pointer's outline, border and fill for a box on the right, in px from the box's outer
+ * left edge (x) and vertical center (y), from `placeTooltip`'s offsets. The colored tip is 10px out. The
+ * outline stops at the box's outer edge, so it doesn't cut through the box's border; the fill covers the
+ * border between the pointer's sides. */
+export const pointerShapes = (
+  { pointerOffset, tipOffset }: Pick<ITooltipPlacement, "pointerOffset" | "tipOffset">
+) => {
+  const tip = { x: kTooltipBorderWidth - kTooltipPointerLength, y: tipOffset };
+  const top = { x: kTooltipBorderWidth, y: pointerOffset - kTooltipPointerHalfHeight };
+  const bottom = { x: kTooltipBorderWidth, y: pointerOffset + kTooltipPointerHalfHeight };
+  const [outerTop, outerBottom] = offsetSides(tip, top, bottom, kTooltipOutlineWidth);
+  const [innerTop, innerBottom] = offsetSides(tip, top, bottom, -kTooltipBorderWidth);
+  return {
+    outline: [intersect(outerTop, outerBottom), atX(outerTop, 0), atX(outerBottom, 0)],
+    border: [tip, top, bottom],
+    fill: [
+      intersect(innerTop, innerBottom), atX(innerTop, kTooltipBorderWidth), atX(innerBottom, kTooltipBorderWidth)
+    ]
+  };
 };

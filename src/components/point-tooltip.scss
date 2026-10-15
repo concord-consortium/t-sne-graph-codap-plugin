@@ -6,7 +6,7 @@
 .point-tooltip {
   background-color: var(--tooltip-fill);
   border-radius: $tooltip-radius;
-  box-shadow: inset 0 0 0 $tooltip-border-width var(--tooltip-color), 0 0 0 1px $tooltip-outline-color;
+  box-shadow: inset 0 0 0 $tooltip-border-width var(--tooltip-color), 0 0 0 $tooltip-outline-width $tooltip-outline-color;
   box-sizing: border-box;
   color: $text-color;
   filter: drop-shadow($tooltip-shadow);
@@ -22,19 +22,19 @@
   z-index: 2;
 }
 
+// Its origin is on the box's outer left edge at its vertical center; the shapes reach out from it
 .point-tooltip-pointer {
   display: block;
-  height: $tooltip-pointer-height;
-  left: $tooltip-pointer-left;
+  left: 0;
   overflow: visible;
   position: absolute;
-  top: calc(50% - #{math.div($tooltip-pointer-height, 2)} + var(--pointer-offset));
-  width: $tooltip-pointer-width;
+  top: 50%;
 
+  // Mirrored about the box's right edge
   .point-tooltip[data-side="left"] & {
-    left: auto;
-    right: $tooltip-pointer-left;
+    left: 100%;
     transform: scaleX(-1);
+    transform-origin: 0 0;
   }
 }
 

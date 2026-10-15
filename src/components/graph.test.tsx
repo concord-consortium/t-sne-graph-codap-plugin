@@ -5,6 +5,7 @@ import { CaseInfo, IPluginStore, Point, PluginStore, TestPhrasePoint } from "../
 import { StoreProvider } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
 import { kLabelColors, kUnlabeledColor } from "../tsne/labels";
+import { kTooltipTipToBox } from "../tsne/layout";
 import { Graph, kErrorMessage, kKeyboardHelp, kTooFewMessage } from "./graph";
 import { kPlotSymbolExtents, symbolReach } from "./phrase-symbol";
 
@@ -409,20 +410,6 @@ describe("Graph", () => {
         const { x, y } = translation(point("the cat sat"));
         expect(x).toBeCloseTo(12, 6);
         expect(y).toBeCloseTo(288, 6);
-      });
-
-      it("leaves the view alone when focus isn't from the keyboard, as on a mouse press", () => {
-        // jsdom matches :focus-visible on every focus; a browser doesn't after a mouse press
-        const matches = Element.prototype.matches;
-        jest.spyOn(Element.prototype, "matches").mockImplementation(function(this: Element, selector: string) {
-          return selector === ":focus-visible" ? false : matches.call(this, selector);
-        });
-        for (let i = 0; i < 3; i++) store.zoomIn();
-        renderGraph(store);
-        // (0, 0) is far off the bottom left at level 3
-        act(() => point("the cat sat").focus());
-        expect(point("the cat sat")).toHaveFocus();
-        expect(store.view).toEqual({ zoomLevel: 3, centerX: 0.5, centerY: 0.5 });
       });
 
       it("leaves the view alone for a point already showing", () => {
@@ -1029,6 +1016,215 @@ describe("Graph", () => {
         expect(symbolPoint("Star test phrase: a fish")).toHaveFocus();
         act(() => store.setEditingSlot(4));
         expect(point("the cat sat")).toHaveFocus();
+      });
+    });
+  });
+
+  describe("tooltip", () => {
+    let areaSize = { width: 300, height: 300 };
+    const tooltip = () => screen.queryByTestId("point-tooltip");
+    const tooltipColors = () => {
+      const style = screen.getByTestId("point-tooltip").style;
+      return [style.getPropertyValue("--tooltip-color"), style.getPropertyValue("--tooltip-fill")];
+    };
+    const hover = (element: HTMLElement, pointerType = "mouse") => fireEvent.pointerOver(element, { pointerType });
+    const unhover = (element: HTMLElement) => fireEvent.pointerOut(element, { pointerType: "mouse" });
+    const tap = (element: HTMLElement) => {
+      fireEvent.pointerDown(element, { pointerId: 2, button: 0, pointerType: "touch" });
+      fireEvent.pointerUp(element, { pointerId: 2, button: 0, pointerType: "touch" });
+      fireEvent.click(element);
+    };
+    const pressBackground = (pointerType: string) =>
+      fireEvent.pointerDown(plot(), { pointerId: 3, button: 0, pointerType, clientX: 100, clientY: 60 });
+
+    beforeEach(() => {
+      areaSize = { width: 300, height: 300 };
+      // The tooltip measures 86 × 24; everything else is the graph area
+      jest.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+        const { width, height } = this.dataset.testid === "point-tooltip" ? { width: 86, height: 24 } : areaSize;
+        return { width, height, x: 0, y: 0, top: 0, left: 0, right: width, bottom: height, toJSON: () => undefined };
+      });
+    });
+
+    it("shows a hovered point's phrase in its label's colors, and hides it on leave", () => {
+      renderGraph(store);
+      hover(point("the cat sat"));
+      expect(tooltip()).toHaveTextContent("the cat sat");
+      expect(tooltipColors()).toEqual([kLabelColors[0], "#c0cfff"]);
+      unhover(point("the cat sat"));
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("uses the Unlabeled colors for an unlabeled point", () => {
+      renderGraph(store);
+      hover(point("a fish swam"));
+      expect(tooltipColors()).toEqual([kUnlabeledColor, "#d1d1d1"]);
+    });
+
+    it("mixes the fill for a fifth label", () => {
+      store.setCases([
+        ...kCases.map(({ caseId, values }, i): CaseInfo => ({ caseId, values: { ...values, label: `L${i}` } })),
+        { caseId: "5", values: { phrase: "a frog hopped", label: "L4" } }
+      ]);
+      store.setPoints([...kPoints, { caseId: "5", x: 0.25, y: 0.25 }]);
+      renderGraph(store);
+      hover(point("a frog hopped"));
+      expect(tooltipColors()).toEqual([kLabelColors[4], `color-mix(in srgb, ${kLabelColors[4]} 35%, white)`]);
+    });
+
+    it("shows a test phrase in the test-phrase colors", () => {
+      store.setTestPhrase(0, "the cat");
+      store.setTestPhrasePoints(
+        [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "3", direction: { dx: 1, dy: 0 } }], { 0: "placed" });
+      renderGraph(store);
+      hover(screen.getByRole("button", { name: "Square test phrase: the cat" }));
+      expect(tooltip()).toHaveTextContent("the cat");
+      expect(tooltipColors()).toEqual(["#2e007f", "#cbcbff"]);
+    });
+
+    it("ignores a touch entering a point", () => {
+      renderGraph(store);
+      hover(point("the cat sat"), "touch");
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("places the tooltip by the drawn point plus the plot's offset in a wide area", () => {
+      areaSize = { width: 400, height: 300 };
+      renderGraph(store);
+      hover(point("the bird sang"));
+      // (150, 150) in the plot, 50px from the area's left; the box about 12px right of the dot's center
+      expect(Number.parseFloat(tooltip()?.style.left ?? "")).toBeCloseTo(200 + kTooltipTipToBox, 6);
+      expect(tooltip()?.style.top).toBe("138px");
+    });
+
+    it("follows its point when the view changes", () => {
+      store.zoomIn();
+      renderGraph(store);
+      hover(point("the bird sang"));
+      expect(Number.parseFloat(tooltip()?.style.left ?? "")).toBeCloseTo(150 + kTooltipTipToBox, 6);
+      act(() => store.panTo(0.6, 0.5));
+      // 0.1 × 1.5 of the 276px padded width to the left: the dot at 108.6
+      expect(Number.parseFloat(tooltip()?.style.left ?? "")).toBeCloseTo(108.6 + kTooltipTipToBox, 6);
+    });
+
+    it("shows for a point reached with the keyboard, and goes when Tab leaves it", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await tabToPlot(user);
+      await user.keyboard("{ArrowRight}");
+      expect(tooltip()).toHaveTextContent("the cat sat");
+      await user.keyboard("{ArrowRight}");
+      expect(tooltip()).toHaveTextContent("a dog ran");
+      await user.tab();
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("goes when focus moves from the point to a zoom button", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await tabToPlot(user);
+      await user.keyboard("{ArrowRight}");
+      await user.tab({ shift: true });
+      expect(screen.getByRole("button", { name: "Fit all" })).toHaveFocus();
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("doesn't stay after a mouse click once the pointer leaves", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await user.click(point("the cat sat"));
+      expect(point("the cat sat")).toHaveFocus();
+      await user.unhover(point("the cat sat"));
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("shows again for a point Tab returns to after a click elsewhere", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await user.click(point("the cat sat"));
+      await user.unhover(point("the cat sat"));
+      await user.click(document.body);
+      await tabToPlot(user);
+      expect(point("the cat sat")).toHaveFocus();
+      expect(tooltip()).toHaveTextContent("the cat sat");
+    });
+
+    it("goes on a click outside the plot", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await tabToPlot(user);
+      await user.keyboard("{ArrowRight}");
+      await user.click(document.body);
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("focuses, selects and shows a tapped point, and moves to the next one tapped", () => {
+      renderGraph(store);
+      tap(within(point("the cat sat")).getByTestId("dot"));
+      expect(point("the cat sat")).toHaveFocus();
+      expect(selectPoint).toHaveBeenCalledWith(store, "1", false);
+      expect(tooltip()).toHaveTextContent("the cat sat");
+      tap(within(point("a dog ran")).getByTestId("dot"));
+      expect(point("a dog ran")).toHaveFocus();
+      expect(tooltip()).toHaveTextContent("a dog ran");
+    });
+
+    it.each(["touch", "mouse"])("focuses the plot on a %s press on the background, before the click", type => {
+      renderGraph(store);
+      tap(within(point("the cat sat")).getByTestId("dot"));
+      pressBackground(type);
+      expect(plot()).toHaveFocus();
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("hides while dragging", () => {
+      renderGraph(store);
+      hover(point("the bird sang"));
+      pressBackground("mouse");
+      fireEvent.pointerMove(plot(), { pointerId: 3, buttons: 1, clientX: 110, clientY: 60 });
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("goes when a recompute removes the point, and doesn't come back with it", () => {
+      renderGraph(store);
+      hover(point("the cat sat"));
+      act(() => store.setPoints(kPoints.slice(1)));
+      expect(tooltip()).not.toBeInTheDocument();
+      act(() => store.setPoints(kPoints));
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("goes while the test phrase's slot is edited", () => {
+      store.setTestPhrase(0, "the cat");
+      store.setTestPhrasePoints(
+        [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "3", direction: { dx: 1, dy: 0 } }], { 0: "placed" });
+      renderGraph(store);
+      hover(screen.getByRole("button", { name: "Square test phrase: the cat" }));
+      act(() => store.setEditingSlot(0));
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    describe("and the focus pan", () => {
+      beforeEach(() => {
+        for (let i = 0; i < 3; i++) store.zoomIn();
+      });
+
+      it.each(["mouse", "touch"])("doesn't pan to a point focused by a %s press", type => {
+        renderGraph(store);
+        fireEvent.pointerDown(point("the cat sat"), { pointerId: 2, button: 0, pointerType: type });
+        act(() => point("the cat sat").focus());
+        expect(store.view).toEqual({ zoomLevel: 3, centerX: 0.5, centerY: 0.5 });
+      });
+
+      it("pans to a point focused from the keyboard after a press", async () => {
+        const user = userEvent.setup();
+        renderGraph(store);
+        fireEvent.pointerDown(point("a dog ran"), { pointerId: 2, button: 0, pointerType: "mouse" });
+        await tabToPlot(user);
+        await user.keyboard("{Home}");
+        expect(point("the cat sat")).toHaveFocus();
+        expect(store.isFitView).toBe(false);
+        expect(store.view.centerX).not.toBe(0.5);
       });
     });
   });
