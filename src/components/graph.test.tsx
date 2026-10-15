@@ -1149,6 +1149,39 @@ describe("Graph", () => {
       expect(tooltip()).toHaveTextContent("the cat sat");
     });
 
+    it("doesn't stay after a mouse click on a point that has keyboard focus, once the pointer leaves", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await tabToPlot(user);
+      await user.keyboard("{ArrowRight}");
+      expect(tooltip()).toHaveTextContent("the cat sat");
+      // Already focused, so no focus event comes
+      await user.click(point("the cat sat"));
+      expect(point("the cat sat")).toHaveFocus();
+      await user.unhover(point("the cat sat"));
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("shows a tapped point, not the one a resting mouse is on, and nothing after a background tap", () => {
+      renderGraph(store);
+      hover(point("a dog ran"));
+      expect(tooltip()).toHaveTextContent("a dog ran");
+      tap(within(point("the cat sat")).getByTestId("dot"));
+      expect(tooltip()).toHaveTextContent("the cat sat");
+      pressBackground("touch");
+      expect(tooltip()).not.toBeInTheDocument();
+    });
+
+    it("shows the point reached by the keyboard, not the one a resting mouse is on", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      hover(point("a dog ran"));
+      await tabToPlot(user);
+      await user.keyboard("{ArrowRight}");
+      expect(point("the cat sat")).toHaveFocus();
+      expect(tooltip()).toHaveTextContent("the cat sat");
+    });
+
     it("goes on a click outside the plot", async () => {
       const user = userEvent.setup();
       renderGraph(store);

@@ -121,9 +121,13 @@ export const Graph = observer(() => {
   const lastPointerType = useRef<string | undefined>(undefined);
 
   // On the whole document, so a Tab from the panel back to a point counts as the keyboard. Leaving the
-  // plugin resets it, so a Tab in from CODAP does too.
+  // plugin resets it, so a Tab in from CODAP does too. A touch ends a resting mouse's hover: the latest
+  // input wins.
   useEffect(() => {
-    const handlePointer = (event: globalThis.PointerEvent) => { lastPointerType.current = event.pointerType; };
+    const handlePointer = (event: globalThis.PointerEvent) => {
+      lastPointerType.current = event.pointerType;
+      if (event.pointerType === "touch") setHoverKey(undefined);
+    };
     const handleKey = () => { lastPointerType.current = undefined; };
     document.addEventListener("pointerdown", handlePointer, true);
     document.addEventListener("keydown", handleKey, true);
@@ -295,10 +299,18 @@ export const Graph = observer(() => {
     setIsDragging(false);
   };
 
-  // Browsers focus a clicked point for a mouse, but not reliably for a tap
+  // Keyboard and touch focus show the point's tooltip; a mouse or pen has hover instead
+  const setFocusedPoint = (key: string) => {
+    const pointerType = lastPointerType.current;
+    setFocused({ key, showsTooltip: pointerType === undefined || pointerType === "touch" });
+  };
+
+  // Browsers focus a clicked point for a mouse, but not reliably for a tap. A click on the point that
+  // already has focus fires no focus event, so it sets how the focus came again.
   const handlePointClick = (event: MouseEvent<SVGGElement>, key: string) => {
     event.stopPropagation();
     moveTo(key);
+    setFocusedPoint(key);
     select(key, event.shiftKey);
   };
 
@@ -353,13 +365,15 @@ export const Graph = observer(() => {
   };
 
   // A point given keyboard focus outside the padded area pans into view. Not on a press, which would move
-  // the dot from under the pointer before release and make the click land on the background.
+  // the dot from under the pointer before release and make the click land on the background. Keyboard
+  // focus also ends a resting mouse's hover.
   const handlePointFocus = (key: string) => {
     setActiveKey(key);
-    const pointerType = lastPointerType.current;
-    setFocused({ key, showsTooltip: pointerType === undefined || pointerType === "touch" });
+    setFocusedPoint(key);
+    if (lastPointerType.current !== undefined) return;
+    setHoverKey(undefined);
     const pixel = drawnPixel(key);
-    if (!pixel || pointerType !== undefined) return;
+    if (!pixel) return;
     const panned = panToInclude(view, pixel, size);
     if (panned !== view) store.panTo(panned.centerX, panned.centerY);
   };
