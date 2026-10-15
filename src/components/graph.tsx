@@ -230,6 +230,11 @@ export const Graph = observer(() => {
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
     const current = drag.current;
     if (event.pointerId !== current?.pointerId) return;
+    // No button down: the release never came, as when the window lost focus mid-drag
+    if (event.buttons === 0) {
+      endDrag(event, false);
+      return;
+    }
     const { clientX, clientY } = event;
     if (!current.isDragging) {
       if (Math.hypot(clientX - current.startX, clientY - current.startY) < kDragThresholdPx) return;

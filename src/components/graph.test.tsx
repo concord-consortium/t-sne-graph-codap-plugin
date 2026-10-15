@@ -234,8 +234,9 @@ describe("Graph", () => {
     };
     const press = (x: number, y: number, init: PointerEventInit = {}) =>
       fireEvent.pointerDown(plot(), { pointerId: 1, button: 0, clientX: x, clientY: y, ...init });
+    // A button held down, as during a drag
     const move = (x: number, y: number, init: PointerEventInit = {}) =>
-      fireEvent.pointerMove(plot(), { pointerId: 1, clientX: x, clientY: y, ...init });
+      fireEvent.pointerMove(plot(), { pointerId: 1, buttons: 1, clientX: x, clientY: y, ...init });
     const release = (x: number, y: number) => {
       fireEvent.pointerUp(plot(), { pointerId: 1, clientX: x, clientY: y });
       fireEvent.click(plot(), { clientX: x, clientY: y });
@@ -335,6 +336,32 @@ describe("Graph", () => {
       expect(store.view.centerX).toBeCloseTo(0.5 - 30 / kInner, 12);
       fireEvent.pointerUp(plot(), { pointerId: 1, clientX: 130, clientY: 100 });
       expect(plot()).not.toHaveAttribute("data-dragging");
+    });
+
+    it("ends a drag whose release never came at the next move with no button down", () => {
+      renderGraph(store);
+      press(100, 100);
+      move(110, 100);
+      const { centerX } = store.view;
+      move(150, 100, { buttons: 0 });
+      expect(plot()).not.toHaveAttribute("data-dragging");
+      expect(store.view.centerX).toBe(centerX);
+      move(200, 100);
+      expect(store.view.centerX).toBe(centerX);
+      // The next click is a click, not the end of a drag
+      fireEvent.click(plot());
+      expect(clearCodapSelection).toHaveBeenCalledWith(store);
+    });
+
+    it("treats a click as a click after a drag whose click never came", () => {
+      renderGraph(store);
+      press(100, 100);
+      move(110, 100);
+      // Released, but the browser sent no click
+      fireEvent.pointerUp(plot(), { pointerId: 1, clientX: 110, clientY: 100 });
+      press(120, 120);
+      release(120, 120);
+      expect(clearCodapSelection).toHaveBeenCalledWith(store);
     });
 
     it("doesn't pan an empty plot, as while computing or with too few phrases", () => {
