@@ -54,7 +54,8 @@ const checkSuccess = (...results: IResult[]) => {
   if (failed) throw new Error(String(failed.values?.error ?? "request failed"));
 };
 
-// A drag changes the saved view on every pointer move
+// At most one document-changed message per interval, since a drag changes the saved view on every
+// pointer move. The first change is sent at once; later ones in the interval go as one message at its end.
 export const kMarkChangedIntervalMs = 500;
 
 // So CODAP autosaves and warns about unsaved changes. CODAP v3 doesn't act on it yet (Oct 2026).
@@ -256,7 +257,7 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
   await Promise.all([refreshAttributes(), refreshCases()]);
 
   // 6. Mark the document changed when the saved state changes. Not before: the startup fetches only
-  // check the restored state. Later changes within an interval go as one message at its end.
+  // check the restored state. Throttled: see kMarkChangedIntervalMs.
   let waiting = false;
   let changedMeanwhile = false;
   const markChanged = () => {

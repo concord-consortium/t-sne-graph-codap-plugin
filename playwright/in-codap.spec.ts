@@ -934,7 +934,7 @@ const onPage = async (plugin: FrameLocator, { x, y }: { x: number, y: number }) 
   return { x: box.x + x, y: box.y + y };
 };
 
-test("zooms in and out about the center, fits all again, and stops at the largest zoom", async ({ page }) => {
+test("zooms in about the center, fits all again, and stops at the largest zoom", async ({ page }) => {
   const plugin = await openFlatPlot(page);
   // Fit all has nothing to do at first
   await expect(zoomButton(plugin, "Fit all")).toHaveAttribute("aria-disabled", "true");
@@ -1035,7 +1035,7 @@ test("keeps the focused point inside the plot while arrowing through a zoomed-in
       const [, px, py] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(p.getAttribute("transform") ?? "") ?? [];
       return { x: Number(px), y: Number(py) };
     });
-    // Inside the 12px padding
+    // Inside the padded area, 12px from each edge
     expect(x).toBeGreaterThanOrEqual(12 - 0.01);
     expect(x).toBeLessThanOrEqual(288 + 0.01);
     expect(y).toBeGreaterThanOrEqual(12 - 0.01);

@@ -296,7 +296,7 @@ export const Graph = observer(() => {
   }, [store.points, store.testPhrasePoints, size, view]);
 
   // A point given keyboard focus outside the padded area pans into view. By its drawn position: the
-  // ring search can move a symbol 18px. Not on a mouse press, which would move the dot from under the
+  // ring search can put a symbol 18px from its dot. Not on a mouse press, which would move the dot from under the
   // pointer before release and make the click land on the background. (jsdom always matches
   // :focus-visible.)
   const handlePointFocus = (key: string) => {
@@ -324,7 +324,6 @@ export const Graph = observer(() => {
     return hasLabels ? `${phrase}, ${store.labelForCase(caseId)}` : phrase;
   };
   const message = computeStatus === "too-few" ? kTooFewMessage : computeStatus === "error" ? kErrorMessage : "";
-  // On half pixels, so each line renders as one sharp pixel
   const grid = gridLines(size, view);
 
   return (

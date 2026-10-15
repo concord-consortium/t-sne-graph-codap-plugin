@@ -427,13 +427,13 @@ describe("view", () => {
   });
 
   describe("gridLines", () => {
-    const today = (length: number) => [1, 2, 3, 4, 5, 6, 7].map(i => Math.round(i * length / 8) + 0.5);
+    const fitViewLines = (length: number) => [1, 2, 3, 4, 5, 6, 7].map(i => Math.round(i * length / 8) + 0.5);
     const onHalfPixel = (value: number) => value - Math.floor(value) === 0.5;
 
-    it.each([square, wide])("draws today's seven lines per axis at the fit view on $width x $height", size => {
+    it.each([square, wide])("draws seven lines per axis at the fit view on $width x $height", size => {
       const { x, y } = gridLines(size, kFitView);
-      expect(x).toEqual(today(size.width));
-      expect(y).toEqual(today(size.height));
+      expect(x).toEqual(fitViewLines(size.width));
+      expect(y).toEqual(fitViewLines(size.height));
     });
 
     it("draws fewer lines at level 1", () => {

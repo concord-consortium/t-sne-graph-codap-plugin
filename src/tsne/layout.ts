@@ -218,7 +218,8 @@ export const panToInclude = (view: IView, { x, y }: IPosition, size: ISize, padd
 // Per axis, at the fit view
 const kGridCells = 8;
 
-// Line i is at i × length / kGridCells at the fit view, moved by the view; on half pixels
+// Line i is at i × length / kGridCells at the fit view, moved by the view; on half pixels, so each
+// renders as one sharp pixel
 const axisGridLines = (length: number, scale: number, offset: number) => {
   const spacing = scale * length / kGridCells;
   if (!(spacing > 0)) return [];
@@ -226,7 +227,6 @@ const axisGridLines = (length: number, scale: number, offset: number) => {
   const last = Math.ceil((length - offset) / spacing);
   const lines: number[] = [];
   for (let i = first; i <= last; i++) {
-    // Exactly i × length / kGridCells at the fit view (scale 1, offset 0)
     const pixel = Math.round(scale * (i * length / kGridCells) + offset);
     // None on or past an edge
     if (pixel > 0 && pixel < length) lines.push(pixel + 0.5);
@@ -241,7 +241,7 @@ export const gridLines = ({ width, height }: ISize, view: IView, padding = kGrap
   // Too small for the padding: `toPixels` centers the points; keep the fit view's grid
   const scale = scaleForLevel(view.zoomLevel);
   const [scaleX, scaleY] = [innerWidth > 0 ? scale : 1, innerHeight > 0 ? scale : 1];
-  // A fit-view line at p is drawn at scale × p + offset; y is flipped, as in `toPixels`
+  // y is flipped, as in `toPixels`
   const offsetX = innerWidth > 0 ? padding * (1 - scale) + innerWidth * (0.5 - scale * view.centerX) : 0;
   const offsetY = innerHeight > 0 ? padding * (1 - scale) + innerHeight * (0.5 - scale * (1 - view.centerY)) : 0;
   return { x: axisGridLines(width, scaleX, offsetX), y: axisGridLines(height, scaleY, offsetY) };
