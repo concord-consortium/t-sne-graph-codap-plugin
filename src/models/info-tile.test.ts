@@ -1,6 +1,6 @@
 import * as codapApi from "@concord-consortium/codap-plugin-api";
 import { IResult } from "@concord-consortium/codap-plugin-api";
-import { infoPageUrl, openInfoTile } from "./info-tile";
+import { infoPageUrl, openInfoTile, updateSavedInfoTile } from "./info-tile";
 
 jest.mock("@concord-consortium/codap-plugin-api", () => ({
   codapInterface: { sendRequest: jest.fn() },
@@ -39,6 +39,7 @@ const setMeta = (content: string) => {
 };
 
 const infoTile = { id: 7, name: "Information: t-SNE Plots", title: "Information: t-SNE Plots", type: "game" };
+const kOldUrl = "https://models-resources.concord.org/t-sne-graph-codap-plugin/version/v1.0.0/info.html";
 
 describe("infoPageUrl", () => {
   afterEach(() => {
@@ -64,21 +65,32 @@ describe("infoPageUrl", () => {
   });
 });
 
+const fakeCodap = () => {
+  setMeta("./info.html");
+  requests = [];
+  replies = {
+    "get componentList": () => ok([{ id: 1, name: "t-SNE Plot", title: "t-SNE Plot", type: "game" }]),
+    "get interactiveFrame": () => ok({ id: 1, dimensions: { width: 680, height: 334 } }),
+    "get component[1]": () => ok({ id: 1, position: { left: 40, top: 60 }, dimensions: { width: 680, height: 334 } }),
+    "create component": () => ok({ id: 7 }),
+    "get component[7]": () => ok({ id: 7, URL: new URL("info.html", document.baseURI).href }),
+    "update component[7]": () => ok(),
+    "notify component[7]": () => ok()
+  };
+  api.sendMessage.mockImplementation((action, resource, values) => answer({ action, resource, values }));
+  api.codapInterface.sendRequest.mockImplementation(request => answer(request as IRequest));
+};
+
+const tileWithOldUrl = () => {
+  replies["get componentList"] = () => ok([infoTile]);
+  replies["get component[7]"] = () => ok({ id: 7, URL: kOldUrl });
+};
+
 describe("openInfoTile", () => {
   let warn: jest.SpyInstance;
 
   beforeEach(() => {
-    setMeta("./info.html");
-    requests = [];
-    replies = {
-      "get componentList": () => ok([{ id: 1, name: "t-SNE Plot", title: "t-SNE Plot", type: "game" }]),
-      "get interactiveFrame": () => ok({ id: 1, dimensions: { width: 680, height: 334 } }),
-      "get component[1]": () => ok({ id: 1, position: { left: 40, top: 60 }, dimensions: { width: 680, height: 334 } }),
-      "create component": () => ok({ id: 7 }),
-      "notify component[7]": () => ok()
-    };
-    api.sendMessage.mockImplementation((action, resource, values) => answer({ action, resource, values }));
-    api.codapInterface.sendRequest.mockImplementation(request => answer(request as IRequest));
+    fakeCodap();
     warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
   });
 
@@ -108,6 +120,32 @@ describe("openInfoTile", () => {
     ]);
     expect(created()).toHaveLength(0);
   });
+
+  it("points an existing tile with an old address at this build's page, then brings it to the front", async () => {
+    tileWithOldUrl();
+    expect(await openInfoTile()).toBe("opened");
+    const updateAndSelect = requests.filter(({ action }) => action === "update" || action === "notify");
+    expect(updateAndSelect).toEqual([
+      { action: "update", resource: "component[7]", values: { URL: new URL("info.html", document.baseURI).href } },
+      { action: "notify", resource: "component[7]", values: { request: "select" } }
+    ]);
+  });
+
+  it("leaves the address of an existing tile that already has this build's page", async () => {
+    replies["get componentList"] = () => ok([infoTile]);
+    expect(await openInfoTile()).toBe("opened");
+    expect(requestsTo("get", "component[7]")).toHaveLength(1);
+    expect(requestsTo("update", "component[7]")).toHaveLength(0);
+  });
+
+  it.each(["get component[7]", "update component[7]"])(
+    "still brings the tile to the front, with a warning, when %s is refused", async (failing) => {
+      tileWithOldUrl();
+      replies[failing] = () => refused;
+      expect(await openInfoTile()).toBe("opened");
+      expect(warn).toHaveBeenCalledWith("Unable to update the information tile's address:", new Error("refused"));
+      expect(requestsTo("notify", "component[7]")).toHaveLength(1);
+    });
 
   it("finds a tile listed as a web view, before its page has connected", async () => {
     replies["get componentList"] = () => ok([{ ...infoTile, type: "webView" }]);
@@ -166,5 +204,39 @@ describe("openInfoTile", () => {
     expect(requestsTo("get", "componentList")).toHaveLength(2);
     expect(created()).toHaveLength(1);
     expect(requestsTo("notify", "component[7]")).toHaveLength(1);
+  });
+});
+
+describe("updateSavedInfoTile", () => {
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    fakeCodap();
+    warn = jest.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    document.head.innerHTML = "";
+    jest.restoreAllMocks();
+  });
+
+  it("points a saved tile with an old address at this build's page, without bringing it to the front", async () => {
+    tileWithOldUrl();
+    await updateSavedInfoTile();
+    expect(requestsTo("update", "component[7]")).toEqual([
+      { action: "update", resource: "component[7]", values: { URL: new URL("info.html", document.baseURI).href } }
+    ]);
+    expect(requestsTo("notify", "component[7]")).toHaveLength(0);
+  });
+
+  it("changes nothing when the document has no information tile", async () => {
+    await updateSavedInfoTile();
+    expect(requests.map(({ action, resource }) => `${action} ${resource}`)).toEqual(["get componentList"]);
+  });
+
+  it("only warns when the component list is refused", async () => {
+    replies["get componentList"] = () => refused;
+    await expect(updateSavedInfoTile()).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledWith("Unable to look for the information tile:", new Error("refused"));
   });
 });

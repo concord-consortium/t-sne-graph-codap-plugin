@@ -52,13 +52,42 @@ const positionBesidePlugin = async (): Promise<IPosition | undefined> => {
   }
 };
 
+const findInfoTile = async () => {
+  const list = await sendMessage("get", "componentList");
+  checkSuccess(list);
+  return (list.values as IComponentItem[]).find(
+    ({ name, type }) => name === kInfoTileName && type !== undefined && kInfoTileTypes.has(type));
+};
+
+// A saved tile keeps the address it was created with, and the address changes with each release (its
+// version folder), so an old document would show an old page. A failure only warns.
+const updateTileUrl = async (tileId: number | string) => {
+  try {
+    const url = infoPageUrl();
+    const component = await sendMessage("get", `component[${tileId}]`);
+    checkSuccess(component);
+    if (component.values?.URL === url) return;
+    checkSuccess(await sendMessage("update", `component[${tileId}]`, { URL: url }));
+  } catch (error) {
+    console.warn("Unable to update the information tile's address:", error);
+  }
+};
+
+/** Points the document's information tile, if it has one, at this build's page */
+export const updateSavedInfoTile = async () => {
+  try {
+    const tile = await findInfoTile();
+    if (tile) await updateTileUrl(tile.id);
+  } catch (error) {
+    console.warn("Unable to look for the information tile:", error);
+  }
+};
+
 const findOrCreateInfoTile = async (): Promise<InfoTileResult> => {
   try {
-    const list = await sendMessage("get", "componentList");
-    checkSuccess(list);
-    const tile = (list.values as IComponentItem[]).find(
-      ({ name, type }) => name === kInfoTileName && type !== undefined && kInfoTileTypes.has(type));
+    const tile = await findInfoTile();
     if (tile) {
+      await updateTileUrl(tile.id);
       const selected = await codapInterface.sendRequest(
         { action: "notify", resource: `component[${tile.id}]`, values: { request: "select" } });
       checkSuccess(selected as IResult);
