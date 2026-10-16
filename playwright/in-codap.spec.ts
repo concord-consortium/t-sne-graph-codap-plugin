@@ -1159,6 +1159,8 @@ test("keeps the zoom buttons' frame, icons and focus visible in forced-colors mo
 // Dots in the flat fixture that no other dot's 24px target covers
 const kIsolatedDot = "Every voice across the globe";
 const kUnlabeledDot = "People I have never met";
+// Under the isolated dot's tooltip
+const kCoveredDot = "No one lives in isolation";
 // Near the plot's right edge, and near its middle with a long phrase
 const kRightEdgeDot = "None of us are by ourselves";
 const kMiddleDot = "Everyone around the world shares this";
@@ -1398,6 +1400,18 @@ test.describe("tooltips with a touch screen", () => {
     await expect(tooltip(plugin)).toHaveCount(0);
     await expect(plot(plugin)).toBeFocused();
     await expect.poll(() => pressedPhrases(plugin)).toEqual([]);
+
+    // A dot under the tooltip's box takes the next tap
+    await tapPoint(kIsolatedDot);
+    await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
+    const covered = await onPage(plugin, await centerOf(point(plugin, kCoveredDot)));
+    const box = await tooltip(plugin).boundingBox();
+    expect(covered.x > (box?.x ?? 0) && covered.x < (box?.x ?? 0) + (box?.width ?? 0) &&
+      covered.y > (box?.y ?? 0) && covered.y < (box?.y ?? 0) + (box?.height ?? 0)).toBe(true);
+    await tap(covered);
+    await expect(point(plugin, kCoveredDot)).toBeFocused();
+    await expect(tooltip(plugin)).toHaveText(kCoveredDot);
+    await expect.poll(() => pressedPhrases(plugin)).toEqual([kCoveredDot]);
 
     await tapPoint(kIsolatedDot);
     await expect(tooltip(plugin)).toHaveText(kIsolatedDot);

@@ -28,6 +28,8 @@ interface IProps {
   anchor: IPosition;
   halfExtent: number;
   area: ISize;
+  // Takes the pointer, so it can be hovered; otherwise presses go through to the points under it
+  isHoverable?: boolean;
   onPointerEnter?: PointerEventHandler<HTMLDivElement>;
   onPointerLeave?: PointerEventHandler<HTMLDivElement>;
 }
@@ -35,7 +37,7 @@ interface IProps {
 /** Measures itself at the full max width, narrows if it fits on neither side of the point, then places
  * itself. */
 export const PointTooltip = (
-  { text, color, fill, anchor, halfExtent, area, onPointerEnter, onPointerLeave }: IProps
+  { text, color, fill, anchor, halfExtent, area, isHoverable, onPointerEnter, onPointerLeave }: IProps
 ) => {
   const ref = useRef<HTMLDivElement>(null);
   // At the full max width, so a pan or a resize can narrow it again without measuring
@@ -60,7 +62,7 @@ export const PointTooltip = (
   // Hidden until measured; its max-content size doesn't depend on its position
   const placement = size && placeTooltip(anchor, halfExtent, size, area);
   const pointer = pointerShapes(placement ?? { pointerOffset: 0, tipOffset: 0 });
-  const bridge = placement && size && hoverBridge(anchor, placement, size);
+  const bridge = isHoverable && placement && size && hoverBridge(anchor, placement, size);
   const style = {
     "--tooltip-color": color,
     "--tooltip-fill": fill,
@@ -72,7 +74,8 @@ export const PointTooltip = (
 
   return (
     <div ref={ref} className="point-tooltip" data-side={placement?.side ?? "right"} data-testid="point-tooltip"
-      aria-hidden="true" style={style} onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave}>
+      data-hoverable={isHoverable || undefined} aria-hidden="true" style={style} onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}>
       <svg className="point-tooltip-pointer" data-testid="point-tooltip-pointer" width={1} height={1}>
         {bridge && <path className="point-tooltip-bridge" data-testid="point-tooltip-bridge" fillRule="evenodd"
           d={bridgePath(bridge)} />}

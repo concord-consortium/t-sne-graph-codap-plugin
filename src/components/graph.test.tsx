@@ -1222,6 +1222,21 @@ describe("Graph", () => {
       expect(tooltip()).not.toBeInTheDocument();
     });
 
+    it("takes the pointer only when shown by hover, so a tap or click goes through a focus tooltip", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      hover(point("the cat sat"));
+      expect(tooltip()).toHaveAttribute("data-hoverable");
+      unhover(point("the cat sat"));
+      await tabToPlot(user);
+      await user.keyboard("{ArrowRight}");
+      expect(tooltip()).toHaveTextContent("the cat sat");
+      expect(tooltip()).not.toHaveAttribute("data-hoverable");
+      tap(within(point("a dog ran")).getByTestId("dot"));
+      expect(tooltip()).toHaveTextContent("a dog ran");
+      expect(tooltip()).not.toHaveAttribute("data-hoverable");
+    });
+
     it("hides a hover tooltip on Escape until the pointer enters a point again", async () => {
       const user = userEvent.setup();
       renderGraph(store);

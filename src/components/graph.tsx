@@ -552,6 +552,7 @@ export const Graph = observer(() => {
       {tooltip && (
         <PointTooltip text={tooltip.text} color={tooltip.color} fill={tooltip.fill} halfExtent={tooltip.halfExtent}
           anchor={{ x: tooltip.pixel.x + offset.left, y: tooltip.pixel.y + offset.top }} area={area}
+          isHoverable={tooltip.key === hoverKey}
           onPointerEnter={event => handlePointerEnter(event, tooltip.key)}
           onPointerLeave={event => handlePointerLeave(event, tooltip.key)} />
       )}

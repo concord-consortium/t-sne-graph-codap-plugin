@@ -61,6 +61,14 @@ describe("PointTooltip", () => {
     expect(tooltip().style.visibility).toBe("");
     // Tip 10px out from the box, base on its inner edge, both centered
     expect(pointerCorners()).toEqual([[-10, 0], [1.5, -6], [1.5, 6]]);
+  });
+
+  it("has a bridge from the point only when it can be hovered", () => {
+    const { rerender } = render(<PointTooltip {...props} />);
+    expect(tooltip()).not.toHaveAttribute("data-hoverable");
+    expect(screen.queryByTestId("point-tooltip-bridge")).not.toBeInTheDocument();
+    rerender(<PointTooltip {...props} isHoverable />);
+    expect(tooltip()).toHaveAttribute("data-hoverable");
     // From the point, 11px out, to the box, with the point's 12px target's near half cut out
     expect(screen.getByTestId("point-tooltip-bridge"))
       .toHaveAttribute("d", "M-11 -12H0V12H-11Z M-11 -12A12 12 0 0 1 -11 12Z");
