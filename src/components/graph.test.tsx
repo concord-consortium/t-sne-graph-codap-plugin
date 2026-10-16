@@ -1242,6 +1242,35 @@ describe("Graph", () => {
       expect(tooltip()).not.toHaveAttribute("data-hoverable");
     });
 
+    it("shows for a pen's hover, as for a mouse", () => {
+      renderGraph(store);
+      hover(point("the cat sat"), "pen");
+      expect(tooltip()).toHaveTextContent("the cat sat");
+      expect(tooltip()).toHaveAttribute("data-hoverable");
+    });
+
+    it("counts focus after the window lost focus as the keyboard's, as for a Tab in from CODAP", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await user.click(point("the cat sat"));
+      await user.unhover(point("the cat sat"));
+      await user.click(document.body);
+      fireEvent.blur(window);
+      act(() => point("the cat sat").focus());
+      expect(tooltip()).toHaveTextContent("the cat sat");
+    });
+
+    it.each(["mouse", "touch"])("shows again after Escape on a %s click on the point", type => {
+      renderGraph(store);
+      hover(point("the cat sat"));
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(tooltip()).not.toBeInTheDocument();
+      // A click with no pointer move, so no new pointer enter
+      fireEvent.pointerDown(point("the cat sat"), { pointerId: 1, button: 0, pointerType: type });
+      fireEvent.click(point("the cat sat"));
+      expect(tooltip()).toHaveTextContent("the cat sat");
+    });
+
     it("hides a hover tooltip on Escape until the pointer enters a point again", async () => {
       const user = userEvent.setup();
       renderGraph(store);

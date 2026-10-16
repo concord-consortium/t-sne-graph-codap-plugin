@@ -59,7 +59,7 @@ export const PointTooltip = (
     setMeasured(measure);
   }, [text, maxWidth, fullWidth]);
 
-  // Hidden until measured; its max-content size doesn't depend on its position
+  // Hidden until measured
   const placement = size && placeTooltip(anchor, halfExtent, size, area);
   const pointer = pointerShapes(placement ?? { pointerOffset: 0, tipOffset: 0 });
   const bridge = isHoverable && placement && size && hoverBridge(anchor, placement, size);

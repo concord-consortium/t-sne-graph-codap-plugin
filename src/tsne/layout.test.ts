@@ -515,19 +515,19 @@ describe("placeTooltip", () => {
       .toEqual({ left: 100 + reach, top: 138, side: "right", pointerOffset: 0, tipOffset: 0 });
   });
 
-  it("keeps the tip 6px inside a larger symbol's edge", () => {
+  it("aims the tip 6px inside a larger symbol's edge", () => {
     const { left, side } = placeTooltip({ x: 100, y: 150 }, diamond, box, area);
     expect(side).toBe("right");
-    // Tip at 103.4
+    // Aimed at 103.4
     expect(left).toBeCloseTo(103.4 + reach, 12);
   });
 
-  it("flips to the left near the right edge, with the tip 6px inside the symbol's left edge", () => {
+  it("flips to the left near the right edge, aiming the tip 6px inside the symbol's left edge", () => {
     const forDot = placeTooltip({ x: 250, y: 150 }, dot, box, area);
     expect(forDot).toEqual({ left: 250 - reach - 86, top: 138, side: "left", pointerOffset: 0, tipOffset: 0 });
     const forDiamond = placeTooltip({ x: 250, y: 150 }, diamond, box, area);
     expect(forDiamond.side).toBe("left");
-    // Tip at 246.6
+    // Aimed at 246.6
     expect(forDiamond.left + box.width + reach).toBeCloseTo(246.6, 12);
   });
 
@@ -575,7 +575,7 @@ describe("placeTooltip", () => {
     // 140px fits on neither side of a point at 80 in a 160px area, so it is flipped, then clamped to the margin
     expect(placeTooltip({ x: 80, y: 150 }, dot, { width: 140, height: 24 }, { width: 160, height: 300 }))
       .toEqual({ left: kTooltipMargin, top: 138, side: "left", pointerOffset: 0, tipOffset: 0 });
-    // The pointer stays on the box's right edge, at 144, so its tip, 11px out at 155, is 75px past the point
+    // The pointer stays on the box's right edge, at 144, so its colored tip, 10px out at 154, is 74px past the point
   });
 });
 

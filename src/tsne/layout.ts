@@ -254,7 +254,7 @@ export const gridLines = ({ width, height }: ISize, view: IView, padding = kGrap
 export const kTooltipMargin = 4;
 // Narrower shows too little text, so the box is clamped instead
 export const kTooltipMinWidth = 80;
-// $tooltip-border-width, $tooltip-radius and the box's white outline in _variables.scss
+// $tooltip-border-width, $tooltip-radius and $tooltip-outline-width in _variables.scss
 const kTooltipBorderWidth = 1.5;
 const kTooltipRadius = 4;
 const kTooltipOutlineWidth = 1;
@@ -263,7 +263,7 @@ const kTooltipPointerHalfHeight = 6;
 // On a dot of its own color the colored tip can't be seen, and the white outline's tip is 2.16px past it.
 // Either looks off center on the point; 1px short looks centered.
 const kTooltipTipGap = 1;
-// From the point to the box's outer edge
+// From the tip's aim (a dot's center) to the box's outer edge
 export const kTooltipTipToBox = kTooltipPointerLength - kTooltipBorderWidth + kTooltipTipGap;
 const kTooltipTipInset = 6;
 

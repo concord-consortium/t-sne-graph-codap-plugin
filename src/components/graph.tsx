@@ -112,9 +112,9 @@ export const Graph = observer(() => {
   // The click after a drag isn't a background click
   const ignoreClick = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
-  // The point under a mouse or pen
+  // The point under a mouse or pen, or whose tooltip it is on
   const [hoverKey, setHoverKey] = useState<string>();
-  // The point with DOM focus, and whether that focus came from the keyboard or a touch
+  // The point with DOM focus; `activeKey` outlives it
   const [focused, setFocused] = useState<{ key: string, showsTooltip: boolean }>();
   // Undefined for the keyboard
   const lastPointerType = useRef<string | undefined>(undefined);
@@ -193,14 +193,14 @@ export const Graph = observer(() => {
     restoringFocus.current = !activeExists;
   });
 
-  // Not mouse or pen focus: those have hover
+  // Keyboard or touch focus shows the tooltip; mouse and pen have hover
   const setFocusedPoint = (key: string) => {
     const pointerType = lastPointerType.current;
     setFocused({ key, showsTooltip: pointerType === undefined || pointerType === "touch" });
     setIsDismissed(false);
   };
 
-  // Focusing the focused point fires no focus event, so this does its work too
+  // Focusing the focused point fires no focus event, so this also sets the focus tooltip and ends the hover
   const moveTo = (key: string | undefined) => {
     if (key === undefined) return;
     setActiveKey(key);
