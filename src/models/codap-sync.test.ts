@@ -2,7 +2,7 @@ import * as codapApi from "@concord-consortium/codap-plugin-api";
 import { ClientHandler, IResult } from "@concord-consortium/codap-plugin-api";
 import { reaction } from "mobx";
 import { getSnapshot } from "mobx-state-tree";
-import { kMarkChangedIntervalMs, kMaxInitAttempts, startCodapSync } from "./codap-sync";
+import { kMarkChangedIntervalMs, kMaxInitAttempts, startCodapSync, whenCodapSettled } from "./codap-sync";
 import { IPluginStore, PluginStore } from "./plugin-store";
 
 jest.mock("@concord-consortium/codap-plugin-api", () => ({
@@ -280,6 +280,40 @@ describe("startCodapSync", () => {
     expect(api.getListOfDataContexts).not.toHaveBeenCalled();
     expect(api.addDataContextsListListener).not.toHaveBeenCalled();
     expect(stateHandler()()).toEqual({ success: true });
+  });
+
+  describe("connection status", () => {
+    it("is connecting until init succeeds, then connected", async () => {
+      const init = deferred<unknown>();
+      api.codapInterface.init.mockReturnValue(init.promise);
+      const settled = whenCodapSettled(store);
+      const started = startCodapSync(store);
+      expect(store.codapStatus).toBe("connecting");
+
+      init.resolve(undefined);
+      await started;
+      expect(store.codapStatus).toBe("connected");
+      await expect(settled).resolves.toBeUndefined();
+    });
+
+    it("stays connecting through the retries, then is failed", async () => {
+      const statuses: string[] = [];
+      api.codapInterface.init.mockImplementation(async () => {
+        statuses.push(store.codapStatus);
+        throw new Error("timeout");
+      });
+      const settled = whenCodapSettled(store);
+
+      await startCodapSync(store);
+      expect(statuses).toEqual(["connecting", "connecting", "connecting"]);
+      expect(store.codapStatus).toBe("failed");
+      await expect(settled).resolves.toBeUndefined();
+    });
+
+    it("settles at once when init has already finished", async () => {
+      await startCodapSync(store);
+      await expect(whenCodapSettled(store)).resolves.toBeUndefined();
+    });
   });
 
   it("lists the tables, using the name when a table has no title", async () => {

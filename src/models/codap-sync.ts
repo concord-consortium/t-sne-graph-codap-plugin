@@ -1,4 +1,4 @@
-import { reaction } from "mobx";
+import { reaction, when } from "mobx";
 import { applySnapshot, getSnapshot, onSnapshot } from "mobx-state-tree";
 import {
   addDataContextChangeListener,
@@ -50,7 +50,7 @@ interface IAllCasesItem {
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 // Throws CODAP's reason for a failed reply, for the caller's catch to log
-const checkSuccess = (...results: IResult[]) => {
+export const checkSuccess = (...results: IResult[]) => {
   const failed = results.find(result => !result.success);
   if (failed) throw new Error(String(failed.values?.error ?? "request failed"));
 };
@@ -70,6 +70,9 @@ const markDocumentChanged = async () => {
   }
 };
 
+/** Resolves once init has succeeded or every attempt has failed */
+export const whenCodapSettled = (store: IPluginStore) => when(() => store.codapStatus !== "connecting");
+
 /**
  * Connects to CODAP, restores the saved table and column choices, and keeps the tables, columns and
  * cases current.
@@ -88,6 +91,7 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
   ));
 
   // 1. Connect, retrying a bounded number of times
+  store.setCodapStatus("connecting");
   let savedState: unknown;
   for (let attempt = 1; ; attempt++) {
     try {
@@ -96,10 +100,12 @@ export const startCodapSync = async (store: IPluginStore, config = kPluginConfig
     } catch (error) {
       if (attempt >= kMaxInitAttempts) {
         console.error("Unable to connect to CODAP:", errorMessage(error));
+        store.setCodapStatus("failed");
         return false;
       }
     }
   }
+  store.setCodapStatus("connected");
 
   // 2. Restore before any fetch, so the fetches validate the saved selections
   if (savedState && typeof savedState === "object") {
