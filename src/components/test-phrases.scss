@@ -33,7 +33,7 @@
   height: $key-entry-height;
 }
 
-// Inset box-shadow focus border, so the symbol doesn't shift
+// The focus ring follows the symbol's shape, as on the plot, but closer
 .test-phrase-symbol {
   align-items: center;
   background: none;
@@ -49,26 +49,18 @@
   padding: 0;
   width: $test-phrase-symbol-button-size;
 
-  // Pressed overrides hover; focus adds its border
+  // Pressed overrides hover
   &[data-hovered] {
     background-color: $key-entry-fill-hover;
   }
   &[data-pressed] {
     background-color: $key-entry-fill-pressed;
   }
-  &[data-focus-visible] {
-    background-color: $key-entry-fill-hover;
-    box-shadow: inset 0 0 0 2px $focus-color;
-  }
 
-  // No point: no fills, but still in the Tab order, so the focus border stays
+  // No point: no fills, but still in the Tab order, so the focus ring stays
   &[aria-disabled="true"] {
     background: none;
     cursor: default;
-
-    &[data-focus-visible] {
-      background-color: white;
-    }
   }
 
   // Rings extend past the 16px box
@@ -77,16 +69,19 @@
   }
 }
 
-// Half of each stroke lands outside: outline 1px, ring 3px, edge 4px. Joins as in graph.scss.
+// Joins as in graph.scss, on the focus ring's mask too, or mitered points spike past it and are cut off
+.test-phrase-symbol path {
+  stroke-linejoin: miter;
+}
+.test-phrase-symbol svg:is([data-symbol="triangle"], [data-symbol="star"]) path {
+  stroke-linejoin: round;
+}
+
+// Half of each stroke lands outside: outline 1px, ring 3px, edge 4px
 .symbol-outline,
 .symbol-selection-ring,
 .symbol-selection-edge {
   fill: none;
-  stroke-linejoin: miter;
-
-  svg:is([data-symbol="triangle"], [data-symbol="star"]) & {
-    stroke-linejoin: round;
-  }
 }
 
 .symbol-outline {
@@ -97,6 +92,23 @@
 .symbol-selection-ring,
 .symbol-selection-edge {
   stroke: none;
+}
+
+// Its mask draws the 1–3px band
+.test-phrase-symbol .focus-ring {
+  fill: none;
+  stroke: $focus-color;
+  visibility: hidden;
+}
+
+// The focus ring takes the selection ring's place, which leaves room beside the field
+.test-phrase-symbol[data-focus-visible] {
+  .focus-ring {
+    visibility: visible;
+  }
+  .symbol-selection-ring {
+    visibility: hidden;
+  }
 }
 
 // Hover previews the ring at half strength; selected and pressed show it in full
@@ -117,7 +129,7 @@
 }
 
 // 35% while the slot has no point; full color once it does, and while it is edited
-.test-phrase-symbol:not([data-placed]) svg {
+.test-phrase-symbol:not([data-placed]) .symbol-body {
   opacity: $disabled-opacity;
 }
 
@@ -162,7 +174,7 @@
 
 // Still focusable: dim each color, not opacity, so the focus border stays full
 .test-phrase-row[data-disabled] {
-  .test-phrase-symbol svg {
+  .test-phrase-symbol .symbol-body {
     opacity: $disabled-opacity;
   }
 
@@ -189,9 +201,8 @@
     forced-color-adjust: none;
   }
 
-  .test-phrase-symbol[data-focus-visible] {
-    outline: 2px solid Highlight;
-    outline-offset: -2px;
+  .test-phrase-symbol .focus-ring {
+    stroke: Highlight;
   }
 
   .test-phrase-input {

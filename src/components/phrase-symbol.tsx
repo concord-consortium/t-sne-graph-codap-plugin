@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 import { PhraseSymbol } from "../models/plugin-store";
 import { kTestPhraseColor } from "../tsne/labels";
 
@@ -10,6 +10,13 @@ export const kButtonSymbolExtents: Record<PhraseSymbol, number> = {
 export const kPlotSymbolExtents: Record<PhraseSymbol, number> = {
   square: 13.3, triangle: 17.3, diamond: 18.8, plus: 17.8, star: 18.7
 };
+
+// Symbol rings are its path stroked; half of each width lands outside. Set inline on the plot, or the
+// dots' CSS widths win.
+export const kSymbolOutlineWidth = 2;
+export const kSymbolRingWidth = 6;
+export const kSymbolEdgeWidth = 8;
+export const kSymbolFocusOuterWidth = 12;
 
 // Arm width / span
 const kPlusArmRatio = 5 / 14;
@@ -64,23 +71,72 @@ export const symbolPath = (symbol: PhraseSymbol, extent: number) => polygon(shap
 export const symbolReach = (symbol: PhraseSymbol, extent: number) =>
   Math.max(...shapes[symbol](extent).map(([x, y]) => Math.hypot(x, y)));
 
+/** The y of the middle of the path's height; above 0 for the triangle and the star. */
+export const symbolMiddleY = (symbol: PhraseSymbol, extent: number) => {
+  const ys = shapes[symbol](extent).map(([, y]) => y);
+  return (Math.min(...ys) + Math.max(...ys)) / 2;
+};
+
+interface ISymbolFocusRingProps {
+  symbol: PhraseSymbol;
+  extent: number;
+  // The ring is the band between these strokes' outer edges
+  innerWidth?: number;
+  outerWidth?: number;
+}
+
+/** A wide stroke with its inner part masked out; by default 4–6px outside the symbol's edges, outside
+ * the selection ring. Styled in CSS. */
+export const SymbolFocusRing = ({
+  symbol, extent, innerWidth = kSymbolEdgeWidth, outerWidth = kSymbolFocusOuterWidth
+}: ISymbolFocusRingProps) => {
+  const maskId = useId();
+  const path = symbolPath(symbol, extent);
+  // The ring's reach, plus 1px: half the stroke past the path, or up to √2 times that at a mitered 90°
+  // corner. Too big is harmless.
+  const maskSize = 2 * (symbolReach(symbol, extent) + outerWidth / 2 * Math.SQRT2 + 1);
+  const maskOrigin = -maskSize / 2;
+  return (
+    <>
+      <mask id={maskId} data-testid="focus-mask" maskUnits="userSpaceOnUse" x={maskOrigin} y={maskOrigin}
+        width={maskSize} height={maskSize}>
+        <path d={path} fill="white" stroke="white" strokeWidth={outerWidth}
+          data-testid="focus-mask-outer" />
+        <path d={path} fill="black" stroke="black" strokeWidth={innerWidth}
+          data-testid="focus-mask-inner" />
+      </mask>
+      <path className="focus-ring" data-testid="focus-ring" d={path} mask={`url(#${maskId})`}
+        style={{ strokeWidth: outerWidth }} />
+    </>
+  );
+};
+
 interface IPhraseSymbolIconProps {
   symbol: PhraseSymbol;
   className?: string;
 }
 
-/** Decorative; its control names it. The outline and rings are styled by state in CSS. */
+/** Decorative; its control names it. The outline and rings are styled by state in CSS. The body is
+ * dimmed apart, so the focus ring stays at full color. The focus ring takes the selection ring's place,
+ * so it fits beside the field. */
 export const PhraseSymbolIcon = ({ symbol, className }: IPhraseSymbolIconProps) => {
   const half = kButtonSymbolBox / 2;
-  const path = symbolPath(symbol, kButtonSymbolExtents[symbol]);
+  const extent = kButtonSymbolExtents[symbol];
+  const path = symbolPath(symbol, extent);
+  // Centered on the middle of its height, not its centroid, so it lines up with the field
+  const top = round(symbolMiddleY(symbol, extent) - half);
   return (
     <svg className={className} width={kButtonSymbolBox} height={kButtonSymbolBox}
-      viewBox={`${-half} ${-half} ${kButtonSymbolBox} ${kButtonSymbolBox}`} aria-hidden="true"
+      viewBox={`${-half} ${top} ${kButtonSymbolBox} ${kButtonSymbolBox}`} aria-hidden="true"
       data-symbol={symbol} data-testid="phrase-symbol">
       <path className="symbol-selection-edge" d={path} />
       <path className="symbol-selection-ring" d={path} />
-      <path className="symbol-outline" d={path} />
-      <path className="symbol-fill" d={path} fill={kTestPhraseColor} data-testid="phrase-symbol-path" />
+      <g className="symbol-body" data-testid="phrase-symbol-body">
+        <path className="symbol-outline" d={path} />
+        <path className="symbol-fill" d={path} fill={kTestPhraseColor} data-testid="phrase-symbol-path" />
+      </g>
+      <SymbolFocusRing symbol={symbol} extent={extent} innerWidth={kSymbolOutlineWidth}
+        outerWidth={kSymbolRingWidth} />
     </svg>
   );
 };

@@ -97,17 +97,45 @@ describe("plot symbols", () => {
 
 describe("PhraseSymbolIcon", () => {
   it("draws the symbol in the test-phrase color in a 16px box, hidden from screen readers", () => {
-    render(<PhraseSymbolIcon symbol="star" className="symbol" />);
+    render(<PhraseSymbolIcon symbol="square" className="symbol" />);
     const svg = screen.getByTestId("phrase-symbol");
     expect(svg).toHaveAttribute("width", "16");
     expect(svg).toHaveAttribute("height", "16");
     expect(svg).toHaveAttribute("viewBox", "-8 -8 16 16");
     expect(svg).toHaveAttribute("aria-hidden", "true");
-    expect(svg).toHaveAttribute("data-symbol", "star");
+    expect(svg).toHaveAttribute("data-symbol", "square");
     expect(svg).toHaveClass("symbol");
     const path = screen.getByTestId("phrase-symbol-path");
-    expect(path).toHaveAttribute("d", symbolPath("star", kButtonSymbolExtents.star));
+    expect(path).toHaveAttribute("d", symbolPath("square", kButtonSymbolExtents.square));
     expect(path).toHaveAttribute("fill", kTestPhraseColor);
+  });
+
+  it.each(kPhraseSymbols.map(symbol => [symbol]))(
+    "centers the %s on the middle of its height, so it lines up with the field", symbol => {
+      render(<PhraseSymbolIcon symbol={symbol} />);
+      const [, viewTop, , viewHeight] = screen.getByTestId("phrase-symbol").getAttribute("viewBox")!
+        .split(" ").map(Number);
+      const { top, bottom } = box(symbol, kButtonSymbolExtents[symbol]);
+      expect(top - viewTop).toBeCloseTo(viewTop + viewHeight - bottom, 2);
+    });
+
+  it("draws a focus ring in the symbol's shape, in the selection ring's place, outside the dimmed body", () => {
+    render(<PhraseSymbolIcon symbol="diamond" />);
+    const path = symbolPath("diamond", kButtonSymbolExtents.diamond);
+    const focusRing = screen.getByTestId("focus-ring");
+    expect(focusRing).toHaveAttribute("d", path);
+    expect(focusRing).toHaveStyle({ strokeWidth: "6" });
+    const mask = screen.getByTestId("focus-mask");
+    expect(focusRing).toHaveAttribute("mask", `url(#${mask.id})`);
+    // Kept out to 3px outside the symbol, cut away up to the 1px outline
+    expect(screen.getByTestId("focus-mask-outer")).toHaveAttribute("stroke-width", "6");
+    expect(screen.getByTestId("focus-mask-inner")).toHaveAttribute("stroke-width", "2");
+    // At the diamond's 90° tips the 6px stroke reaches 3 × √2 past the path
+    const ringReach = symbolReach("diamond", kButtonSymbolExtents.diamond) + 3 * Math.SQRT2;
+    expect(Number(mask.getAttribute("width"))).toBeGreaterThanOrEqual(2 * ringReach);
+    const body = screen.getByTestId("phrase-symbol-body");
+    expect(body).toContainElement(screen.getByTestId("phrase-symbol-path"));
+    expect(body).not.toContainElement(focusRing);
   });
 
   it("draws each symbol at its spec size", () => {

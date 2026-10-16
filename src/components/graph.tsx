@@ -10,7 +10,9 @@ import {
   applyView, directionToPixels, gridLines, IPosition, ISize, IView, kHitRadius, offsetFromNeighbor, paddedBounds,
   panToInclude, toPixels, worldBounds
 } from "../tsne/layout";
-import { kPlotSymbolExtents, symbolName, symbolPath, symbolReach } from "./phrase-symbol";
+import {
+  kPlotSymbolExtents, kSymbolEdgeWidth, kSymbolOutlineWidth, kSymbolRingWidth, SymbolFocusRing, symbolName, symbolPath
+} from "./phrase-symbol";
 import { PointTooltip } from "./point-tooltip";
 import { ZoomControls } from "./zoom-controls";
 import "./graph.scss";
@@ -21,12 +23,6 @@ const kOutlineRadius = kPointRadius + 0.5;
 const kSelectionRingRadius = kPointRadius + 2;
 const kSelectionEdgeRadius = kPointRadius + 3.5;
 const kFocusRingRadius = kPointRadius + 5;
-// Symbol rings are its path stroked; half of each width lands outside. Set inline, or the dots' CSS
-// widths win.
-const kSymbolOutlineWidth = 2;
-const kSymbolRingWidth = 6;
-const kSymbolEdgeWidth = 8;
-const kSymbolFocusOuterWidth = 12;
 
 // Positions go through the view; sizes don't
 const viewPixels = (point: IPosition, view: IView, size: ISize) => toPixels(applyView(point, view), size);
@@ -90,7 +86,6 @@ const PointMarks = ({ color, selected }: IPointMarksProps) => (
 /** One Tab stop; arrow keys move through the case points, then the test phrases. */
 export const Graph = observer(() => {
   const store = useStore();
-  const maskIdPrefix = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const helpId = useId();
@@ -509,11 +504,6 @@ export const Graph = observer(() => {
           const extent = kPlotSymbolExtents[symbol];
           const path = symbolPath(symbol, extent);
           const key = slotKey(point.slot);
-          const maskId = `${maskIdPrefix}-focus-${point.slot}`;
-          // The focus ring's reach, plus 1px: half the stroke past the path, or up to √2 times that at a
-          // mitered 90° corner. Too big is harmless.
-          const maskSize = 2 * (symbolReach(symbol, extent) + kSymbolFocusOuterWidth / 2 * Math.SQRT2 + 1);
-          const maskOrigin = -maskSize / 2;
           return (
             <g
               key={key}
@@ -540,16 +530,7 @@ export const Graph = observer(() => {
               <path className="dot-outline" data-testid="dot-outline" d={path}
                 style={{ strokeWidth: kSymbolOutlineWidth }} />
               <path className="symbol" data-testid="symbol" d={path} fill={kTestPhraseColor} />
-              {/* Focus ring: 4–6px outside the symbol's edges, a wide stroke with its inner part masked out */}
-              <mask id={maskId} data-testid="focus-mask" maskUnits="userSpaceOnUse" x={maskOrigin} y={maskOrigin}
-                width={maskSize} height={maskSize}>
-                <path d={path} fill="white" stroke="white" strokeWidth={kSymbolFocusOuterWidth}
-                  data-testid="focus-mask-outer" />
-                <path d={path} fill="black" stroke="black" strokeWidth={kSymbolEdgeWidth}
-                  data-testid="focus-mask-inner" />
-              </mask>
-              <path className="focus-ring" data-testid="focus-ring" d={path} mask={`url(#${maskId})`}
-                style={{ strokeWidth: kSymbolFocusOuterWidth }} />
+              <SymbolFocusRing symbol={symbol} extent={extent} />
             </g>
           );
         })}
