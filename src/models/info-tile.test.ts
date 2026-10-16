@@ -46,20 +46,15 @@ describe("infoPageUrl", () => {
     jest.restoreAllMocks();
   });
 
-  it("resolves the meta tag's ./info.html against the page", () => {
-    setMeta("./info.html");
-    expect(infoPageUrl()).toBe(new URL("info.html", document.baseURI).href);
-  });
-
-  it("resolves a release's version folder against the top level", () => {
-    setMeta("version/v1.2.0/info.html");
-    expect(infoPageUrl()).toBe(new URL("version/v1.2.0/info.html", document.baseURI).href);
-  });
-
-  it("keeps an absolute URL as given", () => {
-    setMeta("https://models-resources.concord.org/t-sne-graph-codap-plugin/version/v1.2.0/info.html");
-    expect(infoPageUrl())
-      .toBe("https://models-resources.concord.org/t-sne-graph-codap-plugin/version/v1.2.0/info.html");
+  const kAbsolute = "https://models-resources.concord.org/t-sne-graph-codap-plugin/version/v1.2.0/info.html";
+  const fromPage = (address: string) => new URL(address, document.baseURI).href;
+  it.each([
+    ["./info.html", "the page's own folder", fromPage("info.html")],
+    ["version/v1.2.0/info.html", "a release's version folder", fromPage("version/v1.2.0/info.html")],
+    [kAbsolute, "an absolute URL, kept as given", kAbsolute]
+  ])("resolves the meta tag's %s (%s)", (content, _case, expected) => {
+    setMeta(content);
+    expect(infoPageUrl()).toBe(expected);
   });
 
   it("falls back to info.html beside the page, with a warning, when the tag is missing", () => {

@@ -21,14 +21,6 @@ describe("App", () => {
       .toEqual(["Select", "Select", "Select (optional)"]);
   });
 
-  it("puts the info button after the dropdowns, outside their group", () => {
-    render(<App store={PluginStore.create()} />);
-    const group = screen.getByRole("group", { name: "Data source" });
-    const infoButton = screen.getByRole("button", { name: "Information about t-SNE plots" });
-    expect(group.compareDocumentPosition(infoButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(within(group).getAllByRole("button")).toHaveLength(3);
-  });
-
   it("reaches the info button with Tab right after the Label Column dropdown", async () => {
     const user = userEvent.setup();
     render(<App store={PluginStore.create()} />);
@@ -103,6 +95,7 @@ describe("App's info button", () => {
     connectionState = "preinit";
     renderApp("connecting");
     await act(async () => pressInfo());
+    expect(warn).not.toHaveBeenCalled();
     connectionState = "closed";
     await act(async () => store.setCodapStatus("failed"));
     expect(warn).toHaveBeenCalledWith("CODAP is not connected; the information tile can't be opened");

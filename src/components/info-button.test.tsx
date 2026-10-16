@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { InfoButton, kInfoButtonLabel } from "./info-button";
 
@@ -9,7 +9,7 @@ describe("InfoButton", () => {
   it("has a name and a matching tooltip", () => {
     render(<InfoButton onPress={jest.fn()} />);
     expect(infoButton()).toHaveAttribute("aria-label", kInfoButtonLabel);
-    expect(screen.getByTitle(kInfoButtonLabel)).toBeInTheDocument();
+    expect(within(infoButton()).getByTitle(kInfoButtonLabel)).toBeInTheDocument();
   });
 
   it("calls onPress on a click, Enter and Space", async () => {
@@ -33,6 +33,7 @@ describe("InfoButton", () => {
     await user.pointer({ keys: "[/MouseLeft]", target: infoButton() });
     expect(infoButton()).not.toHaveAttribute("data-pressed");
     // A click focuses the button but is not keyboard focus
+    expect(infoButton()).toHaveFocus();
     expect(infoButton()).not.toHaveAttribute("data-focus-visible");
     await user.unhover(infoButton());
     await user.tab({ shift: true });

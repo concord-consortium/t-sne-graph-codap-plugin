@@ -18,9 +18,8 @@ describe("info page entry", () => {
   it("connects with the tile's name and the plugin's version, and no dimensions", async () => {
     init.mockResolvedValue(undefined);
     await loadPage();
-    expect(init).toHaveBeenCalledTimes(1);
-    expect(init.mock.calls[0][0]).toEqual({ name: "Information: t-SNE Plots", version: "0.0.1" });
-    expect(init.mock.calls[0][0]).not.toHaveProperty("dimensions");
+    // Strict, so a dimensions key fails even when undefined
+    expect(init.mock.calls).toStrictEqual([[{ name: "Information: t-SNE Plots", version: "0.0.1" }]]);
   });
 
   it("warns instead of throwing when the connection fails", async () => {

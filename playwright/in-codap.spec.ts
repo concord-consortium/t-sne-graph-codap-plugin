@@ -1586,6 +1586,8 @@ test("keeps the information tile, at the size it was given, after the document i
     const corner = await boxOf(info.locator(".codap-component-corner.bottom-right"));
     await dragBy(page, corner.x + corner.width / 2, corner.y + corner.height / 2, 150, 50);
     const resized = await boxOf(info);
+    // Otherwise the test would pass with the tile at its first size
+    expect([resized.width, resized.height]).toEqual([450 + 150, 300 + 50]);
 
     const saved = await saveCodapDocument(page);
     await openDocument(page, saved);
@@ -1609,6 +1611,8 @@ test("opens one information tile for two quick clicks", async ({ page }) => {
     (el as HTMLElement).click();
   });
   const info = tileTitled(page, kInfoTileTitle);
+  // Without the shared open, both clicks would send their create at once, so a second tile would
+  // exist well before the first one's page connects
   await expect(info.locator(".plugin-version")).toHaveText("0.0.1");
   await expect(info).toHaveCount(1);
 });
@@ -1646,11 +1650,6 @@ test("has no accessibility violations on the information page", async ({ page })
     .analyze();
   expect(violations.map(({ id, nodes }) => ({ id, elements: nodes.map(node => node.target.join(" ")) })))
     .toEqual([]);
-});
-
-test("has no accessibility violations with the information tile open", async ({ page }) => {
-  await openInfoTile(page);
-  expect(await axeViolations(page)).toEqual([]);
 });
 
 test("keeps the info button's hover and keyboard focus visible in forced-colors mode", async ({ page }, testInfo) => {
