@@ -15,7 +15,7 @@ interface IRequest {
   values?: unknown;
 }
 
-// Replies by "action resource"; a test replaces one to make that request fail
+// Keyed by "action resource"; a test replaces one to make that request fail
 let replies: Record<string, () => IResult | Promise<IResult>>;
 let requests: IRequest[];
 const ok = (values?: unknown): IResult => ({ success: true, values });

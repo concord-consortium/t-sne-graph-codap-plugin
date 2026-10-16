@@ -32,7 +32,7 @@ describe("InfoButton", () => {
     expect(infoButton()).toHaveAttribute("data-pressed");
     await user.pointer({ keys: "[/MouseLeft]", target: infoButton() });
     expect(infoButton()).not.toHaveAttribute("data-pressed");
-    // A click focuses the button but is not keyboard focus
+    // Focused by the click, but not keyboard focus
     expect(infoButton()).toHaveFocus();
     expect(infoButton()).not.toHaveAttribute("data-focus-visible");
     await user.unhover(infoButton());

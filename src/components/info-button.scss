@@ -15,7 +15,7 @@
   top: 0;
   width: $info-button-size;
 
-  // The surround sits inside the box; the focus border is a box-shadow outside it, so nothing moves
+  // A box-shadow focus border, so nothing moves
   &[data-hovered],
   &[data-pressed],
   &[data-focus-visible] {
@@ -36,7 +36,7 @@
   display: block;
 }
 
-// Forced colors would hide the surround and the box-shadow focus border
+// Forced colors remove the surround and the box-shadow
 @media (forced-colors: active) {
   .info-button {
     &[data-hovered],

@@ -1,7 +1,6 @@
 "use strict";
 
-// Checks the built pages after `webpack --mode production`, so a broken template fails the build
-// (and the deploy build) rather than a release. Playwright tests that the released layout works.
+// Fails the build if the built pages are wrong, so a broken template can't reach a release
 
 const fs = require("fs");
 const path = require("path");
@@ -19,7 +18,7 @@ const read = (file) => {
   return fs.readFileSync(filePath, "utf8");
 };
 
-// The attributes of each tag with this name, as objects; values may be quoted or not
+// Each tag's attributes. The minifier drops quotes, so values may be unquoted.
 const attributePattern = /([\w-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
 const tags = (html, name) => [...html.matchAll(new RegExp(`<${name}\\b([^>]*)>`, "gi"))].map(([, attrs]) => {
   const values = {};
@@ -47,7 +46,7 @@ if (infoHtml) {
     failures.push(`dist/info.html should load only assets/info.*.js; it loads ${
       scripts.map((attrs) => attrs.src).join(", ") || "no script"}`);
   }
-  // The first section, not a count, so a section added later does not break the build
+  // The first heading, not a count, so adding a section doesn't break the build
   const heading = infoHtml.match(/<h2\b[^>]*>([\s\S]*?)<\/h2>/i);
   const headingText = heading?.[1].replace(/\s+/g, " ").trim();
   if (headingText !== "What is a t-SNE plot?") {

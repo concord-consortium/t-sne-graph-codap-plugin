@@ -16,9 +16,9 @@ interface IProps {
 }
 
 export const App = ({ store }: IProps) => {
-
   const handleInfoPress = async () => {
     await whenCodapSettled(store);
+    // The live state, not codapStatus: a CODAP that answers after init gave up reopens the connection
     if (codapInterface.getConnectionState() === "active") openInfoTile();
     else console.warn("CODAP is not connected; the information tile can't be opened");
   };

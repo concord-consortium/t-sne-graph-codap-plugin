@@ -14,11 +14,11 @@ const kDocumentUrl = "https://documents.test/document.codap";
 
 const kInfoTileTitle = "Information: t-SNE Plots";
 
-// A tile, found by its title. This wrapper holds the tile's position, size and z-index.
+// A tile's wrapper, which holds its position, size and z-index
 const tileTitled = (page: Page, title: string) => page.locator(".free-tile-component")
   .filter({ has: page.getByTestId("title-text").getByText(title, { exact: true }) });
 
-// Scoped to their tiles, since once the information tile exists there are two web-view frames
+// Scoped by tile, since the information tile adds a second web-view frame
 const pluginFrame = (page: Page) => tileTitled(page, "t-SNE Plot").frameLocator(".codap-web-view-iframe");
 const infoFrame = (page: Page) => tileTitled(page, kInfoTileTitle).frameLocator(".codap-web-view-iframe");
 
@@ -1474,7 +1474,6 @@ const boxOf = async (locator: Locator) => {
   return box;
 };
 
-// Presses the mouse at a point and moves it by (dx, dy) before letting go
 const dragBy = async (page: Page, x: number, y: number, dx: number, dy: number) => {
   await page.mouse.move(x, y);
   await page.mouse.down();
@@ -1484,8 +1483,7 @@ const dragBy = async (page: Page, x: number, y: number, dx: number, dy: number) 
 
 const zIndexOf = (tile: Locator) => tile.evaluate(el => Number((el as HTMLElement).style.zIndex));
 
-// Opens the plugin in CODAP, clicks the info button, and waits until the information page has
-// connected: CODAP then shows the plugin's version in the tile's title bar
+// CODAP shows the version label once the information page has connected
 const openInfoTile = async (page: Page) => {
   await page.goto(`${kCodapUrl}&di=${kPluginUrl}`);
   await infoButton(pluginFrame(page)).click();
@@ -1496,7 +1494,7 @@ const openInfoTile = async (page: Page) => {
 
 test("puts the info button in the panel's top right, level with the Data Table row", async ({ page }) => {
   await page.goto(`${kCodapUrl}&di=${kPluginUrl}`);
-  // Measured at one moment, and polled, since CODAP may still be sizing the new tile
+  // Measured all at once, and polled, since CODAP may still be sizing the new tile
   const layout = () => pluginFrame(page).locator("body").evaluate(() => {
     const rect = (selector: string) => document.querySelector(selector)?.getBoundingClientRect() ?? new DOMRect();
     const button = rect(".info-button");
@@ -1522,7 +1520,7 @@ test("opens the information tile beside the plugin, showing the text and no URL 
   await expect(infoFrame(page).locator("h2").first()).toHaveText("What is a t-SNE plot?");
   await expect(infoFrame(page).locator("p").first()).toContainText("A t-SNE plot is a scatterplot");
 
-  // CODAP draws a web view's URL button only beside the focused tile, and hides it for a plugin
+  // CODAP shows the URL button only on a focused web view that is not a plugin
   await expect(info.locator(".codap-component")).toHaveClass(/focused/);
   await expect(info.getByTestId("web-view-edit-url-button")).toHaveCount(0);
 });
@@ -1540,7 +1538,7 @@ test("scrolls the information text to its last section", async ({ page }) => {
 test("moves the information tile by its title bar and reflows the text when it is resized", async ({ page }) => {
   const info = await openInfoTile(page);
   const before = await boxOf(info);
-  // Left of the centered title, which starts a rename when clicked
+  // Left of the title, since clicking the title starts a rename
   const bar = await boxOf(info.locator(".component-title-bar"));
   await dragBy(page, bar.x + 60, bar.y + bar.height / 2, 100, 80);
   const moved = await boxOf(info);
@@ -1551,7 +1549,6 @@ test("moves the information tile by its title bar and reflows the text when it i
   const corner = await boxOf(info.locator(".codap-component-corner.bottom-right"));
   await dragBy(page, corner.x + corner.width / 2, corner.y + corner.height / 2, 200, 100);
   expect((await boxOf(info)).width).toBe(moved.width + 200);
-  // Wider lines, so fewer of them
   await expect.poll(async () => (await boxOf(paragraph)).height).toBeLessThan(narrowHeight);
 });
 
@@ -1586,12 +1583,12 @@ test("keeps the information tile, at the size it was given, after the document i
     const corner = await boxOf(info.locator(".codap-component-corner.bottom-right"));
     await dragBy(page, corner.x + corner.width / 2, corner.y + corner.height / 2, 150, 50);
     const resized = await boxOf(info);
-    // Otherwise the test would pass with the tile at its first size
+    // Otherwise the size check after reopening proves nothing
     expect([resized.width, resized.height]).toEqual([450 + 150, 300 + 50]);
 
     const saved = await saveCodapDocument(page);
     await openDocument(page, saved);
-    // Once the page has connected, its init has been applied; it sends no size, so the tile keeps its own
+    // By now the page's init has run; it must not reset the size
     await expect(info.locator(".plugin-version")).toHaveText("0.0.1");
     await expect(infoFrame(page).locator("h2").first()).toHaveText("What is a t-SNE plot?");
     const reopened = await boxOf(info);
@@ -1604,22 +1601,20 @@ test("keeps the information tile, at the size it was given, after the document i
 
 test("opens one information tile for two quick clicks", async ({ page }) => {
   await page.goto(`${kCodapUrl}&di=${kPluginUrl}`);
-  // Two clicks in the same task, well within 50ms. A click with no pointer details is a virtual click,
-  // which React Aria treats as a press.
+  // Two clicks in one task. React Aria treats a click() with no pointer details as a press.
   await infoButton(pluginFrame(page)).evaluate(el => {
     (el as HTMLElement).click();
     (el as HTMLElement).click();
   });
   const info = tileTitled(page, kInfoTileTitle);
-  // Without the shared open, both clicks would send their create at once, so a second tile would
-  // exist well before the first one's page connects
+  // A second tile, if any, would exist before this one's page connects
   await expect(info.locator(".plugin-version")).toHaveText("0.0.1");
   await expect(info).toHaveCount(1);
 });
 
-// A release copies index-top.html, built with DEPLOY_PATH, to the top level; info.html and the assets
-// stay in the version folder (doc/deploy.md). build:top-test makes that layout in top-test/, which
-// this serves at a made-up address. Only this test builds it, so parallel workers don't collide.
+// A release puts a copy of index-top.html at the top level, while info.html stays in the version
+// folder (doc/deploy.md). build:top-test makes that layout in top-test/, served here at a made-up
+// address. Built in this one test so parallel workers don't collide.
 const kReleaseUrl = "https://release.test/";
 const kReleaseDeployPath = "specific/release/";
 

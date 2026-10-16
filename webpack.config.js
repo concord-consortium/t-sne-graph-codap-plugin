@@ -168,8 +168,8 @@ module.exports = (env, argv) => {
       new MiniCssExtractPlugin({
         filename: devMode ? 'assets/[name].css' : 'assets/[name].[contenthash].css',
       }),
-      // The plugin finds the information page through the meta tag, since the released
-      // index.html (a copy of index-top.html) is not in the folder that holds info.html
+      // The plugin finds info.html through this meta tag: the released index.html, a copy of
+      // index-top.html, is not in the folder that holds info.html
       new HtmlWebpackPlugin({
         filename: 'index.html',
         template: 'src/index.html',

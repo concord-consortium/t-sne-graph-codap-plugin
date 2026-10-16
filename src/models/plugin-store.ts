@@ -41,7 +41,7 @@ export interface Point extends IPosition {
 
 export type ComputeStatus = "idle" | "computing" | "done" | "too-few" | "error";
 
-// The result of the plugin's init. "failed" is not proof there is no CODAP: a slow one can answer later.
+// The init result. "failed" doesn't rule out CODAP: a slow one can still answer.
 export type CodapStatus = "connecting" | "connected" | "failed";
 
 // In slot order

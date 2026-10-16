@@ -2,12 +2,11 @@ import { codapInterface, IResult, sendMessage } from "@concord-consortium/codap-
 import { kInfoTileName } from "../plugin-identity";
 import { checkSuccess } from "./codap-sync";
 
-// CODAP applies the dimensions to the whole tile, including its 34px title bar
+// Includes CODAP's 34px title bar
 export const kInfoTileSize = { width: 450, height: 300 };
 // Between the plugin's tile and the new one
 export const kInfoTileGap = 10;
 
-// The build writes this tag into each plugin page (see webpack.config.js)
 const kInfoPageMetaName = "t-sne-info-page";
 
 // CODAP lists a web view as "game" once its page connects
@@ -26,10 +25,7 @@ interface IPosition {
   top: number;
 }
 
-/**
- * The information page's URL. Not relative to this page: the released index.html is a copy of
- * index-top.html at the top level, while info.html is in the version folder.
- */
+// From the meta tag the build writes, not relative to this page (see webpack.config.js)
 export const infoPageUrl = () => {
   const content = document.querySelector<HTMLMetaElement>(`meta[name="${kInfoPageMetaName}"]`)?.content;
   if (content) return new URL(content, document.baseURI).href;
@@ -39,8 +35,8 @@ export const infoPageUrl = () => {
 
 const isNumber = (value: unknown): value is number => typeof value === "number";
 
-// Just right of the plugin's tile, or undefined to let CODAP choose. The frame gives the plugin's ID
-// but not its position; the component gives both position and size.
+// Undefined lets CODAP choose. The frame reply has the plugin's ID but no position, so the
+// component is asked for it.
 const positionBesidePlugin = async (): Promise<IPosition | undefined> => {
   try {
     const frame = await sendMessage("get", "interactiveFrame");
@@ -56,7 +52,6 @@ const positionBesidePlugin = async (): Promise<IPosition | undefined> => {
   }
 };
 
-// Brings the tile to the front if the document has one, otherwise creates it
 const findOrCreateInfoTile = async (): Promise<InfoTileResult> => {
   try {
     const list = await sendMessage("get", "componentList");
@@ -88,10 +83,7 @@ const findOrCreateInfoTile = async (): Promise<InfoTileResult> => {
 
 let inFlight: Promise<InfoTileResult> | undefined;
 
-/**
- * Finds or creates the information tile. A call while one is in progress shares it, so quick clicks
- * can't both find no tile and both create one. Never opens a browser tab.
- */
+// A call made while one is in progress shares it, so quick clicks can't create two tiles
 export const openInfoTile = () => {
   inFlight ??= findOrCreateInfoTile().finally(() => { inFlight = undefined; });
   return inFlight;
