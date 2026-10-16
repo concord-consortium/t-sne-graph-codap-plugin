@@ -14,9 +14,13 @@ The three buttons in the top-left corner of the graph area zoom in, zoom out and
 
 Hovering over a point, giving it keyboard focus or tapping it shows a point tooltip with the point's phrase, in the point's label color, so students can read the phrase behind any point. Screen readers don't read the tooltip, because each point's name already includes its phrase.
 
+The ⓘ button at the top right of the panel opens "Information: t-SNE Plots", a page that explains what a t-SNE plot is and how to read it. The page opens in a CODAP tile of its own, just right of the plugin, which can be moved, resized and closed like any other tile and is saved with the document. Clicking ⓘ again brings that tile to the front instead of opening another one. The text content is in `src/info.html`.
+
 ## Deployment
 
 S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. See [deploy-setup.md in starter-projects](https://github.com/concord-consortium/starter-projects/blob/main/doc/deploy-setup.md) for how the AWS side is set up, and [doc/deploy.md](doc/deploy.md) for how deploys work in this repo.
+
+The build makes two pages: `index.html`, the plugin, and `info.html`, the information page that the ⓘ button opens, with their files in `assets/`. `info.html` ships beside `index.html` in each build's folder. A release copies only `index-top.html` to the top level, so the plugin does not look for `info.html` beside the page it runs in: the build writes the information page's address into a `t-sne-info-page` meta tag in each plugin page. `npm run build` checks the built pages afterward (`scripts/check-build.js`).
 
 ## Development
 
@@ -24,9 +28,10 @@ S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. Se
 1. Clone this repository and `cd` into the new folder.
 2. Install the dependencies `npm install`.
 3. Run the development server `npm start`.
-4. Open [localhost:8080](http://localhost:8080) (or use port 8081 if you are already using 8080). You should see the plugin's layout: an empty grid on the left with the zoom buttons (disabled) in the top-left corner of the graph area and, on the right, the Data Table, Phrase Column and Label Column dropdowns, with the Key heading and the five Test Phrases fields (disabled) below them.
+4. Open [localhost:8080](http://localhost:8080) (or use port 8081 if you are already using 8080). You should see the plugin's layout: an empty grid on the left with the zoom buttons (disabled) in the top-left corner of the graph area and, on the right, the Data Table, Phrase Column and Label Column dropdowns with the ⓘ button beside them, and the Key heading and the five Test Phrases fields (disabled) below them.
 
-   Outside CODAP the Data Table list stays empty, and after several seconds the console shows an error that starts with `Unable to connect to CODAP:`. This is expected: the plugin tries to connect three times, then stops. To use the plugin, open it in CODAP (see [Testing in CODAP](#testing-in-codap)).
+   Outside CODAP the Data Table list stays empty, and after several seconds the console shows an error that starts with `Unable to connect to CODAP:`. This is expected: the plugin tries to connect three times, then stops. The ⓘ button opens nothing outside CODAP; the console shows a warning instead. To use the plugin, open it in CODAP (see [Testing in CODAP](#testing-in-codap)).
+5. The information page is at [localhost:8080/info.html](http://localhost:8080/info.html). Opened on its own, it shows the text, and after a few seconds the console shows a warning that starts with `The information page could not connect to CODAP:`, which is expected.
 
 ### Known limitations
 - A selected test phrase stays selected when the selection is cleared from another CODAP component, such as a graph. CODAP's selection notices don't say where a change came from, so the plugin can't tell that clear from its own. Clicking empty space in the plot, a Key label, a point that isn't selected, or a table row clears it.
