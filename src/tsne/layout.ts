@@ -10,6 +10,8 @@ export interface ISize {
 
 // Keeps points at the edge from being clipped
 export const kGraphPadding = 12;
+// A point's click and hover target
+export const kHitRadius = 12;
 
 export interface IDirection {
   dx: number;
@@ -360,5 +362,21 @@ export const pointerShapes = (
     fill: [
       intersect(innerTop, innerBottom), atX(innerTop, kTooltipBorderWidth), atX(innerBottom, kTooltipBorderWidth)
     ]
+  };
+};
+
+/** A hoverable area from the point's target to the box, so a pointer crossing slowly keeps the tooltip. In
+ * `pointerShapes`' coordinates: a rectangle from the point's center to the box, as tall as the target and the
+ * box, less the target's half on the box's side. Undefined when the box covers the point. */
+export const hoverBridge = (
+  { x }: IPosition, { left, side, tipOffset }: ITooltipPlacement, { width, height }: ISize
+) => {
+  const gap = side === "right" ? left - x : x - (left + width);
+  if (gap <= 0) return undefined;
+  return {
+    left: -gap,
+    top: Math.min(tipOffset - kHitRadius, -height / 2),
+    bottom: Math.max(tipOffset + kHitRadius, height / 2),
+    center: { x: -gap, y: tipOffset }
   };
 };

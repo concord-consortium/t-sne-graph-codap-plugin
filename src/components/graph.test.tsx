@@ -1209,13 +1209,16 @@ describe("Graph", () => {
       renderGraph(store);
       hover(point("the cat sat"));
       const box = screen.getByTestId("point-tooltip");
+      const bridge = screen.getByTestId("point-tooltip-bridge");
       const dot = within(point("the cat sat")).getByTestId("dot");
       fireEvent.pointerOut(point("the cat sat"), { pointerType: "mouse", relatedTarget: box });
       expect(tooltip()).toHaveTextContent("the cat sat");
       fireEvent.pointerOut(box, { pointerType: "mouse", relatedTarget: dot });
       expect(tooltip()).toHaveTextContent("the cat sat");
-      fireEvent.pointerOut(point("the cat sat"), { pointerType: "mouse", relatedTarget: box });
-      fireEvent.pointerOut(box, { pointerType: "mouse", relatedTarget: plot() });
+      // Across the bridge between them, too
+      fireEvent.pointerOut(point("the cat sat"), { pointerType: "mouse", relatedTarget: bridge });
+      expect(tooltip()).toHaveTextContent("the cat sat");
+      fireEvent.pointerOut(bridge, { pointerType: "mouse", relatedTarget: plot() });
       expect(tooltip()).not.toBeInTheDocument();
     });
 

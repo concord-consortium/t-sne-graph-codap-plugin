@@ -1254,6 +1254,35 @@ test("keeps the tooltip while the mouse is on it, and hides it on Escape until t
     await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
   });
 
+// From a point's center, `dy` up or down, then one pointer event per pixel into its tooltip's near edge
+const creepToTooltip = async (page: Page, plugin: FrameLocator, element: Locator, dy: number) => {
+  const center = await onPage(plugin, await centerOf(element));
+  const box = await tooltip(plugin).boundingBox();
+  if (!box) throw new Error("The tooltip is not visible");
+  const step = await tooltip(plugin).getAttribute("data-side") === "left" ? -1 : 1;
+  const end = step > 0 ? box.x + 2 : box.x + box.width - 2;
+  for (let x = center.x; (end - x) * step > 0; x += step) await page.mouse.move(x, center.y + dy);
+  await page.mouse.move(end, center.y + dy);
+};
+
+test("keeps the tooltip while the mouse creeps from a dot or a symbol to it, level with the center or off it",
+  async ({ page }) => {
+    const plugin = await openFlatPlot(page);
+    // The diamond reaches furthest from its center, so its box is furthest from its 12px target
+    await enterTestPhrase(plugin, 2, kTestPhrases[2].text);
+    for (const [element, text] of [
+      [point(plugin, kIsolatedDot), kIsolatedDot], [symbolPoint(plugin, 2), kTestPhrases[2].text]
+    ] as const) {
+      for (const dy of [0, -8]) {
+        await moveMouseOff(page);
+        await hoverPoint(page, plugin, element);
+        await expect(tooltip(plugin)).toHaveText(text);
+        await creepToTooltip(page, plugin, element, dy);
+        await expect(tooltip(plugin)).toHaveText(text);
+      }
+    }
+  });
+
 test("puts the tooltip on the left of a dot near the plot's right edge, inside the graph area", async ({ page }) => {
   const plugin = await openFlatPlot(page);
   await hoverPoint(page, plugin, point(plugin, kRightEdgeDot));

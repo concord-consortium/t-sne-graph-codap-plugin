@@ -1,9 +1,17 @@
 import React, { CSSProperties, PointerEventHandler, useLayoutEffect, useRef, useState } from "react";
-import { IPosition, ISize, kTooltipMargin, placeTooltip, pointerShapes, tooltipMaxWidth } from "../tsne/layout";
+import {
+  hoverBridge, IPosition, ISize, kHitRadius, kTooltipMargin, placeTooltip, pointerShapes, tooltipMaxWidth
+} from "../tsne/layout";
 import "./point-tooltip.scss";
 
 // The other tooltip sizes are in _variables.scss
 export const kTooltipMaxWidth = 240;
+
+// The rectangle with the target's half cut out
+const bridgePath = ({ left, top, bottom, center: { x, y } }: NonNullable<ReturnType<typeof hoverBridge>>) => {
+  const r = kHitRadius;
+  return `M${left} ${top}H0V${bottom}H${left}Z M${x} ${y - r}A${r} ${r} 0 0 1 ${x} ${y + r}Z`;
+};
 
 const toPoints = (corners: IPosition[]) => corners.map(({ x, y }) => `${x.toFixed(2)},${y.toFixed(2)}`).join(" ");
 
@@ -52,6 +60,7 @@ export const PointTooltip = (
   // Hidden until measured; its max-content size doesn't depend on its position
   const placement = size && placeTooltip(anchor, halfExtent, size, area);
   const pointer = pointerShapes(placement ?? { pointerOffset: 0, tipOffset: 0 });
+  const bridge = placement && size && hoverBridge(anchor, placement, size);
   const style = {
     "--tooltip-color": color,
     "--tooltip-fill": fill,
@@ -65,6 +74,8 @@ export const PointTooltip = (
     <div ref={ref} className="point-tooltip" data-side={placement?.side ?? "right"} data-testid="point-tooltip"
       aria-hidden="true" style={style} onPointerEnter={onPointerEnter} onPointerLeave={onPointerLeave}>
       <svg className="point-tooltip-pointer" data-testid="point-tooltip-pointer" width={1} height={1}>
+        {bridge && <path className="point-tooltip-bridge" data-testid="point-tooltip-bridge" fillRule="evenodd"
+          d={bridgePath(bridge)} />}
         <polygon className="point-tooltip-pointer-outline" data-testid="pointer-outline"
           points={toPoints(pointer.outline)} />
         <polygon className="point-tooltip-pointer-border" data-testid="pointer-border"

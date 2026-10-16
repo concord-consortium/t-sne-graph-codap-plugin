@@ -7,8 +7,8 @@ import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
 import { kTestPhraseColor, kTestPhraseTooltipFill } from "../tsne/labels";
 import {
-  applyView, directionToPixels, gridLines, IPosition, ISize, IView, offsetFromNeighbor, paddedBounds, panToInclude,
-  toPixels, worldBounds
+  applyView, directionToPixels, gridLines, IPosition, ISize, IView, kHitRadius, offsetFromNeighbor, paddedBounds,
+  panToInclude, toPixels, worldBounds
 } from "../tsne/layout";
 import { kPlotSymbolExtents, symbolName, symbolPath, symbolReach } from "./phrase-symbol";
 import { PointTooltip } from "./point-tooltip";
@@ -17,7 +17,6 @@ import "./graph.scss";
 
 // Radii of the outline and rings described in _variables.scss, then the focus ring outside them
 const kPointRadius = 6;
-const kHitRadius = 12;
 const kOutlineRadius = kPointRadius + 0.5;
 const kSelectionRingRadius = kPointRadius + 2;
 const kSelectionEdgeRadius = kPointRadius + 3.5;

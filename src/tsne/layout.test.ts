@@ -1,5 +1,6 @@
 import {
-  applyTransform, applyView, clampView, directionToPixels, fitLayout, gridLines, IPosition, IView, kFitView,
+  applyTransform, applyView, clampView, directionToPixels, fitLayout, gridLines, hoverBridge, IPosition, IView,
+  kFitView,
   kGraphPadding, kMaxZoomLevel, kMinNeighborOffsetPx, kMinZoomLevel, kOffsetCandidates, kTooltipMargin,
   kTooltipMinWidth, kTooltipTipToBox, kZoomFactor, normalizeLayout, offsetFromNeighbor, paddedBounds,
   panToInclude, placeTooltip, pointerShapes, scaleForLevel, toPixels, tooltipMaxWidth, unitDirection, worldBounds
@@ -653,4 +654,27 @@ describe("pointerShapes", () => {
       // Pointed, past the colored tip
       expect(outline[0].x).toBeLessThan(tip.x);
     });
+});
+
+describe("hoverBridge", () => {
+  const area = { width: 300, height: 300 };
+  const box = { width: 86, height: 24 };
+  const bridgeFor = (anchor: IPosition, size = box, space = area) =>
+    hoverBridge(anchor, placeTooltip(anchor, 6, size, space), size);
+
+  it("spans from a dot's center to the box, as tall as the dot's target and the box", () => {
+    expect(bridgeFor({ x: 100, y: 150 })).toEqual({ left: -11, top: -12, bottom: 12, center: { x: -11, y: 0 } });
+    // Flipped: the same, mirrored by the component
+    expect(bridgeFor({ x: 250, y: 150 })).toEqual({ left: -11, top: -12, bottom: 12, center: { x: -11, y: 0 } });
+  });
+
+  it("reaches the point when the box is clamped away from its height", () => {
+    // A two-line box clamped down to 4: the point is 24px above its center
+    expect(bridgeFor({ x: 100, y: 0 }, { width: 86, height: 40 }))
+      .toEqual({ left: -11, top: -36, bottom: 20, center: { x: -11, y: -24 } });
+  });
+
+  it("is left out when the box covers the point", () => {
+    expect(bridgeFor({ x: 40, y: 15 }, { width: 100, height: 40 }, { width: 80, height: 30 })).toBeUndefined();
+  });
 });

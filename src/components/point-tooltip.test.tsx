@@ -61,6 +61,9 @@ describe("PointTooltip", () => {
     expect(tooltip().style.visibility).toBe("");
     // Tip 10px out from the box, base on its inner edge, both centered
     expect(pointerCorners()).toEqual([[-10, 0], [1.5, -6], [1.5, 6]]);
+    // From the point, 11px out, to the box, with the point's 12px target's near half cut out
+    expect(screen.getByTestId("point-tooltip-bridge"))
+      .toHaveAttribute("d", "M-11 -12H0V12H-11Z M-11 -12A12 12 0 0 1 -11 12Z");
   });
 
   it("chooses a side by its measured width", () => {

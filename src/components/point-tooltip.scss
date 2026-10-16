@@ -38,6 +38,12 @@
   }
 }
 
+// Invisible, but takes the pointer
+.point-tooltip-bridge {
+  fill: transparent;
+  pointer-events: auto;
+}
+
 .point-tooltip-pointer-outline {
   fill: $tooltip-outline-color;
 }
