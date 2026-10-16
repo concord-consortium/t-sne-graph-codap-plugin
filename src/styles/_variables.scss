@@ -33,6 +33,15 @@ $info-button-size: 24px;
 $info-button-radius: 4px;
 $info-button-surround: #bfefff;
 
+// Information page, in its own tile: the spec's text block starts 10px below the 34px title bar
+$info-page-padding-top: 10px;
+$info-page-padding-side: 20px;
+$info-page-padding-bottom: 20px;
+$info-text-size: 14px;
+$info-text-letter-spacing: 0.2px;
+$info-heading-gap: 4px;
+$info-section-gap: 12px;
+
 // Dropdown button
 $dropdown-height: 24px;
 $dropdown-width: 205px;
