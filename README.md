@@ -12,6 +12,8 @@ Students can add up to five phrases of their own in the Test Phrases fields, whi
 
 The three buttons in the top-left corner of the graph area zoom in, zoom out and fit all. Each zoom step makes the picture 1.5 times larger or smaller around the center of the plot, from one step smaller than the whole plot up to about 26 times larger; the dots and symbols keep their size, and the grid moves with them. Dragging the plot's background moves the view (with a mouse or a finger), and when a point gets keyboard focus off the plot, the view moves just enough to show it. Fit all shows the whole plot again. The view is saved with the document, and it goes back to the whole plot when a different table or Phrase Column is chosen or a new layout replaces the one shown.
 
+Hovering over a point, giving it keyboard focus or tapping it shows a point tooltip with the point's phrase, in the point's label color, so students can read the phrase behind any point. Screen readers don't read the tooltip, because each point's name already includes its phrase.
+
 ## Deployment
 
 S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. See [deploy-setup.md in starter-projects](https://github.com/concord-consortium/starter-projects/blob/main/doc/deploy-setup.md) for how the AWS side is set up, and [doc/deploy.md](doc/deploy.md) for how deploys work in this repo.

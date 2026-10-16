@@ -1,0 +1,98 @@
+@use "sass:math";
+@use "../styles/variables" as *;
+
+// max-content, so the width doesn't depend on the position. The filter shades the box and pointer as one.
+.point-tooltip {
+  background-color: var(--tooltip-fill);
+  border-radius: $tooltip-radius;
+  box-shadow: inset 0 0 0 $tooltip-border-width var(--tooltip-color), 0 0 0 $tooltip-outline-width $tooltip-outline-color;
+  box-sizing: border-box;
+  color: $text-color;
+  filter: drop-shadow($tooltip-shadow);
+  font-family: $font-family;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: $tooltip-line-height;
+  min-height: $tooltip-min-height;
+  padding: math.div($tooltip-min-height - $tooltip-line-height, 2) $tooltip-padding-x;
+  pointer-events: none;
+  position: absolute;
+  width: max-content;
+  z-index: 2;
+
+  &[data-hoverable] {
+    pointer-events: auto;
+  }
+}
+
+// Origin at the box's left edge and vertical center. Its tip covers the point's center, so only the box can be
+// hovered.
+.point-tooltip-pointer {
+  display: block;
+  left: 0;
+  overflow: visible;
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+
+  // Mirrored about the box's right edge
+  .point-tooltip[data-side="left"] & {
+    left: 100%;
+    transform: scaleX(-1);
+    transform-origin: 0 0;
+  }
+}
+
+// Invisible, but takes the pointer
+.point-tooltip-bridge {
+  fill: transparent;
+  pointer-events: auto;
+}
+
+.point-tooltip-pointer-outline {
+  fill: $tooltip-outline-color;
+}
+
+.point-tooltip-pointer-border {
+  fill: var(--tooltip-color);
+}
+
+.point-tooltip-pointer-fill {
+  fill: var(--tooltip-fill);
+}
+
+// Wraps to at most two lines, then ends with an ellipsis, like the Key labels
+.point-tooltip-text {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: $tooltip-max-lines;
+  display: -webkit-box;
+  line-clamp: $tooltip-max-lines;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+// Forced colors drop box-shadows, so the border is an outline; the pointer keeps the same colors
+@media (forced-colors: active) {
+  .point-tooltip {
+    background-color: Canvas;
+    color: CanvasText;
+    outline: $tooltip-border-width solid CanvasText;
+    outline-offset: -$tooltip-border-width;
+  }
+
+  .point-tooltip-pointer {
+    forced-color-adjust: none;
+  }
+
+  .point-tooltip-pointer-outline {
+    fill: Canvas;
+  }
+
+  .point-tooltip-pointer-border {
+    fill: CanvasText;
+  }
+
+  .point-tooltip-pointer-fill {
+    fill: Canvas;
+  }
+}

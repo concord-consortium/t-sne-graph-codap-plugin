@@ -1,12 +1,24 @@
 export const kUnlabeled = "Unlabeled";
 export const kUnlabeledColor = "#949494";
+export const kTestPhraseColor = "#2e007f";
 
-// The spec's four colors, then placeholders until design picks more. All differ from the
-// test-phrase purple, #2e007f.
+// The spec's four colors, then placeholders until design picks more. All differ from
+// `kTestPhraseColor`.
 export const kLabelColors = [
   "#5169ff", "#b21c00", "#ee6600", "#006963",
   "#d81b60", "#795548", "#827717", "#455a64"
 ];
+
+// Tooltip fills for the Unlabeled gray, the test-phrase purple and the four spec colors in `kLabelColors`
+export const kUnlabeledTooltipFill = "#d1d1d1";
+export const kTestPhraseTooltipFill = "#cbcbff";
+export const kTooltipFills = ["#c0cfff", "#ffbfb2", "#ffc1a4", "#9ce0d9"];
+
+const kTooltipFillByColor = new Map([
+  [kUnlabeledColor, kUnlabeledTooltipFill],
+  [kTestPhraseColor, kTestPhraseTooltipFill],
+  ...kTooltipFills.map((fill, i) => [kLabelColors[i], fill] as const)
+]);
 
 // At 60% saturation and 37% lightness every hue has at least 3:1 contrast with white.
 const kGeneratedSaturation = 0.6;
@@ -16,6 +28,14 @@ const kGoldenAngle = 137.508;
 const kFirstGeneratedHue = 200;
 
 const toHex = (value: number) => Math.round(value * 255).toString(16).padStart(2, "0");
+
+// For a "#rrggbb" color
+const kTooltipMix = 0.35;
+const mixWithWhite = (color: string) =>
+  `#${[1, 3, 5].map(i => toHex(kTooltipMix * parseInt(color.slice(i, i + 2), 16) / 255 + 1 - kTooltipMix)).join("")}`;
+
+/** The spec's fill, or for other colors 35% on white, roughly as light as the spec's fills */
+export const tooltipFill = (color: string) => kTooltipFillByColor.get(color) ?? mixWithWhite(color);
 
 // Hue in degrees; saturation and lightness in [0, 1]
 const hslToHex = (hue: number, saturation: number, lightness: number) => {

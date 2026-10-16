@@ -1,4 +1,6 @@
-import { groupLabels, kLabelColors, kUnlabeled, kUnlabeledColor, labelColor, normalizeLabel } from "./labels";
+import {
+  groupLabels, kLabelColors, kTestPhraseColor, kUnlabeled, kUnlabeledColor, labelColor, normalizeLabel, tooltipFill
+} from "./labels";
 
 const contrastWithWhite = (hex: string) => {
   const linear = (channel: number) => {
@@ -55,6 +57,19 @@ describe("labelColor", () => {
     const tooLight = Array.from({ length: 1000 }, (_value, i) => labelColor(i))
       .filter(color => contrastWithWhite(color) < 3);
     expect(tooLight).toEqual([]);
+  });
+});
+
+describe("tooltipFill", () => {
+  it("gives the spec's fill for the Unlabeled gray, the test-phrase purple and the four spec colors", () => {
+    expect([kUnlabeledColor, kTestPhraseColor, ...kLabelColors.slice(0, 4)].map(tooltipFill))
+      .toEqual(["#d1d1d1", "#cbcbff", "#c0cfff", "#ffbfb2", "#ffc1a4", "#9ce0d9"]);
+  });
+
+  it("mixes a placeholder or generated color 35% with white", () => {
+    expect(kLabelColors.slice(4).map(tooltipFill)).toEqual(["#f1afc7", "#d0c4bf", "#d3cfae", "#bec5c9"]);
+    expect(labelColor(8)).toBe("#267197");
+    expect(tooltipFill(labelColor(8))).toBe("#b3cddb");
   });
 });
 
