@@ -443,35 +443,39 @@ test("mirrors the selection between the plot, the Key and CODAP's table", async 
   await expect.poll(() => selectedInTable(page)).toEqual([]);
 });
 
-test("selects with the keyboard: arrow to a point, Enter selects, Escape clears", async ({ page }) => {
-  const plugin = await openPlot(page, "label");
-  await tabToPlot(plugin);
-  expect(await plotOutline(plugin))
-    .toEqual({ outlineStyle: "solid", outlineWidth: "2px", outlineColor: "rgb(9, 87, 208)" });
-  await page.keyboard.press("ArrowRight");
-  await expect(point(plugin, "the cat sat on the mat")).toBeFocused();
-  // Focus is on the point now, so the plot's outline is gone
-  expect((await plotOutline(plugin)).outlineStyle).toBe("none");
-  // The copy of the active point drawn on top shows the focus ring too
-  expect(await plugin.locator(".active-point .focus-ring")
-    .evaluate(ring => getComputedStyle(ring).visibility)).toBe("visible");
-  await page.keyboard.press("ArrowRight");
-  await expect(point(plugin, "a cat rested on a rug")).toBeFocused();
-  await page.keyboard.press("Enter");
-  await expect.poll(() => selectedInTable(page)).toEqual(["a cat rested on a rug"]);
-  await expect(point(plugin, "a cat rested on a rug")).toHaveAttribute("aria-pressed", "true");
+test("selects with the keyboard: arrow to a point, Enter selects, Escape hides the tooltip, then clears",
+  async ({ page }) => {
+    const plugin = await openPlot(page, "label");
+    await tabToPlot(plugin);
+    expect(await plotOutline(plugin))
+      .toEqual({ outlineStyle: "solid", outlineWidth: "2px", outlineColor: "rgb(9, 87, 208)" });
+    await page.keyboard.press("ArrowRight");
+    await expect(point(plugin, "the cat sat on the mat")).toBeFocused();
+    // Focus is on the point now, so the plot's outline is gone
+    expect((await plotOutline(plugin)).outlineStyle).toBe("none");
+    // The copy of the active point drawn on top shows the focus ring too
+    expect(await plugin.locator(".active-point .focus-ring")
+      .evaluate(ring => getComputedStyle(ring).visibility)).toBe("visible");
+    await page.keyboard.press("ArrowRight");
+    await expect(point(plugin, "a cat rested on a rug")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => selectedInTable(page)).toEqual(["a cat rested on a rug"]);
+    await expect(point(plugin, "a cat rested on a rug")).toHaveAttribute("aria-pressed", "true");
 
-  // Shift+Enter adds a point, and removes it again
-  await page.keyboard.press("ArrowLeft");
-  await page.keyboard.press("Shift+Enter");
-  await expect.poll(() => selectedInTable(page)).toEqual(["the cat sat on the mat", "a cat rested on a rug"]);
-  await page.keyboard.press("Shift+Enter");
-  await expect.poll(() => selectedInTable(page)).toEqual(["a cat rested on a rug"]);
+    // Shift+Enter adds a point, and removes it again
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("Shift+Enter");
+    await expect.poll(() => selectedInTable(page)).toEqual(["the cat sat on the mat", "a cat rested on a rug"]);
+    await page.keyboard.press("Shift+Enter");
+    await expect.poll(() => selectedInTable(page)).toEqual(["a cat rested on a rug"]);
 
-  await page.keyboard.press("Escape");
-  await expect.poll(() => selectedInTable(page)).toEqual([]);
-  await expect(point(plugin, "a cat rested on a rug")).toHaveAttribute("aria-pressed", "false");
-});
+    await page.keyboard.press("Escape");
+    await expect(plugin.getByTestId("point-tooltip")).toHaveCount(0);
+    expect(await selectedInTable(page)).toEqual(["a cat rested on a rug"]);
+    await page.keyboard.press("Escape");
+    await expect.poll(() => selectedInTable(page)).toEqual([]);
+    await expect(point(plugin, "a cat rested on a rug")).toHaveAttribute("aria-pressed", "false");
+  });
 
 test("lays out a 40-phrase table quickly", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });

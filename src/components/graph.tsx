@@ -51,7 +51,7 @@ export const kTooFewMessage = "Add at least 4 phrases to see the plot.";
 export const kErrorMessage = "Something went wrong while making the plot.";
 export const kKeyboardHelp =
   "Arrow keys, Home and End move between phrases, then test phrases. " +
-  "Enter selects; Shift+Enter adds or removes; Escape clears.";
+  "Enter selects; Shift+Enter adds or removes; Escape hides the tooltip, then clears.";
 
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
@@ -244,7 +244,8 @@ export const Graph = observer(() => {
         select(activeKey, event.shiftKey);
         break;
       case "Escape":
-        clearCodapSelection(store);
+        // A showing tooltip is hidden first, by the document listener; the selection is kept
+        if (!tooltip) clearCodapSelection(store);
         break;
       default:
         return;

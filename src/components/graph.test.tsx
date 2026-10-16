@@ -655,11 +655,15 @@ describe("Graph", () => {
       expect(selectPoint).not.toHaveBeenCalled();
     });
 
-    it("clears the selection with Escape, from the plot or from a point", async () => {
+    it("clears the selection with Escape, from the plot, or from a point once its tooltip is hidden", async () => {
       const user = userEvent.setup();
       renderGraph(store);
       await tabToPlot(user);
-      await user.keyboard("{Escape}{ArrowRight}{Escape}");
+      await user.keyboard("{Escape}");
+      expect(clearCodapSelection).toHaveBeenCalledTimes(1);
+      await user.keyboard("{ArrowRight}{Escape}");
+      expect(clearCodapSelection).toHaveBeenCalledTimes(1);
+      await user.keyboard("{Escape}");
       expect(clearCodapSelection).toHaveBeenCalledTimes(2);
     });
 
@@ -969,7 +973,8 @@ describe("Graph", () => {
         const user = userEvent.setup();
         renderGraph(store);
         await tabToPlot(user);
-        await user.keyboard("{End}{Escape}");
+        // The first hides the symbol's tooltip
+        await user.keyboard("{End}{Escape}{Escape}");
         expect(clearCodapSelection).toHaveBeenCalledWith(store);
       });
     });
@@ -1248,7 +1253,7 @@ describe("Graph", () => {
       expect(tooltip()).toHaveTextContent("the cat sat");
     });
 
-    it("hides a keyboard tooltip on Escape, which still clears the selection, until a point is reached again",
+    it("hides a keyboard tooltip on the first Escape and clears the selection on the next, until a point is reached",
       async () => {
         const user = userEvent.setup();
         renderGraph(store);
@@ -1257,6 +1262,8 @@ describe("Graph", () => {
         expect(tooltip()).toHaveTextContent("the cat sat");
         await user.keyboard("{Escape}");
         expect(tooltip()).not.toBeInTheDocument();
+        expect(clearCodapSelection).not.toHaveBeenCalled();
+        await user.keyboard("{Escape}");
         expect(clearCodapSelection).toHaveBeenCalledWith(store);
         await user.keyboard("{ArrowRight}");
         expect(tooltip()).toHaveTextContent("a dog ran");
