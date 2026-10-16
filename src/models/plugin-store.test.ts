@@ -423,7 +423,8 @@ describe("PluginStore plot data", () => {
     const store = graphStore();
     store.setCases(["a", "b", "c", "d", "e"].map((label, i) =>
       ({ caseId: `${i + 1}`, values: { phrase: `phrase ${i}`, label } })));
-    expect(store.tooltipFillForCase("5")).toBe(`color-mix(in srgb, ${kLabelColors[4]} 35%, white)`);
+    // kLabelColors[4], #d81b60, 35% on white
+    expect(store.tooltipFillForCase("5")).toBe("#f1afc7");
   });
 
   it("recolors at once when the Label Column changes", () => {

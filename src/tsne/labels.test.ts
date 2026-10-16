@@ -67,8 +67,9 @@ describe("tooltipFill", () => {
   });
 
   it("mixes a placeholder or generated color 35% with white", () => {
-    expect(tooltipFill(kLabelColors[4])).toBe(`color-mix(in srgb, ${kLabelColors[4]} 35%, white)`);
-    expect(tooltipFill(labelColor(8))).toBe(`color-mix(in srgb, ${labelColor(8)} 35%, white)`);
+    expect(kLabelColors.slice(4).map(tooltipFill)).toEqual(["#f1afc7", "#d0c4bf", "#d3cfae", "#bec5c9"]);
+    expect(labelColor(8)).toBe("#267197");
+    expect(tooltipFill(labelColor(8))).toBe("#b3cddb");
   });
 });
 

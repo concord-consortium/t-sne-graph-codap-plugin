@@ -20,10 +20,6 @@ const kTooltipFillByColor = new Map([
   ...kTooltipFills.map((fill, i) => [kLabelColors[i], fill] as const)
 ]);
 
-/** The spec's fill, or for other colors 35% on white, within a few units of the spec's fills */
-export const tooltipFill = (color: string) =>
-  kTooltipFillByColor.get(color) ?? `color-mix(in srgb, ${color} 35%, white)`;
-
 // At 60% saturation and 37% lightness every hue has at least 3:1 contrast with white.
 const kGeneratedSaturation = 0.6;
 const kGeneratedLightness = 0.37;
@@ -32,6 +28,14 @@ const kGoldenAngle = 137.508;
 const kFirstGeneratedHue = 200;
 
 const toHex = (value: number) => Math.round(value * 255).toString(16).padStart(2, "0");
+
+// For a "#rrggbb" color
+const kTooltipMix = 0.35;
+const mixWithWhite = (color: string) =>
+  `#${[1, 3, 5].map(i => toHex(kTooltipMix * parseInt(color.slice(i, i + 2), 16) / 255 + 1 - kTooltipMix)).join("")}`;
+
+/** The spec's fill, or for other colors 35% on white, roughly as light as the spec's fills */
+export const tooltipFill = (color: string) => kTooltipFillByColor.get(color) ?? mixWithWhite(color);
 
 // Hue in degrees; saturation and lightness in [0, 1]
 const hslToHex = (hue: number, saturation: number, lightness: number) => {
