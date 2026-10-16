@@ -1,0 +1,50 @@
+@use "../styles/variables" as *;
+
+.info-button {
+  background-color: transparent;
+  border: none;
+  border-radius: $info-button-radius;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: block;
+  height: $info-button-size;
+  outline: none;
+  padding: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: $info-button-size;
+
+  // The surround sits inside the box; the focus border is a box-shadow outside it, so nothing moves
+  &[data-hovered],
+  &[data-pressed],
+  &[data-focus-visible] {
+    background-color: $info-button-surround;
+  }
+  &[data-focus-visible] {
+    box-shadow: 0 0 0 2px $focus-color;
+  }
+}
+
+.info-button-face {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
+
+.info-icon {
+  display: block;
+}
+
+// Forced colors would hide the surround and the box-shadow focus border
+@media (forced-colors: active) {
+  .info-button {
+    &[data-hovered],
+    &[data-pressed] {
+      background-color: Highlight;
+    }
+    &[data-focus-visible] {
+      outline: 2px solid Highlight;
+    }
+  }
+}
