@@ -11,6 +11,7 @@ import {
   IResult,
   sendMessage
 } from "@concord-consortium/codap-plugin-api";
+import { kPluginName, kPluginVersion } from "../plugin-identity";
 import { AttributeInfo, CaseInfo, DataContextInfo, IPluginStore } from "./plugin-store";
 
 // CODAP v3 applies the dimensions to the whole tile, including its 34px title bar
@@ -19,8 +20,8 @@ const kTitleBarHeight = 34;
 
 // The plugin's name is the tile title
 export const kPluginConfig: IConfig = {
-  name: "t-SNE Plot",
-  version: "0.0.1",
+  name: kPluginName,
+  version: kPluginVersion,
   dimensions: { width: kContentSize.width, height: kContentSize.height + kTitleBarHeight }
 };
 

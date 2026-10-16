@@ -50,11 +50,14 @@ module.exports = (env, argv) => {
       },
     },
     devtool: devMode ? 'eval-cheap-module-source-map' : 'source-map',
-    entry: './src/index.tsx',
+    entry: {
+      index: './src/index.tsx',
+      info: './src/info.ts',
+    },
     mode: 'development',
     output: {
       path: path.resolve(__dirname, 'dist'),
-      filename: 'assets/index.[contenthash].js',
+      filename: 'assets/[name].[contenthash].js',
       // Names worker chunks, e.g. assets/tsne-worker.[contenthash].js
       chunkFilename: 'assets/[name].[contenthash].js',
     },
@@ -165,18 +168,31 @@ module.exports = (env, argv) => {
       new MiniCssExtractPlugin({
         filename: devMode ? 'assets/[name].css' : 'assets/[name].[contenthash].css',
       }),
+      // The plugin finds the information page through the meta tag, since the released
+      // index.html (a copy of index-top.html) is not in the folder that holds info.html
       new HtmlWebpackPlugin({
         filename: 'index.html',
         template: 'src/index.html',
         favicon: 'src/public/favicon.ico',
         publicPath: '.',
+        chunks: ['index'],
+        meta: { 't-sne-info-page': './info.html' },
       }),
       ...(DEPLOY_PATH ? [new HtmlWebpackPlugin({
         filename: 'index-top.html',
         template: 'src/index.html',
         favicon: 'src/public/favicon.ico',
-        publicPath: DEPLOY_PATH
+        publicPath: DEPLOY_PATH,
+        chunks: ['index'],
+        meta: { 't-sne-info-page': `${DEPLOY_PATH}info.html` },
       })] : []),
+      new HtmlWebpackPlugin({
+        filename: 'info.html',
+        template: 'src/info.html',
+        favicon: 'src/public/favicon.ico',
+        publicPath: '.',
+        chunks: ['info'],
+      }),
       new CleanWebpackPlugin(),
     ]
   };
