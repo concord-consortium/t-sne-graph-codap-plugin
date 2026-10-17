@@ -1,50 +1,24 @@
 import { execSync } from "child_process";
-import fs from "fs";
 import path from "path";
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type FrameLocator, type Locator, type Page } from "@playwright/test";
 import { saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 import { kHierarchicalPhrases as kFixturePhrases } from "./fixtures/hierarchical-phrases";
-
-const kPluginUrl = "https://localhost:8080";
-const kCodapUrl = "https://codap3.concord.org/?mouseSensor&noEntryModal";
-// Documents are served to CODAP from this made-up address, which the tests intercept
-const kDocumentUrl = "https://documents.test/document.codap";
+import {
+  kCodapUrl, kPluginUrl, openDocument, resizeTileBy, tableCell, tableSelectionCount, tileTitled
+} from "./lib/codap";
+import {
+  choose, dropdown, emptySpot, enterTestPhrase, expectPointsClearOfZoomButtons, kSymbols, kTestPhrases, moveMouseOff,
+  onPage, optionsOf, plot, plotLayout, pluginFrame, point, pressedPhrases, symbolPoint, tabToPlot, testField,
+  zoomButton
+} from "./lib/plugin";
+import { documentWithPlugin, openFlatPlot } from "./lib/documents";
+import { axeViolations } from "./lib/accessibility";
 
 const kInfoTileTitle = "Information: t-SNE Plots";
 
-// A tile's wrapper, which holds its position, size and z-index
-const tileTitled = (page: Page, title: string) => page.locator(".free-tile-component")
-  .filter({ has: page.getByTestId("title-text").getByText(title, { exact: true }) });
-
-// Scoped by tile, since the information tile adds a second web-view frame
-const pluginFrame = (page: Page) => tileTitled(page, "t-SNE Plot").frameLocator(".codap-web-view-iframe");
 const infoFrame = (page: Page) => tileTitled(page, kInfoTileTitle).frameLocator(".codap-web-view-iframe");
-
-// While a dropdown's list is open, React Aria hides the rest of the plugin from screen readers,
-// so the buttons are found with includeHidden
-const dropdown = (plugin: FrameLocator, label: string) =>
-  plugin.getByRole("button", { name: new RegExp(label), includeHidden: true });
-
-// Opens a dropdown, reads its options, and closes it again
-const optionsOf = async (plugin: FrameLocator, label: string) => {
-  await dropdown(plugin, label).click();
-  const options = await plugin.getByRole("option").allTextContents();
-  await plugin.locator("body").press("Escape");
-  return options;
-};
-
-const choose = async (plugin: FrameLocator, label: string, option: string) => {
-  await dropdown(plugin, label).click();
-  await plugin.getByRole("option", { name: option, exact: true }).click();
-};
-
-// Serves `document` at kDocumentUrl and opens it in CODAP
-const openDocument = async (page: Page, document: object) => {
-  await page.route(kDocumentUrl, route => route.fulfill({ contentType: "application/json", json: document }));
-  await page.goto(`${kCodapUrl}&url=${kDocumentUrl}`);
-};
 
 // Creates a new table in CODAP (one column, "Attribute Name")
 const createTable = async (page: Page) => {
@@ -105,23 +79,6 @@ test("restores the selections after the document is saved and reopened", async (
   await expect(dropdown(reopened, "Label Column")).toHaveText("Attribute Name");
 });
 
-// Fixes the otherwise random layout, so no point a test clicks is under the zoom buttons, which would
-// take the click
-const kFixtureSeed = 1;
-
-// A fixture document with a plugin tile added
-const documentWithPlugin = (file: string) => {
-  const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, "fixtures", file), "utf8"));
-  const pluginTileId = "WEBVtsnePlugin";
-  const row = Object.values(fixture.content.rowMap)[0] as { tiles: Record<string, object> };
-  row.tiles[pluginTileId] = { tileId: pluginTileId, x: 420, y: 5, width: 680, height: 334, zIndex: 2 };
-  fixture.content.tileMap[pluginTileId] = {
-    id: pluginTileId, name: "t-SNE Plot",
-    content: { type: "CodapWebView", subType: "plugin", url: kPluginUrl, state: { version: 1, tsneSeed: kFixtureSeed } }
-  };
-  return fixture;
-};
-
 // Drags a column header onto the parent collection's header, as a user regroups a table
 const moveColumnToParent = async (page: Page, column: string) => {
   const source = page.locator(`.codap-case-table [data-testid="codap-attribute-button ${column}"]`);
@@ -153,18 +110,6 @@ test("lists leaf columns for Phrase, all columns for Label, and clears a Phrase 
   expect(await optionsOf(plugin, "Phrase Column")).toEqual(["notes"]);
   expect(await optionsOf(plugin, "Label Column")).toEqual(["Select", "label", "phrase", "notes"]);
 });
-
-// Each WCAG 2 A/AA violation in the plugin, as its rule and the elements it flagged, so a failure is
-// readable. Only the plugin's frame is checked, not CODAP. axe's best-practice rules (a main
-// landmark, an h1) are left out: they suit whole pages, and the plugin is a tile inside CODAP, which
-// shows the title.
-const axeViolations = async (page: Page) => {
-  const { violations } = await new AxeBuilder({ page })
-    .include([".codap-web-view-iframe", "body"])
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  return violations.map(({ id, nodes }) => ({ id, elements: nodes.map(node => node.target.join(" ")) }));
-};
 
 test("has no accessibility violations", async ({ page }) => {
   await page.goto(`${kCodapUrl}&di=${kPluginUrl}`);
@@ -213,11 +158,6 @@ test("keeps borders and keyboard focus visible in forced-colors mode", async ({ 
 
 const kAllPhrases = Object.values(kFixturePhrases).flat();
 
-const plot = (plugin: FrameLocator) => plugin.getByRole("group", { name: /^t-SNE plot/ });
-// A point's name is its phrase, then ", label" when there is a Label Column
-const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const point = (plugin: FrameLocator, phrase: string) =>
-  plugin.getByRole("button", { name: new RegExp(`^${escapeRegExp(phrase)}(, [^,]*)?$`) });
 const keyEntries = (plugin: FrameLocator) =>
   plugin.getByRole("region", { name: "Key" }).getByRole("button").evaluateAll(buttons =>
     buttons.map(button => button.getAttribute("aria-label")));
@@ -225,21 +165,14 @@ const keyEntries = (plugin: FrameLocator) =>
 const positions = (plugin: FrameLocator) => plugin.locator(".graph-plot .point").evaluateAll(points =>
   Object.fromEntries(points.map(p =>
     [(p.getAttribute("aria-label") ?? "").replace(/, [^,]*$/, ""), p.getAttribute("transform")])));
-// Shift+Tab from the first dropdown reaches the plot by keyboard, which shows :focus-visible styles
-const tabToPlot = async (plugin: FrameLocator) => {
-  await dropdown(plugin, "Data Table").focus();
-  await dropdown(plugin, "Data Table").press("Shift+Tab");
-  await expect(plot(plugin)).toBeFocused();
-};
+
 const plotOutline = (plugin: FrameLocator) => plot(plugin).evaluate(svg => {
   const { outlineStyle, outlineWidth, outlineColor } = getComputedStyle(svg);
   return { outlineStyle, outlineWidth, outlineColor };
 });
 const dotFill = (plugin: FrameLocator, phrase: string) =>
   point(plugin, phrase).locator(".dot").evaluate(dot => getComputedStyle(dot).fill);
-const pressedPhrases = (plugin: FrameLocator) =>
-  plugin.locator(".graph-plot .point[aria-pressed=true]").evaluateAll(points =>
-    points.map(p => (p.getAttribute("aria-label") ?? "").replace(/, [^,]*$/, "")));
+
 // A row's text is its index, then its values: a parent row is just its label; a leaf row starts
 // with its phrase.
 const selectedInTable = async (page: Page) => {
@@ -250,8 +183,7 @@ const selectedInTable = async (page: Page) => {
     ...kAllPhrases.filter(phrase => rows.some(row => row.startsWith(phrase)))
   ];
 };
-const tableCell = (page: Page, text: string) =>
-  page.locator(".codap-case-table [role=gridcell]", { hasText: text }).first();
+
 const editCell = async (page: Page, text: string, newText: string) => {
   await tableCell(page, text).dblclick();
   await page.keyboard.press("ControlOrMeta+a");
@@ -285,21 +217,6 @@ const renameColumn = async (page: Page, name: string, newName: string) => {
   await nameInput.press("Enter");
 };
 
-// Fails clearly, not as a timed-out click, if a layout change breaks kFixtureSeed
-const expectPointsClearOfZoomButtons = async (plugin: FrameLocator) => {
-  const plotBox = await plugin.locator(".graph-plot").boundingBox();
-  const zoomBox = await plugin.locator(".zoom-controls").boundingBox();
-  if (!plotBox || !zoomBox) throw new Error("The plot or its zoom buttons are not visible");
-  const right = zoomBox.x - plotBox.x + zoomBox.width + 30;
-  const bottom = zoomBox.y - plotBox.y + zoomBox.height + 30;
-  const underButtons = await plugin.locator(".graph-plot .point").evaluateAll((points, edges) =>
-    points.filter(p => {
-      const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(p.getAttribute("transform") ?? "") ?? [];
-      return Number(x) < edges.right && Number(y) < edges.bottom;
-    }).map(p => p.getAttribute("aria-label")), { right, bottom });
-  expect(underButtons, "points near the zoom buttons; choose another kFixtureSeed").toEqual([]);
-};
-
 // With reduced motion only the final layout shows, so visible points mean the layout is done.
 const openPlot = async (page: Page, labelColumn?: string) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -314,29 +231,6 @@ const openPlot = async (page: Page, labelColumn?: string) => {
   await expectPointsClearOfZoomButtons(plugin);
   return plugin;
 };
-
-// More than 20px from every point, and clear of the zoom buttons
-const emptySpot = async (plugin: FrameLocator) => {
-  const centers = await plugin.locator(".graph-plot .point").evaluateAll(points => points.map(p => {
-    const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(p.getAttribute("transform") ?? "") ?? [];
-    return { x: Number(x), y: Number(y) };
-  }));
-  const plotBox = await plugin.locator(".graph-plot").boundingBox();
-  const zoomBox = await plugin.locator(".zoom-controls").boundingBox();
-  if (!plotBox || !zoomBox) throw new Error("The plot or its zoom buttons are not visible");
-  const kMargin = 12;
-  const onZoomButtons = (x: number, y: number) =>
-    x < zoomBox.x - plotBox.x + zoomBox.width + kMargin && y < zoomBox.y - plotBox.y + zoomBox.height + kMargin;
-  for (let y = 20; y < 300; y += 20) {
-    for (let x = 20; x < 300; x += 20) {
-      if (!onZoomButtons(x, y) && centers.every(c => Math.hypot(c.x - x, c.y - y) > 20)) return { x, y };
-    }
-  }
-  throw new Error("The plot has no empty space");
-};
-
-// Moves the mouse off the plugin, to hide a hover tooltip that could cover the next point a test clicks
-const moveMouseOff = (page: Page) => page.mouse.move(1, 1);
 
 test("plots the phrases, then colors them by label without moving them", async ({ page }) => {
   const plugin = await openPlot(page);
@@ -600,30 +494,6 @@ test("wraps a long Key label to two lines, then cuts it short", async ({ page })
   expect(await height(/^Similar,/)).toBe(24);
 });
 
-// Drags the plugin tile's bottom-right corner
-const resizeTileBy = async (page: Page, dx: number, dy: number) => {
-  const tile = page.locator(".codap-component").filter({ has: page.locator(".codap-web-view-iframe") });
-  const box = await tile.boundingBox();
-  if (!box) throw new Error("The plugin tile is not visible");
-  await page.mouse.move(box.x + box.width - 4, box.y + box.height - 4);
-  await page.mouse.down();
-  await page.mouse.move(box.x + box.width - 4 + dx, box.y + box.height - 4 + dy, { steps: 10 });
-  await page.mouse.up();
-};
-
-// The graph area's and the plot's sizes, and the plot's offsets from the area's edges, in whole pixels
-const plotLayout = async (plugin: FrameLocator) => {
-  const area = await plugin.getByTestId("graph-area").boundingBox();
-  const square = await plot(plugin).boundingBox();
-  if (!area || !square) throw new Error("The plot is not visible");
-  return {
-    area: { width: Math.round(area.width), height: Math.round(area.height) },
-    plot: { width: Math.round(square.width), height: Math.round(square.height) },
-    left: Math.round(square.x - area.x), right: Math.round(area.x + area.width - square.x - square.width),
-    top: Math.round(square.y - area.y), bottom: Math.round(area.y + area.height - square.y - square.height)
-  };
-};
-
 test("keeps the plot square and centered when the tile is resized", async ({ page }) => {
   const plugin = await openPlot(page, "label");
   // Retried, because the area and the plot are measured one after the other while CODAP may still
@@ -658,25 +528,13 @@ test("keeps the plot square and centered when the tile is resized", async ({ pag
 
 // ---- Test phrases ----
 
-// Each test phrase's nearest phrase in the flat fixture, by the plugin's TF-IDF
-const kTestPhrases = [
-  { text: "kids who ride the bus", neighbor: "Kids who ride my bus" },
-  { text: "nobody walks this road", neighbor: "Nobody walks this road alone" },
-  { text: "people from every country", neighbor: "People in every country agree" },
-  { text: "a few close friends", neighbor: "A few of my closest friends" },
-  { text: "every person in the world", neighbor: "Each person in every nation" }
-];
-const kSymbols = ["square", "triangle", "diamond", "plus", "star"];
 const kNoWordsText = "No words in common with the table's phrases";
 // The spec's minimum distance from a symbol to its neighbor's dot
 const kMinNeighborOffset = 18;
 
-const testField = (plugin: FrameLocator, slot: number) =>
-  plugin.getByRole("textbox", { name: `Test phrase ${slot + 1}` });
 const symbolButton = (plugin: FrameLocator, slot: number) =>
   plugin.getByRole("region", { name: "Test Phrases" }).getByRole("button").nth(slot);
-const symbolPoint = (plugin: FrameLocator, slot: number) =>
-  plugin.locator(`.test-phrase-point[data-symbol=${kSymbols[slot]}]`);
+
 const symbolOpacity = (plugin: FrameLocator, slot: number) =>
   symbolButton(plugin, slot).locator("svg").evaluate(svg => getComputedStyle(svg).opacity);
 // Each placed slot's distance from its neighbor's dot, read in one step so both centers come from
@@ -698,29 +556,6 @@ const distancesToNeighbors = (plugin: FrameLocator) =>
       return Math.hypot(a.x - b.x, a.y - b.y);
     });
   }, kTestPhrases);
-const tableSelectionCount = (page: Page) =>
-  page.locator(".codap-case-table [role=row][aria-selected=true]").count();
-
-// Types a phrase and leaves the field with Tab, which commits it
-const enterTestPhrase = async (plugin: FrameLocator, slot: number, text: string) => {
-  await testField(plugin, slot).fill(text);
-  await testField(plugin, slot).press("Tab");
-};
-
-// The flat fixture with the plot done and colored by label
-const openFlatPlot = async (page: Page, document: object = documentWithPlugin("flat.codap")) => {
-  await page.emulateMedia({ reducedMotion: "reduce" });
-  await openDocument(page, document);
-  const plugin = pluginFrame(page);
-  await expect.poll(() => optionsOf(plugin, "Data Table")).toEqual(["Phrases"]);
-  await choose(plugin, "Data Table", "Phrases");
-  await expect.poll(() => optionsOf(plugin, "Phrase Column")).toEqual(["phrase", "label"]);
-  await choose(plugin, "Phrase Column", "phrase");
-  await choose(plugin, "Label Column", "label");
-  await expect(plugin.locator(".graph-plot .point:not(.test-phrase-point)")).toHaveCount(40);
-  await expectPointsClearOfZoomButtons(plugin);
-  return plugin;
-};
 
 test("places a test phrase beside its nearest phrase, hides it while editing, and removes it when cleared",
   async ({ page }) => {
@@ -930,8 +765,6 @@ test("keeps the test phrases' borders, symbols and focus visible in forced-color
 
 // ---- Zoom, fit all and panning ----
 
-const zoomButton = (plugin: FrameLocator, name: "Zoom in" | "Zoom out" | "Fit all") =>
-  plugin.getByRole("button", { name, exact: true });
 // Every case point's center, by phrase; off-plot centers can be negative
 const pointCenters = (plugin: FrameLocator): Promise<Record<string, { x: number, y: number }>> =>
   plugin.locator(".graph-plot .point:not(.test-phrase-point)").evaluateAll(points =>
@@ -943,12 +776,6 @@ const pointCenters = (plugin: FrameLocator): Promise<Record<string, { x: number,
 const farthestFromCenter = (all: Record<string, { x: number, y: number }>) =>
   Object.entries(all).reduce((far, entry) =>
     Math.hypot(entry[1].x - 150, entry[1].y - 150) > Math.hypot(far[1].x - 150, far[1].y - 150) ? entry : far)[0];
-// Page coordinates of a spot in the plot
-const onPage = async (plugin: FrameLocator, { x, y }: { x: number, y: number }) => {
-  const box = await plot(plugin).boundingBox();
-  if (!box) throw new Error("The plot is not visible");
-  return { x: box.x + x, y: box.y + y };
-};
 
 test("zooms in about the center, fits all again, and stops at the largest zoom", async ({ page }) => {
   const plugin = await openFlatPlot(page);
