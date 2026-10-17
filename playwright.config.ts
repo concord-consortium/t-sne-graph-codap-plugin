@@ -64,7 +64,8 @@ const coverageReporter: ReporterDescription = [
 const reportJson = !!process.env.CI;
 const jsonReporter: ReporterDescription = ["json", { outputFile: path.join("test-results", "results.json") }];
 
-const kChromium = { ...devices["Desktop Chrome"] };
+/* Both projects use this. The tests' click positions assume this viewport. */
+const kChromium = { ...devices["Desktop Chrome"], viewport: { width: 1400, height: 800 } };
 
 /**
  * See https://playwright.dev/docs/test-configuration.

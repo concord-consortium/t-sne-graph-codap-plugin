@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, type FrameLocator, type Locator, type Page } from "@playwright/test";
-import { exposeCodapDocument, saveCodapDocument } from "./codap-document";
+import { saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 import { kHierarchicalPhrases as kFixturePhrases } from "./fixtures/hierarchical-phrases";
 
@@ -59,11 +59,6 @@ const addColumn = async (page: Page, name: string) => {
   await nameInput.fill(name);
   await nameInput.press("Enter");
 };
-
-test.beforeEach(async ({ page }) => {
-  await page.setViewportSize({ width: 1400, height: 800 });
-  await exposeCodapDocument(page);
-});
 
 test("lists a new table and its columns", async ({ page }) => {
   await page.goto(`${kCodapUrl}&di=${kPluginUrl}`);
