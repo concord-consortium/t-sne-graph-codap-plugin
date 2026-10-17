@@ -486,7 +486,7 @@ test("selects with the keyboard: arrow to a point, Enter selects, Escape hides t
     await expect(point(plugin, "a cat rested on a rug")).toHaveAttribute("aria-pressed", "false");
   });
 
-test("lays out a 40-phrase table quickly", async ({ page }) => {
+test("lays out a 40-phrase table quickly", { tag: "@performance" }, async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openDocument(page, documentWithPlugin("flat.codap"));
   const plugin = pluginFrame(page);

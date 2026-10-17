@@ -64,6 +64,8 @@ const coverageReporter: ReporterDescription = [
 const reportJson = !!process.env.CI;
 const jsonReporter: ReporterDescription = ["json", { outputFile: path.join("test-results", "results.json") }];
 
+const kChromium = { ...devices["Desktop Chrome"] };
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -108,10 +110,9 @@ export default defineConfig<PlaywrightCoverageOptions>({
 
   /* Configure projects for major browsers */
   projects: [
-    {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
-    },
+    { name: "chromium", use: kChromium, grepInvert: /@performance/ },
+    /* Speed tests run after all other tests, so no other browser shares the CPU */
+    { name: "performance", use: kChromium, grep: /@performance/, dependencies: ["chromium"] },
 
     // {
     //   name: 'firefox',

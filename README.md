@@ -69,6 +69,12 @@ npx playwright show-report
 npm run test:playwright:open
 ```
 
+##### Run only the speed test
+The speed test (tagged `@performance`) runs in its own project, after all other tests, so no other browser shares the CPU. To run only it:
+```
+npx playwright test --project=performance --no-deps
+```
+
 ##### Test fixtures
 The end-to-end tests use two CODAP v3 documents in `playwright/fixtures/`:
 - `hierarchical.codap`: a two-level table (Labels > Phrases) with 9 phrases in 3 labels.
