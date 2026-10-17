@@ -13,7 +13,12 @@ const coverageReporter: ReporterDescription = [
        by the two prefixes. */
     exclude: [
       /* Ignore all coverage of the CODAP application itself. */
-      "codap3/src/**", "codap3/webpack/**"
+      "codap3/src/**", "codap3/webpack/**",
+      /* This is JavaScript coverage. A stylesheet appears only because the dev build's
+         style-loader module, with hot-reload code no test runs, is mapped onto its lines;
+         no CSS rule is measured. The paths matched here still end in webpack's "?hash",
+         which rewritePath strips later. */
+      "**/*.{scss,css}", "**/*.{scss,css}\\?*"
     ],
     /* Modify the paths of files on which coverage is reported. This is run after
        the exclude filter, so it does not get any of the codap3 files.
