@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { codapInterface } from "@concord-consortium/codap-plugin-api";
 import { openInfoTile } from "../models/info-tile";
 import { IPluginStore, PluginStore } from "../models/plugin-store";
-import { App } from "./app";
+import { App, kInfoFailedText, kInfoOpenedText } from "./app";
 
 jest.mock("../models/info-tile", () => ({
   ...jest.requireActual("../models/info-tile"),
@@ -43,6 +43,7 @@ describe("App's info button", () => {
   let warn: jest.SpyInstance;
 
   const pressInfo = () => fireEvent.click(screen.getByRole("button", { name: "Information about t-SNE plots" }));
+  const announcement = () => screen.getByTestId("info-announcement");
   const renderApp = (status: "connecting" | "connected" | "failed") => {
     store.setCodapStatus(status);
     render(<App store={store} />);
@@ -61,10 +62,30 @@ describe("App's info button", () => {
     mockOpenInfoTile.mockReset();
   });
 
-  it("opens the tile when connected", async () => {
+  it("opens the tile when connected, and announces it", async () => {
     renderApp("connected");
+    expect(announcement()).toHaveAttribute("role", "status");
+    expect(announcement()).toHaveTextContent("");
     await act(async () => pressInfo());
     expect(mockOpenInfoTile).toHaveBeenCalledTimes(1);
+    expect(announcement()).toHaveTextContent(kInfoOpenedText);
+  });
+
+  it("announces a failed open", async () => {
+    mockOpenInfoTile.mockResolvedValue("failed");
+    renderApp("connected");
+    await act(async () => pressInfo());
+    expect(announcement()).toHaveTextContent(kInfoFailedText);
+  });
+
+  it("announces a repeated result as a new node, so screen readers announce it again", async () => {
+    renderApp("connected");
+    await act(async () => pressInfo());
+    const first = within(announcement()).getByText(kInfoOpenedText);
+    await act(async () => pressInfo());
+    const second = within(announcement()).getByText(kInfoOpenedText);
+    expect(second).not.toBe(first);
+    expect(first).not.toBeInTheDocument();
   });
 
   it("opens the tile when a CODAP answers after init gave up", async () => {
@@ -73,11 +94,12 @@ describe("App's info button", () => {
     expect(mockOpenInfoTile).toHaveBeenCalledTimes(1);
   });
 
-  it("only warns when there is no connection", async () => {
+  it("warns and announces the failure when there is no connection", async () => {
     connectionState = "closed";
     renderApp("failed");
     await act(async () => pressInfo());
     expect(warn).toHaveBeenCalledWith("CODAP is not connected; the information tile can't be opened");
+    expect(announcement()).toHaveTextContent(kInfoFailedText);
     expect(mockOpenInfoTile).not.toHaveBeenCalled();
   });
 
@@ -86,12 +108,14 @@ describe("App's info button", () => {
     renderApp("connecting");
     await act(async () => pressInfo());
     expect(mockOpenInfoTile).not.toHaveBeenCalled();
+    expect(announcement()).toHaveTextContent("");
     connectionState = "active";
     await act(async () => store.setCodapStatus("connected"));
     expect(mockOpenInfoTile).toHaveBeenCalledTimes(1);
+    expect(announcement()).toHaveTextContent(kInfoOpenedText);
   });
 
-  it("waits for init while connecting, then only warns if it fails", async () => {
+  it("waits for init while connecting, then warns if it fails", async () => {
     connectionState = "preinit";
     renderApp("connecting");
     await act(async () => pressInfo());
