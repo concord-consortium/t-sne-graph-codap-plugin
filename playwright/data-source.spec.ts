@@ -139,4 +139,3 @@ test("keeps borders and keyboard focus visible in forced-colors mode", async ({ 
   await expect(focusedItem).toBeVisible();
   expect(await focusedItem.evaluate(el => getComputedStyle(el).outlineStyle)).toBe("solid");
 });
-
