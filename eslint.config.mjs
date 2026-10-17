@@ -215,6 +215,18 @@ export default defineConfig(
     }
   },
   {
+    name: "node scripts",
+    files: ["scripts/**/*.js"],
+    languageOptions: {
+      globals: {
+        ...globals.node
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    }
+  },
+  {
     name: "postcss",
     files: ["postcss.config.js"],
     languageOptions: {

@@ -29,6 +29,20 @@ $panel-background: #f7f7f7;
 // Space to the right of the dropdowns for an info button
 $info-button-space: 36px;
 
+$info-button-size: 24px;
+$info-button-radius: 4px;
+// Zeplin's surround color; it differs from $accent-fill-strong on purpose
+$info-button-surround: #bfefff;
+
+// Information page. The text starts 10px below CODAP's title bar.
+$info-page-padding-top: 10px;
+$info-page-padding-side: 20px;
+$info-page-padding-bottom: 20px;
+$info-text-size: 14px;
+$info-text-letter-spacing: 0.2px;
+$info-heading-gap: 4px;
+$info-section-gap: 12px;
+
 // Dropdown button
 $dropdown-height: 24px;
 $dropdown-width: 205px;

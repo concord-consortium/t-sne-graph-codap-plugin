@@ -41,6 +41,9 @@ export interface Point extends IPosition {
 
 export type ComputeStatus = "idle" | "computing" | "done" | "too-few" | "error";
 
+// The init result. "failed" doesn't rule out CODAP: a slow one can still answer.
+export type CodapStatus = "connecting" | "connected" | "failed";
+
 // In slot order
 export const kPhraseSymbols = ["square", "triangle", "diamond", "plus", "star"] as const;
 export type PhraseSymbol = typeof kPhraseSymbols[number];
@@ -135,6 +138,7 @@ export const PluginStore = types
     cases: [] as CaseInfo[],
     points: [] as Point[],
     computeStatus: "idle" as ComputeStatus,
+    codapStatus: "connecting" as CodapStatus,
     // Replaced, not mutated, so views update
     selectedCaseIds: new Set<string>(),
     // Only placed slots
@@ -362,6 +366,9 @@ export const PluginStore = types
       },
       setComputeStatus(status: ComputeStatus) {
         self.computeStatus = status;
+      },
+      setCodapStatus(status: CodapStatus) {
+        self.codapStatus = status;
       },
       setSelectedCaseIds(caseIds: Iterable<string>) {
         self.selectedCaseIds = new Set(caseIds);

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Information: t-SNE Plots</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <main>
+      <h1 class="visually-hidden">Information: t-SNE Plots</h1>
+      <h2>What is a t-SNE plot?</h2>
+      <p>
+        A t-SNE plot is a scatterplot that represents high-dimensional data in two or three
+        dimensions. It is a method for visualizing patterns of similarity among data points.
+      </p>
+      <h2>How does the interactive convert the phrases in the dataset into points?</h2>
+      <p>
+        First, this plugin uses a process called Term Frequency–Inverse Document Frequency (TF-IDF)
+        to convert text into numbers. It identifies which words are present in the dataset,
+        assigning a value to each one based on their frequency in the phrases and overall dataset.
+        Less frequent words receive a higher weight. Then each phrase gets a vector, or set of
+        numbers, with one value for each identified word. Second, this plugin uses t-SNE to reduce
+        these vectors to two coordinates for each phrase, so they can be plotted in the
+        two-dimensional plane.
+      </p>
+      <h2>How do I interpret the t-SNE plot?</h2>
+      <p>
+        What matters in a t-SNE plot is which points appear near each other. Points that are closer
+        together tend to be more similar. There is no interpretable meaning to the actual size or
+        orientation of the plot. Also, t-SNE plots built from different datasets should not be
+        directly compared for distances or positions, since each plot is generated independently.
+      </p>
+      <h2>What data does the plugin use?</h2>
+      <p>
+        This plugin will pull from a table of values in CODAP. The table can be built in CODAP
+        directly, or be dropped in from an existing CSV file. The table must contain at least one
+        column of text that will be converted into numerical vectors and plotted. The table may
+        optionally include a “label” column, where you can list what you believe to be categories
+        in the data. For example, if your table contains phrases about everyday actions, you might
+        label some of them as “eating” and some as “playing.”
+      </p>
+      <h2>How do I use the t-SNE plot plugin?</h2>
+      <p>
+        First, choose your data table. Then select which column contains your phrases and,
+        optionally, which column contains your own labels. The graph will appear, and you can
+        examine the points to look for clusters or patterns. You can also add additional phrases
+        and see where they appear.
+      </p>
+      <h2>How do the colors relate?</h2>
+      <p>
+        The colors on the graph relate to the labels provided in the dataset. If no labels are
+        provided, all data points from the table will be gray.
+      </p>
+      <h2>How do I use the Test Phrases section?</h2>
+      <p>
+        After you have created your t-SNE plot, you can add new phrases and see where they land in
+        the graph. Simply type your phrase into an open slot, and press enter. If your phrase shares
+        any recognized words with the original dataset, it will appear on the graph with the dark
+        purple icon. You can change the phrase for each icon as many times as you wish.
+      </p>
+      <h2>How does the plugin decide where to place my test phrases?</h2>
+      <p>
+        The plugin converts your phrase into a vector using the vocabulary and weights determined
+        when creating the initial plot. It then compares this vector to the ones created for the
+        original phrases, finds the most similar one, and places the point for your phrase close to
+        that one. If your phrase has no overlapping recognized words with the original dataset, the
+        plugin will not plot your phrase. When this occurs, the box containing your phrase will
+        change colors.
+      </p>
+    </main>
+  </body>
+</html>

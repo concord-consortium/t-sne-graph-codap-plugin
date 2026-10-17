@@ -8,10 +8,12 @@ const ESLintPlugin = require('eslint-webpack-plugin');
 const os = require('os');
 
 // DEPLOY_PATH is set by the s3-deploy-action its value will be:
-// `branch/[branch-name]/` or `version/[tag-name]/`
+// `branch/[branch-name]` or `version/[tag-name]`, with no trailing slash
 // See the following documentation for more detail:
 //   https://github.com/concord-consortium/s3-deploy-action/blob/main/README.md#top-branch-example
 const DEPLOY_PATH = process.env.DEPLOY_PATH;
+// HtmlWebpackPlugin adds the slash to publicPath itself, but not to other values
+const DEPLOY_PREFIX = DEPLOY_PATH && DEPLOY_PATH.replace(/\/?$/, '/');
 
 // PLAYWRIGHT_CI is set to a truthy value when we're running playwright in
 // GitHub actions, this is used to handle the https certificates.
@@ -50,11 +52,14 @@ module.exports = (env, argv) => {
       },
     },
     devtool: devMode ? 'eval-cheap-module-source-map' : 'source-map',
-    entry: './src/index.tsx',
+    entry: {
+      index: './src/index.tsx',
+      info: './src/info.ts',
+    },
     mode: 'development',
     output: {
       path: path.resolve(__dirname, 'dist'),
-      filename: 'assets/index.[contenthash].js',
+      filename: 'assets/[name].[contenthash].js',
       // Names worker chunks, e.g. assets/tsne-worker.[contenthash].js
       chunkFilename: 'assets/[name].[contenthash].js',
     },
@@ -165,18 +170,31 @@ module.exports = (env, argv) => {
       new MiniCssExtractPlugin({
         filename: devMode ? 'assets/[name].css' : 'assets/[name].[contenthash].css',
       }),
+      // The plugin finds info.html through this meta tag: the released index.html, a copy of
+      // index-top.html, is not in the folder that holds info.html
       new HtmlWebpackPlugin({
         filename: 'index.html',
         template: 'src/index.html',
         favicon: 'src/public/favicon.ico',
         publicPath: '.',
+        chunks: ['index'],
+        meta: { 't-sne-info-page': './info.html' },
       }),
       ...(DEPLOY_PATH ? [new HtmlWebpackPlugin({
         filename: 'index-top.html',
         template: 'src/index.html',
         favicon: 'src/public/favicon.ico',
-        publicPath: DEPLOY_PATH
+        publicPath: DEPLOY_PATH,
+        chunks: ['index'],
+        meta: { 't-sne-info-page': `${DEPLOY_PREFIX}info.html` },
       })] : []),
+      new HtmlWebpackPlugin({
+        filename: 'info.html',
+        template: 'src/info.html',
+        favicon: 'src/public/favicon.ico',
+        publicPath: '.',
+        chunks: ['info'],
+      }),
       new CleanWebpackPlugin(),
     ]
   };
