@@ -305,7 +305,7 @@ describe("startCodapSync", () => {
       const settled = whenCodapSettled(store);
 
       await startCodapSync(store);
-      expect(statuses).toEqual(["connecting", "connecting", "connecting"]);
+      expect(statuses).toEqual(Array(kMaxInitAttempts).fill("connecting"));
       expect(store.codapStatus).toBe("failed");
       await expect(settled).resolves.toBeUndefined();
     });

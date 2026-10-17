@@ -70,8 +70,9 @@ const fakeCodap = () => {
   requests = [];
   replies = {
     "get componentList": () => ok([{ id: 1, name: "t-SNE Plot", title: "t-SNE Plot", type: "game" }]),
-    "get interactiveFrame": () => ok({ id: 1, dimensions: { width: 680, height: 334 } }),
-    "get component[1]": () => ok({ id: 1, position: { left: 40, top: 60 }, dimensions: { width: 680, height: 334 } }),
+    // A different id from the plugin's componentList entry, so the position lookup must use the frame's
+    "get interactiveFrame": () => ok({ id: 3, dimensions: { width: 680, height: 334 } }),
+    "get component[3]": () => ok({ id: 3, position: { left: 40, top: 60 }, dimensions: { width: 680, height: 334 } }),
     "create component": () => ok({ id: 7 }),
     "get component[7]": () => ok({ id: 7, URL: new URL("info.html", document.baseURI).href }),
     "update component[7]": () => ok(),
@@ -153,13 +154,25 @@ describe("openInfoTile", () => {
     expect(created()).toHaveLength(0);
   });
 
+  it("places the tile beside a plugin at the document's top-left corner", async () => {
+    replies["get component[3]"] = () => ok({ id: 3, position: { left: 0, top: 0 }, dimensions: { width: 680 } });
+    expect(await openInfoTile()).toBe("opened");
+    expect(created()[0].values).toHaveProperty("position", { left: 0 + 680 + 10, top: 0 });
+  });
+
+  it("ignores a component with the same name but no type", async () => {
+    replies["get componentList"] = () => ok([{ id: 7, name: "Information: t-SNE Plots" }]);
+    expect(await openInfoTile()).toBe("opened");
+    expect(created()).toHaveLength(1);
+  });
+
   it("ignores a component of another type with the same name", async () => {
     replies["get componentList"] = () => ok([{ ...infoTile, type: "text" }]);
     expect(await openInfoTile()).toBe("opened");
     expect(created()).toHaveLength(1);
   });
 
-  it.each(["get interactiveFrame", "get component[1]"])(
+  it.each(["get interactiveFrame", "get component[3]"])(
     "creates the tile without a position when %s fails", async (failing) => {
       replies[failing] = () => refused;
       expect(await openInfoTile()).toBe("opened");
@@ -167,7 +180,7 @@ describe("openInfoTile", () => {
     });
 
   it("creates the tile without a position when the plugin's position is missing", async () => {
-    replies["get component[1]"] = () => ok({ id: 1 });
+    replies["get component[3]"] = () => ok({ id: 3 });
     expect(await openInfoTile()).toBe("opened");
     expect(created()[0].values).not.toHaveProperty("position");
   });
@@ -195,6 +208,14 @@ describe("openInfoTile", () => {
     expect(await Promise.all([first, second])).toEqual(["opened", "opened"]);
     expect(requestsTo("get", "componentList")).toHaveLength(1);
     expect(created()).toHaveLength(1);
+  });
+
+  it("starts a new open after a failed one", async () => {
+    replies["get componentList"] = () => refused;
+    expect(await openInfoTile()).toBe("failed");
+    replies["get componentList"] = () => ok([]);
+    expect(await openInfoTile()).toBe("opened");
+    expect(requestsTo("get", "componentList")).toHaveLength(2);
   });
 
   it("starts a new open once the last one has finished", async () => {
