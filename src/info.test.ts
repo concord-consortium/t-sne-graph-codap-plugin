@@ -9,7 +9,7 @@ const init = jest.mocked(codapInterface.init);
 // info.ts connects when it loads, so each test loads a fresh copy
 const loadPage = () => jest.isolateModulesAsync(async () => { await import("./info"); });
 
-describe("info page entry", () => {
+describe("information page entry", () => {
   afterEach(() => {
     init.mockReset();
     jest.restoreAllMocks();

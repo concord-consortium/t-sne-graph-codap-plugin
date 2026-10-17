@@ -26,7 +26,7 @@ export const App = ({ store }: IProps) => {
 
   const handleInfoPress = async () => {
     await whenCodapSettled(store);
-    // The live state, not codapStatus: a CODAP that answers after init gave up reopens the connection
+    // The live state, not codapStatus (see CodapStatus)
     if (codapInterface.getConnectionState() === "active") {
       announceInfo(await openInfoTile() === "opened" ? kInfoOpenedText : kInfoFailedText);
     } else {

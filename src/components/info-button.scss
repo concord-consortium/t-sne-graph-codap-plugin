@@ -15,12 +15,12 @@
   top: 0;
   width: $info-button-size;
 
-  // A box-shadow focus border, so nothing moves
   &[data-hovered],
   &[data-pressed],
   &[data-focus-visible] {
     background-color: $info-button-surround;
   }
+  // A box-shadow, so the border sits outside the box and nothing moves
   &[data-focus-visible] {
     box-shadow: 0 0 0 2px $focus-color;
   }

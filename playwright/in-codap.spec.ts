@@ -1613,8 +1613,8 @@ test("opens one information tile for two quick clicks", async ({ page }) => {
 });
 
 // A release puts a copy of index-top.html at the top level, while info.html stays in the version
-// folder (doc/deploy.md). build:top-test makes that layout in top-test/, served here at a made-up
-// address. Built in this one test so parallel workers don't collide.
+// folder (see webpack.config.js). build:top-test makes that layout in top-test/, served here at a
+// made-up address. Built in this one test so parallel workers don't collide.
 const kReleaseUrl = "https://release.test/";
 const kReleaseDeployPath = "specific/release/";
 

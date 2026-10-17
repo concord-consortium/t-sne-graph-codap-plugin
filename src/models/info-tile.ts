@@ -2,7 +2,7 @@ import { codapInterface, IResult, sendMessage } from "@concord-consortium/codap-
 import { kInfoTileName } from "../plugin-identity";
 import { checkSuccess } from "./codap-sync";
 
-// Includes CODAP's 34px title bar
+// Includes CODAP's title bar (see kTitleBarHeight in codap-sync.ts)
 export const kInfoTileSize = { width: 450, height: 300 };
 // Between the plugin's tile and the new one
 export const kInfoTileGap = 10;
@@ -60,7 +60,7 @@ const findInfoTile = async () => {
 };
 
 // A saved tile keeps the address it was created with, and the address changes with each release (its
-// version folder), so an old document would show an old page. A failure only warns.
+// version folder), so an old document would show an old page.
 const updateTileUrl = async (tileId: number | string) => {
   try {
     const url = infoPageUrl();

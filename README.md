@@ -20,7 +20,7 @@ The ⓘ button at the top right of the panel opens "Information: t-SNE Plots", a
 
 S3 deployment is handled by GitHub Actions using OIDC for AWS authentication. See [deploy-setup.md in starter-projects](https://github.com/concord-consortium/starter-projects/blob/main/doc/deploy-setup.md) for how the AWS side is set up, and [doc/deploy.md](doc/deploy.md) for how deploys work in this repo.
 
-The build makes two pages: `index.html`, the plugin, and `info.html`, the information page that the ⓘ button opens, with their files in `assets/`. `info.html` ships beside `index.html` in each build's folder. A release copies only `index-top.html` to the top level, so the plugin does not look for `info.html` beside the page it runs in: the build writes the information page's address into a `t-sne-info-page` meta tag in each plugin page. `npm run build` checks the built pages afterward (`scripts/check-build.js`).
+The build makes two pages, `index.html` (the plugin) and `info.html` (the information page), which ship side by side in each build's folder. A release copies only `index-top.html` to the top level, so the build writes `info.html`'s address into a `t-sne-info-page` meta tag in each plugin page. `npm run build` checks the built pages afterward (`scripts/check-build.js`).
 
 ## Development
 
