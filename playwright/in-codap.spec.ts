@@ -480,6 +480,10 @@ test("selects with the keyboard: arrow to a point, Enter selects, Escape hides t
 
     await page.keyboard.press("Escape");
     await expect(plugin.getByTestId("point-tooltip")).toHaveCount(0);
+    // A clear takes a moment to reach CODAP's table, so a check right away could miss one. No event marks
+    // a clear that did not happen, so only a fixed wait can show it.
+    // eslint-disable-next-line playwright/no-wait-for-timeout
+    await page.waitForTimeout(1000);
     expect(await selectedInTable(page)).toEqual(["a cat rested on a rug"]);
     await page.keyboard.press("Escape");
     await expect.poll(() => selectedInTable(page)).toEqual([]);
