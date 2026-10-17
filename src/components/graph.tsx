@@ -132,7 +132,10 @@ export const Graph = observer(() => {
     const resetPointerType = () => { lastPointerType.current = undefined; };
     const handleKey = (event: globalThis.KeyboardEvent) => {
       resetPointerType();
-      if (event.key === "Escape") setIsDismissed(true);
+      // The plot's own handler decides for an Escape there. Set here, the state could redraw the plot first, so
+      // that handler would see no tooltip and clear the selection too.
+      const inPlot = event.target instanceof Node && svgRef.current?.contains(event.target);
+      if (event.key === "Escape" && !inPlot) setIsDismissed(true);
     };
     document.addEventListener("pointerdown", handlePointer, true);
     document.addEventListener("keydown", handleKey, true);
@@ -244,8 +247,9 @@ export const Graph = observer(() => {
         select(activeKey, event.shiftKey);
         break;
       case "Escape":
-        // A showing tooltip is hidden first, by the document listener; the selection is kept
-        if (!tooltip) clearCodapSelection(store);
+        // A showing tooltip is hidden first; the selection is kept
+        if (tooltip) setIsDismissed(true);
+        else clearCodapSelection(store);
         break;
       default:
         return;

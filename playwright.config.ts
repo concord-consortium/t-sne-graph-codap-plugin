@@ -13,7 +13,12 @@ const coverageReporter: ReporterDescription = [
        by the two prefixes. */
     exclude: [
       /* Ignore all coverage of the CODAP application itself. */
-      "codap3/src/**", "codap3/webpack/**"
+      "codap3/src/**", "codap3/webpack/**",
+      /* This is JavaScript coverage. A stylesheet appears only because the dev build's
+         style-loader module, with hot-reload code no test runs, is mapped onto its lines;
+         no CSS rule is measured. The paths matched here still end in webpack's "?hash",
+         which rewritePath strips later. */
+      "**/*.{scss,css}", "**/*.{scss,css}\\?*"
     ],
     /* Modify the paths of files on which coverage is reported. This is run after
        the exclude filter, so it does not get any of the codap3 files.
@@ -59,6 +64,9 @@ const coverageReporter: ReporterDescription = [
 const reportJson = !!process.env.CI;
 const jsonReporter: ReporterDescription = ["json", { outputFile: path.join("test-results", "results.json") }];
 
+/* Both projects use this. The tests' click positions assume this viewport. */
+const kChromium = { ...devices["Desktop Chrome"], viewport: { width: 1400, height: 800 } };
+
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
@@ -70,8 +78,8 @@ export default defineConfig<PlaywrightCoverageOptions>({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* GitHub's Linux runner has 4 vCPUs, shared by the dev server and each worker's browser. */
+  workers: process.env.CI ? 2 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: [
     [ "html" ],
@@ -103,10 +111,9 @@ export default defineConfig<PlaywrightCoverageOptions>({
 
   /* Configure projects for major browsers */
   projects: [
-    {
-      name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
-    },
+    { name: "chromium", use: kChromium, grepInvert: /@performance/ },
+    /* Speed tests run after all other tests, so no other browser shares the CPU */
+    { name: "performance", use: kChromium, grep: /@performance/, dependencies: ["chromium"] },
 
     // {
     //   name: 'firefox',
