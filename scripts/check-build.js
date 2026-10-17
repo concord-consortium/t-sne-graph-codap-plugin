@@ -55,7 +55,8 @@ if (infoHtml) {
 }
 
 checkInfoPageMeta("index.html", "./info.html");
-if (DEPLOY_PATH) checkInfoPageMeta("index-top.html", `${DEPLOY_PATH}info.html`);
+// The slash is written out, not taken from DEPLOY_PATH, which s3-deploy-action sets without one
+if (DEPLOY_PATH) checkInfoPageMeta("index-top.html", `${DEPLOY_PATH.replace(/\/$/, "")}/info.html`);
 
 if (failures.length) {
   console.error(`check-build failed:\n${failures.map((failure) => `  - ${failure}`).join("\n")}`);

@@ -8,10 +8,12 @@ const ESLintPlugin = require('eslint-webpack-plugin');
 const os = require('os');
 
 // DEPLOY_PATH is set by the s3-deploy-action its value will be:
-// `branch/[branch-name]/` or `version/[tag-name]/`
+// `branch/[branch-name]` or `version/[tag-name]`, with no trailing slash
 // See the following documentation for more detail:
 //   https://github.com/concord-consortium/s3-deploy-action/blob/main/README.md#top-branch-example
 const DEPLOY_PATH = process.env.DEPLOY_PATH;
+// HtmlWebpackPlugin adds the slash to publicPath itself, but not to other values
+const DEPLOY_PREFIX = DEPLOY_PATH && DEPLOY_PATH.replace(/\/?$/, '/');
 
 // PLAYWRIGHT_CI is set to a truthy value when we're running playwright in
 // GitHub actions, this is used to handle the https certificates.
@@ -184,7 +186,7 @@ module.exports = (env, argv) => {
         favicon: 'src/public/favicon.ico',
         publicPath: DEPLOY_PATH,
         chunks: ['index'],
-        meta: { 't-sne-info-page': `${DEPLOY_PATH}info.html` },
+        meta: { 't-sne-info-page': `${DEPLOY_PREFIX}info.html` },
       })] : []),
       new HtmlWebpackPlugin({
         filename: 'info.html',
