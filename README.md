@@ -75,6 +75,13 @@ The speed test (tagged `@performance`) runs in its own project, after all other 
 npx playwright test --project=performance --no-deps
 ```
 
+##### Run one spec file
+The tests are split into one spec file per feature in `playwright/`. To run one file:
+```
+npx playwright test playwright/tooltips.spec.ts
+```
+For `plot-and-key.spec.ts`, add `--no-deps`. That file holds the speed test, so without `--no-deps` Playwright runs all the other tests first, because the `performance` project depends on them.
+
 ##### Test fixtures
 The end-to-end tests use two CODAP v3 documents in `playwright/fixtures/`:
 - `hierarchical.codap`: a two-level table (Labels > Phrases) with 9 phrases in 3 labels.
