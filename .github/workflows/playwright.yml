@@ -25,6 +25,9 @@ jobs:
       env:
         PLAYWRIGHT_CI: "true"
     - name: Upload coverage to Codecov
+      # Upload even when a test fails. Otherwise a failed run leaves the commit with Jest
+      # coverage only, and Codecov then compares later PRs against that partial number.
+      if: always()
       uses: codecov/codecov-action@v5
       with:
         flags: playwright
