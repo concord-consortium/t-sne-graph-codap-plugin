@@ -11,6 +11,7 @@ import "./test-phrases.scss";
 
 // TODO: interim wording until design decides
 export const kNoWordsText = "No words in common with the table's phrases";
+export const kPlottedText = "Plotted";
 
 interface ITestPhraseRowProps {
   slot: number;
@@ -87,9 +88,8 @@ export const TestPhrases = () => {
     statuses => statuses.forEach((status, slot) => {
       if (!status || !awaitingResult.current.has(slot)) return;
       awaitingResult.current.delete(slot);
-      if (status === "no-words") {
-        setAnnouncement(`${symbolName(store.symbolForSlot(slot))}: ${store.testPhrases[slot]}. ${kNoWordsText}`);
-      }
+      const result = status === "no-words" ? kNoWordsText : status === "placed" ? kPlottedText : undefined;
+      if (result) setAnnouncement(`${symbolName(store.symbolForSlot(slot))}: ${store.testPhrases[slot]}. ${result}`);
     })
   ), [store]);
 

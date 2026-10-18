@@ -5,7 +5,7 @@ import { applySnapshot, getSnapshot } from "mobx-state-tree";
 import { CaseInfo, IPluginStore, PlacementStatus, PluginStore, TestPhrasePoint } from "../models/plugin-store";
 import { selectTestPhrase } from "../models/selection-sync";
 import { StoreProvider } from "../models/store-context";
-import { kNoWordsText, TestPhrases } from "./test-phrases";
+import { kNoWordsText, kPlottedText, TestPhrases } from "./test-phrases";
 
 jest.mock("../models/selection-sync", () => ({ selectTestPhrase: jest.fn() }));
 
@@ -450,28 +450,31 @@ describe("TestPhrases", () => {
       expect(screen.getByRole("status")).toHaveTextContent(`Plus: quilt. ${kNoWordsText}`);
     });
 
-    it("announces nothing for a phrase that is placed", async () => {
+    it("announces a phrase that is placed once its point comes back", async () => {
       renderTestPhrases(store);
       await userEvent.click(field(3));
       await userEvent.keyboard("the cat{Enter}");
-      reply([point(3)], { 3: "placed" });
       expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+      reply([point(3)], { 3: "placed" });
+      expect(screen.getByRole("status")).toHaveTextContent(`Plus: the cat. ${kPlottedText}`);
     });
 
     it("announces a phrase only once, not again for a new layout", async () => {
       renderTestPhrases(store);
-      await userEvent.click(field(3));
-      await userEvent.keyboard("quilt{Enter}");
-      reply([], { 3: "no-words" });
-      // Another change clears the message
       await userEvent.click(field(4));
       await userEvent.keyboard("the cat{Enter}");
-      reply([point(4)], { 3: "no-words", 4: "placed" });
+      reply([point(4)], { 4: "placed" });
+      expect(screen.getByRole("status")).toHaveTextContent(`Star: the cat. ${kPlottedText}`);
+      // Another change clears the message
+      await userEvent.click(field(3));
+      await userEvent.keyboard("quilt{Enter}");
       expect(screen.getByRole("status")).toHaveTextContent(/^$/);
-      // A new layout
+      reply([point(4)], { 3: "no-words", 4: "placed" });
+      expect(screen.getByRole("status")).toHaveTextContent(`Plus: quilt. ${kNoWordsText}`);
+      // A new layout: the star, announced after the plus, would replace its message
       act(() => store.setTestPhrasePoints([], {}));
       reply([point(4)], { 3: "no-words", 4: "placed" });
-      expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+      expect(screen.getByRole("status")).toHaveTextContent(`Plus: quilt. ${kNoWordsText}`);
     });
 
     it("dims and disables the symbol", () => {
