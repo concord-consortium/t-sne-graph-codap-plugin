@@ -188,7 +188,8 @@
       color: dimmed($test-phrase-placeholder-color);
     }
 
-    &[data-focused] {
+    // Keyboard focus only, as on the dropdowns: a click can't edit it
+    &[data-focus-visible] {
       box-shadow: inset 0 0 0 2px $focus-color;
     }
   }
@@ -217,5 +218,9 @@
   .test-phrase-row[data-disabled] .test-phrase-input {
     border-color: GrayText;
     color: GrayText;
+
+    &:not([data-focus-visible]) {
+      outline: none;
+    }
   }
 }
