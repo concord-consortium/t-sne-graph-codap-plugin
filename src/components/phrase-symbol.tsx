@@ -80,33 +80,28 @@ export const symbolMiddleY = (symbol: PhraseSymbol, extent: number) => {
 interface ISymbolFocusRingProps {
   symbol: PhraseSymbol;
   extent: number;
-  // The ring is the band between these strokes' outer edges
-  innerWidth?: number;
-  outerWidth?: number;
 }
 
-/** A wide stroke with its inner part masked out; by default 4–6px outside the symbol's edges, outside
- * the selection ring. Styled in CSS. */
-export const SymbolFocusRing = ({
-  symbol, extent, innerWidth = kSymbolEdgeWidth, outerWidth = kSymbolFocusOuterWidth
-}: ISymbolFocusRingProps) => {
+/** 4–6px outside the symbol's edges, outside the selection ring: a wide stroke with its inner part
+ * masked out. Styled in CSS. */
+export const SymbolFocusRing = ({ symbol, extent }: ISymbolFocusRingProps) => {
   const maskId = useId();
   const path = symbolPath(symbol, extent);
   // The ring's reach, plus 1px: half the stroke past the path, or up to √2 times that at a mitered 90°
   // corner. Too big is harmless.
-  const maskSize = 2 * (symbolReach(symbol, extent) + outerWidth / 2 * Math.SQRT2 + 1);
+  const maskSize = 2 * (symbolReach(symbol, extent) + kSymbolFocusOuterWidth / 2 * Math.SQRT2 + 1);
   const maskOrigin = -maskSize / 2;
   return (
     <>
       <mask id={maskId} data-testid="focus-mask" maskUnits="userSpaceOnUse" x={maskOrigin} y={maskOrigin}
         width={maskSize} height={maskSize}>
-        <path d={path} fill="white" stroke="white" strokeWidth={outerWidth}
+        <path d={path} fill="white" stroke="white" strokeWidth={kSymbolFocusOuterWidth}
           data-testid="focus-mask-outer" />
-        <path d={path} fill="black" stroke="black" strokeWidth={innerWidth}
+        <path d={path} fill="black" stroke="black" strokeWidth={kSymbolEdgeWidth}
           data-testid="focus-mask-inner" />
       </mask>
       <path className="focus-ring" data-testid="focus-ring" d={path} mask={`url(#${maskId})`}
-        style={{ strokeWidth: outerWidth }} />
+        style={{ strokeWidth: kSymbolFocusOuterWidth }} />
     </>
   );
 };
@@ -117,8 +112,7 @@ interface IPhraseSymbolIconProps {
 }
 
 /** Decorative; its control names it. The outline and rings are styled by state in CSS. The body is
- * dimmed apart, so the focus ring stays at full color. The focus ring takes the selection ring's place,
- * so it fits beside the field. */
+ * dimmed apart, so the focus ring stays at full color. */
 export const PhraseSymbolIcon = ({ symbol, className }: IPhraseSymbolIconProps) => {
   const half = kButtonSymbolBox / 2;
   const extent = kButtonSymbolExtents[symbol];
@@ -135,8 +129,7 @@ export const PhraseSymbolIcon = ({ symbol, className }: IPhraseSymbolIconProps) 
         <path className="symbol-outline" d={path} />
         <path className="symbol-fill" d={path} fill={kTestPhraseColor} data-testid="phrase-symbol-path" />
       </g>
-      <SymbolFocusRing symbol={symbol} extent={extent} innerWidth={kSymbolOutlineWidth}
-        outerWidth={kSymbolRingWidth} />
+      <SymbolFocusRing symbol={symbol} extent={extent} />
     </svg>
   );
 };

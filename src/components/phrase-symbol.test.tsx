@@ -119,19 +119,19 @@ describe("PhraseSymbolIcon", () => {
       expect(top - viewTop).toBeCloseTo(viewTop + viewHeight - bottom, 2);
     });
 
-  it("draws a focus ring in the symbol's shape, in the selection ring's place, outside the dimmed body", () => {
+  it("draws a focus ring in the symbol's shape, outside the selection ring and the dimmed body", () => {
     render(<PhraseSymbolIcon symbol="diamond" />);
     const path = symbolPath("diamond", kButtonSymbolExtents.diamond);
     const focusRing = screen.getByTestId("focus-ring");
     expect(focusRing).toHaveAttribute("d", path);
-    expect(focusRing).toHaveStyle({ strokeWidth: "6" });
+    expect(focusRing).toHaveStyle({ strokeWidth: "12" });
     const mask = screen.getByTestId("focus-mask");
     expect(focusRing).toHaveAttribute("mask", `url(#${mask.id})`);
-    // Kept out to 3px outside the symbol, cut away up to the 1px outline
-    expect(screen.getByTestId("focus-mask-outer")).toHaveAttribute("stroke-width", "6");
-    expect(screen.getByTestId("focus-mask-inner")).toHaveAttribute("stroke-width", "2");
-    // At the diamond's 90° tips the 6px stroke reaches 3 × √2 past the path
-    const ringReach = symbolReach("diamond", kButtonSymbolExtents.diamond) + 3 * Math.SQRT2;
+    // Kept out to 6px outside the symbol, cut away up to the selection edge, 4px outside
+    expect(screen.getByTestId("focus-mask-outer")).toHaveAttribute("stroke-width", "12");
+    expect(screen.getByTestId("focus-mask-inner")).toHaveAttribute("stroke-width", "8");
+    // At the diamond's 90° tips the 12px stroke reaches 6 × √2 past the path
+    const ringReach = symbolReach("diamond", kButtonSymbolExtents.diamond) + 6 * Math.SQRT2;
     expect(Number(mask.getAttribute("width"))).toBeGreaterThanOrEqual(2 * ringReach);
     const body = screen.getByTestId("phrase-symbol-body");
     expect(body).toContainElement(screen.getByTestId("phrase-symbol-path"));

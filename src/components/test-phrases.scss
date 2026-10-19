@@ -33,7 +33,7 @@
   height: $key-entry-height;
 }
 
-// The focus ring follows the symbol's shape, as on the plot, but closer
+// The focus ring follows the symbol's shape, as on the plot
 .test-phrase-symbol {
   align-items: center;
   background: none;
@@ -94,20 +94,20 @@
   stroke: none;
 }
 
-// Its mask draws the 1–3px band
+// Its mask draws the 4–6px band, outside the selection ring
 .test-phrase-symbol .focus-ring {
   fill: none;
   stroke: $focus-color;
   visibility: hidden;
 }
 
-// The focus ring takes the selection ring's place, which leaves room beside the field
+// Above the field, which the ring can overlap
 .test-phrase-symbol[data-focus-visible] {
+  position: relative;
+  z-index: 1;
+
   .focus-ring {
     visibility: visible;
-  }
-  .symbol-selection-ring {
-    visibility: hidden;
   }
 }
 
