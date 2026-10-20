@@ -1,4 +1,5 @@
 import React from "react";
+import { flushSync } from "react-dom";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { CaseInfo, IPluginStore, Point, PluginStore, TestPhrasePoint } from "../models/plugin-store";
@@ -1296,6 +1297,26 @@ describe("Graph", () => {
         expect(clearCodapSelection).toHaveBeenCalledWith(store);
         await user.keyboard("{ArrowRight}");
         expect(tooltip()).toHaveTextContent("a dog ran");
+      });
+
+    it("leaves an Escape in the plot to the plot's handler: it hides a hover tooltip and keeps the selection",
+      async () => {
+        const user = userEvent.setup();
+        renderGraph(store);
+        await tabToPlot(user);
+        await user.keyboard("{ArrowRight}");
+        hover(point("a dog ran"));
+        expect(tooltip()).toHaveTextContent("a dog ran");
+        // Redraws between the document's listener and the plot's handler, as a browser may
+        const redraw = () => flushSync(() => undefined);
+        document.addEventListener("keydown", redraw, true);
+        try {
+          fireEvent.keyDown(point("the cat sat"), { key: "Escape" });
+        } finally {
+          document.removeEventListener("keydown", redraw, true);
+        }
+        expect(tooltip()).not.toBeInTheDocument();
+        expect(clearCodapSelection).not.toHaveBeenCalled();
       });
 
     it("goes on a click outside the plot", async () => {
