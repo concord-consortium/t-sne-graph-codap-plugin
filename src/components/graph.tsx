@@ -132,8 +132,8 @@ export const Graph = observer(() => {
     const resetPointerType = () => { lastPointerType.current = undefined; };
     const handleKey = (event: globalThis.KeyboardEvent) => {
       resetPointerType();
-      // The plot's own handler decides for an Escape there. Set here, the state could redraw the plot first, so
-      // that handler would see no tooltip and clear the selection too.
+      // The plot's own handler decides for an Escape there. Setting it here could redraw the plot before that
+      // handler runs; it would then see no tooltip and clear the selection too.
       const inPlot = event.target instanceof Node && svgRef.current?.contains(event.target);
       if (event.key === "Escape" && !inPlot) setIsDismissed(true);
     };

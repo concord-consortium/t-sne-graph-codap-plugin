@@ -6,7 +6,7 @@ import { choose, expectPointsClearOfZoomButtons, optionsOf, pluginFrame } from "
 
 // Fixes the otherwise random layout, so no point a test clicks is under the zoom buttons, which would
 // take the click
-export const kFixtureSeed = 1;
+const kFixtureSeed = 1;
 
 // A fixture document with a plugin tile added
 export const documentWithPlugin = (file: string) => {

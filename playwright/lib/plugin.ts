@@ -24,7 +24,7 @@ export const choose = async (plugin: FrameLocator, label: string, option: string
 
 export const plot = (plugin: FrameLocator) => plugin.getByRole("group", { name: /^t-SNE plot/ });
 // A point's name is its phrase, then ", label" when there is a Label Column
-export const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const point = (plugin: FrameLocator, phrase: string) =>
   plugin.getByRole("button", { name: new RegExp(`^${escapeRegExp(phrase)}(, [^,]*)?$`) });
 // Shift+Tab from the first dropdown reaches the plot by keyboard, which shows :focus-visible styles

@@ -3,7 +3,7 @@ import type { Page } from "@playwright/test";
 export const kPluginUrl = "https://localhost:8080";
 export const kCodapUrl = "https://codap3.concord.org/?mouseSensor&noEntryModal";
 // Documents are served to CODAP from this made-up address, which the tests intercept
-export const kDocumentUrl = "https://documents.test/document.codap";
+const kDocumentUrl = "https://documents.test/document.codap";
 
 // A tile's wrapper, which holds its position, size and z-index
 export const tileTitled = (page: Page, title: string) => page.locator(".free-tile-component")
