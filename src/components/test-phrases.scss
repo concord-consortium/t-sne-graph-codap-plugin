@@ -97,6 +97,7 @@
 // Its mask draws the 4–6px band, outside the selection ring
 .test-phrase-symbol .focus-ring {
   fill: none;
+  pointer-events: none;
   stroke: $focus-color;
   visibility: hidden;
 }
