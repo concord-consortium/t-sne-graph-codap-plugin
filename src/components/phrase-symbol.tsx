@@ -111,8 +111,8 @@ interface IPhraseSymbolIconProps {
   className?: string;
 }
 
-/** Decorative; its control names it. The outline and rings are styled by state in CSS. The body is
- * dimmed apart, so the focus ring stays at full color. */
+/** Decorative; its control names it. The outline and rings are styled by state in CSS. Only the body is
+ * dimmed, so the focus ring keeps its full color. */
 export const PhraseSymbolIcon = ({ symbol, className }: IPhraseSymbolIconProps) => {
   const half = kButtonSymbolBox / 2;
   const extent = kButtonSymbolExtents[symbol];

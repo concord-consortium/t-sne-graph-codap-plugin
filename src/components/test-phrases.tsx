@@ -92,7 +92,11 @@ export const TestPhrases = () => {
         if (!status || !awaitingResult.current.has(slot)) return;
         awaitingResult.current.delete(slot);
         const result = status === "no-words" ? kNoWordsText : status === "placed" ? kPlottedText : undefined;
-        if (result) messages.push(`${symbolName(store.symbolForSlot(slot))}: ${store.testPhrases[slot]}. ${result}.`);
+        if (!result) return;
+        // Result first, so a long phrase doesn't hold it back. No period after the phrase's own.
+        const phrase = store.testPhrases[slot];
+        const end = /[.?!]$/.test(phrase) ? "" : ".";
+        messages.push(`${symbolName(store.symbolForSlot(slot))}. ${result}: ${phrase}${end}`);
       });
       if (messages.length > 0) setAnnouncement(messages.join(" "));
     }

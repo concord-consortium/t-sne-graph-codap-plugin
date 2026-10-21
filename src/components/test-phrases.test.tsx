@@ -384,6 +384,9 @@ describe("TestPhrases", () => {
     const reply = (points: TestPhrasePoint[], status: Record<number, PlacementStatus>) =>
       act(() => store.setTestPhrasePoints(points,
         { 0: "empty", 1: "no-words", 2: "empty", 3: "empty", 4: "empty", ...status }));
+    // The live region's full text, for an exact match with toBe. toHaveTextContent passes when the
+    // expected text is only part of it, so it misses a message wrongly added after the expected one.
+    const announcement = () => screen.getByRole("status").textContent;
 
     beforeEach(() => {
       store.setTestPhrase(1, "zebra");
@@ -443,20 +446,28 @@ describe("TestPhrases", () => {
     it("announces the phrase once its result comes back", async () => {
       renderTestPhrases(store);
       // Not the phrase that was already there
-      expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+      expect(announcement()).toBe("");
       await userEvent.click(field(3));
       await userEvent.keyboard("quilt{Enter}");
       reply([], { 3: "no-words" });
-      expect(screen.getByRole("status")).toHaveTextContent(`Plus: quilt. ${kNoWordsText}.`);
+      expect(announcement()).toBe(`Plus. ${kNoWordsText}: quilt.`);
     });
 
     it("announces a phrase that is placed once its point comes back", async () => {
       renderTestPhrases(store);
       await userEvent.click(field(3));
       await userEvent.keyboard("the cat{Enter}");
-      expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+      expect(announcement()).toBe("");
       reply([point(3)], { 3: "placed" });
-      expect(screen.getByRole("status")).toHaveTextContent(`Plus: the cat. ${kPlottedText}.`);
+      expect(announcement()).toBe(`Plus. ${kPlottedText}: the cat.`);
+    });
+
+    it("adds no period after a phrase that ends in its own punctuation", async () => {
+      renderTestPhrases(store);
+      await userEvent.click(field(3));
+      await userEvent.keyboard("is it a cat?{Enter}");
+      reply([point(3)], { 3: "placed" });
+      expect(announcement()).toBe(`Plus. ${kPlottedText}: is it a cat?`);
     });
 
     it("announces every phrase whose result comes back in the same reply", async () => {
@@ -466,8 +477,7 @@ describe("TestPhrases", () => {
       await userEvent.click(field(4));
       await userEvent.keyboard("the cat{Enter}");
       reply([point(4)], { 3: "no-words", 4: "placed" });
-      expect(screen.getByRole("status"))
-        .toHaveTextContent(`Plus: quilt. ${kNoWordsText}. Star: the cat. ${kPlottedText}.`);
+      expect(announcement()).toBe(`Plus. ${kNoWordsText}: quilt. Star. ${kPlottedText}: the cat.`);
     });
 
     it("announces a phrase only once, not again for a new layout", async () => {
@@ -475,17 +485,17 @@ describe("TestPhrases", () => {
       await userEvent.click(field(4));
       await userEvent.keyboard("the cat{Enter}");
       reply([point(4)], { 4: "placed" });
-      expect(screen.getByRole("status")).toHaveTextContent(`Star: the cat. ${kPlottedText}.`);
+      expect(announcement()).toBe(`Star. ${kPlottedText}: the cat.`);
       // Another change clears the message
       await userEvent.click(field(3));
       await userEvent.keyboard("quilt{Enter}");
-      expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+      expect(announcement()).toBe("");
       reply([point(4)], { 3: "no-words", 4: "placed" });
-      expect(screen.getByRole("status")).toHaveTextContent(`Plus: quilt. ${kNoWordsText}.`);
-      // A new layout: the star, announced after the plus, would replace its message
+      expect(announcement()).toBe(`Plus. ${kNoWordsText}: quilt.`);
+      // A new layout: announcing the star again would add it to the message
       act(() => store.setTestPhrasePoints([], {}));
       reply([point(4)], { 3: "no-words", 4: "placed" });
-      expect(screen.getByRole("status")).toHaveTextContent(`Plus: quilt. ${kNoWordsText}.`);
+      expect(announcement()).toBe(`Plus. ${kNoWordsText}: quilt.`);
     });
 
     it("dims and disables the symbol", () => {
