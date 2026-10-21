@@ -17,7 +17,7 @@ const symbolButton = (plugin: FrameLocator, slot: number) =>
   plugin.getByRole("region", { name: "Test Phrases" }).getByRole("button").nth(slot);
 
 const symbolOpacity = (plugin: FrameLocator, slot: number) =>
-  symbolButton(plugin, slot).locator("svg").evaluate(svg => getComputedStyle(svg).opacity);
+  symbolButton(plugin, slot).locator(".symbol-body").evaluate(body => getComputedStyle(body).opacity);
 // Each placed slot's distance from its neighbor's dot, read in one step so both centers come from
 // the same render
 const distancesToNeighbors = (plugin: FrameLocator) =>
@@ -233,7 +233,7 @@ test("keeps the test phrases' borders, symbols and focus visible in forced-color
   await field.focus();
   expect(await fieldStyle("outline-style")).toBe("solid");
 
-  // The symbols keep their color; the button's focus shows as an outline
+  // The symbols keep their color; the button's focus ring shows in Highlight
   const fill = (locator: ReturnType<FrameLocator["locator"]>) => locator.evaluate(el => getComputedStyle(el).fill);
   expect(await fill(symbolButton(plugin, 0).locator(".symbol-fill"))).toBe("rgb(46, 0, 127)");
   expect(await fill(symbolPoint(plugin, 0).locator(".symbol"))).toBe("rgb(46, 0, 127)");
@@ -241,5 +241,15 @@ test("keeps the test phrases' borders, symbols and focus visible in forced-color
     .toBe("rgb(0, 108, 142)");
   await field.press("Shift+Tab");
   await expect(symbolButton(plugin, 1)).toHaveAttribute("data-focus-visible");
-  expect(await symbolButton(plugin, 1).evaluate(el => getComputedStyle(el).outlineStyle)).toBe("solid");
+  const focusRing = await symbolButton(plugin, 1).locator(".focus-ring").evaluate(ring => {
+    const highlight = document.createElement("span");
+    highlight.style.color = "Highlight";
+    document.body.append(highlight);
+    const { stroke, visibility } = getComputedStyle(ring);
+    const expected = getComputedStyle(highlight).color;
+    highlight.remove();
+    return { stroke, visibility, expected };
+  });
+  expect(focusRing.visibility).toBe("visible");
+  expect(focusRing.stroke).toBe(focusRing.expected);
 });

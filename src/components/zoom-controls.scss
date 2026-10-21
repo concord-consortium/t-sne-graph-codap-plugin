@@ -15,8 +15,10 @@
 }
 
 // Inset box-shadow focus border, so the icon doesn't shift. Round only at the set's outer corners.
+$button-background: rgba(255, 255, 255, .75);
+
 .zoom-button {
-  background-color: white;
+  background-color: $button-background;
   border: none;
   border-radius: 0;
   box-sizing: border-box;
@@ -52,7 +54,7 @@
 
   // After the fills, so it cancels them. Still focusable, so the focus border stays.
   &[aria-disabled="true"] {
-    background-color: white;
+    background-color: $button-background;
     cursor: default;
 
     .zoom-icon {

@@ -11,6 +11,7 @@ import "./test-phrases.scss";
 
 // TODO: interim wording until design decides
 export const kNoWordsText = "No words in common with the table's phrases";
+export const kPlottedText = "Plotted";
 
 interface ITestPhraseRowProps {
   slot: number;
@@ -84,13 +85,21 @@ export const TestPhrases = () => {
 
   useEffect(() => reaction(
     () => Array.from({ length: kTestPhraseSlots }, (_value, slot) => store.placementStatus[slot]),
-    statuses => statuses.forEach((status, slot) => {
-      if (!status || !awaitingResult.current.has(slot)) return;
-      awaitingResult.current.delete(slot);
-      if (status === "no-words") {
-        setAnnouncement(`${symbolName(store.symbolForSlot(slot))}: ${store.testPhrases[slot]}. ${kNoWordsText}`);
-      }
-    })
+    statuses => {
+      // One reply can bring several results; one message keeps a later one from replacing the first
+      const messages: string[] = [];
+      statuses.forEach((status, slot) => {
+        if (!status || !awaitingResult.current.has(slot)) return;
+        awaitingResult.current.delete(slot);
+        const result = status === "no-words" ? kNoWordsText : status === "placed" ? kPlottedText : undefined;
+        if (!result) return;
+        // Result first, so a long phrase doesn't hold it back. No period after the phrase's own.
+        const phrase = store.testPhrases[slot];
+        const end = /[.?!]$/.test(phrase) ? "" : ".";
+        messages.push(`${symbolName(store.symbolForSlot(slot))}. ${result}: ${phrase}${end}`);
+      });
+      if (messages.length > 0) setAnnouncement(messages.join(" "));
+    }
   ), [store]);
 
   const handlePhraseChange = (slot: number) => {
