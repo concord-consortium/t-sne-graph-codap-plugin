@@ -430,7 +430,8 @@ describe("Graph", () => {
       it("brings a symbol the ring search pushed past the edge fully inside", () => {
         store.setTestPhrase(0, "the cat");
         store.setTestPhrasePoints(
-          [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "3", direction: { dx: 1, dy: 0 } }], { 0: "placed" });
+          [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "3", direction: { dx: 1, dy: 0 }, isExactMatch: false }],
+          { 0: "placed" });
         store.zoomIn();
         // Case 3 is drawn on the padded edge, at x = 288; its symbol 18px past it
         store.panTo(1 / 6, 0.5);
@@ -921,7 +922,7 @@ describe("Graph", () => {
 
   describe("test phrases", () => {
     const testPoint = (slot: number, x: number, y: number, neighborCaseId: string, dx = 1, dy = 0): TestPhrasePoint =>
-      ({ slot, x, y, neighborCaseId, direction: { dx, dy } });
+      ({ slot, x, y, neighborCaseId, direction: { dx, dy }, isExactMatch: false });
     const symbolPoints = () => screen.queryAllByTestId("test-phrase-point");
     const symbolPoint = (name: string) => screen.getByRole("button", { name });
     const symbolCenter = (name: string) => {
@@ -963,6 +964,31 @@ describe("Graph", () => {
         expect(within(square).getByTestId("symbol"))
           .toHaveAttribute("d", "M-6.65 -6.65L6.65 -6.65L6.65 6.65L-6.65 6.65Z");
         expect(within(square).getByTestId("dot-outline")).toHaveStyle({ strokeWidth: "2" });
+      });
+
+      it("draws an exact match on its dot, with no ring search, and keeps later symbols 18px from it", () => {
+        store.setTestPhrase(1, "the bird sang");
+        store.setTestPhrasePoints([
+          { ...testPoint(0, 0.5, 0.5, "3"), isExactMatch: true },
+          // Its neighbor is case 1; the exact match's spot is in its way
+          testPoint(1, 0.5, 0.5, "1")
+        ], { 0: "placed", 1: "placed", 2: "empty", 3: "empty", 4: "empty" });
+        renderGraph(store);
+        expect(symbolCenter("Square test phrase: the cat")).toEqual({ x: 150, y: 150 });
+        const second = symbolCenter("Triangle test phrase: the bird sang");
+        expect(Math.hypot(second.x - 150, second.y - 150)).toBeGreaterThanOrEqual(18 - 1e-9);
+      });
+
+      it("keeps an exact match on its dot when the view changes", () => {
+        store.setTestPhrasePoints([{ ...testPoint(0, 1, 1, "2"), isExactMatch: true }],
+          { 0: "placed", 1: "empty", 2: "empty", 3: "empty", 4: "empty" });
+        store.zoomIn();
+        renderGraph(store);
+        expect(symbolPoint("Square test phrase: the cat"))
+          .toHaveAttribute("transform", point("a dog ran").getAttribute("transform"));
+        act(() => store.panTo(0.6, 0.4));
+        expect(symbolPoint("Square test phrase: the cat"))
+          .toHaveAttribute("transform", point("a dog ran").getAttribute("transform"));
       });
 
       it("pushes a symbol on its neighbor's dot out to 18px, along its direction", () => {
@@ -1230,7 +1256,8 @@ describe("Graph", () => {
     it("shows a test phrase in the test-phrase colors", () => {
       store.setTestPhrase(0, "the cat");
       store.setTestPhrasePoints(
-        [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "3", direction: { dx: 1, dy: 0 } }], { 0: "placed" });
+        [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "3", direction: { dx: 1, dy: 0 }, isExactMatch: false }],
+        { 0: "placed" });
       renderGraph(store);
       hover(screen.getByRole("button", { name: "Square test phrase: the cat" }));
       expect(tooltip()).toHaveTextContent("the cat");
@@ -1539,7 +1566,8 @@ describe("Graph", () => {
     it("goes while the test phrase's slot is edited", () => {
       store.setTestPhrase(0, "the cat");
       store.setTestPhrasePoints(
-        [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "3", direction: { dx: 1, dy: 0 } }], { 0: "placed" });
+        [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "3", direction: { dx: 1, dy: 0 }, isExactMatch: false }],
+        { 0: "placed" });
       renderGraph(store);
       hover(screen.getByRole("button", { name: "Square test phrase: the cat" }));
       expect(tooltip()).toBeInTheDocument();

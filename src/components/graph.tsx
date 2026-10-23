@@ -383,17 +383,22 @@ export const Graph = observer(() => {
 
   // In slot order: each symbol keeps clear of every dot and of the lower slots' symbols. Includes the
   // hidden slot being edited, so the others don't move into its place meanwhile. The bounds are the
-  // whole layout's, so a symbol stays with an off-screen neighbor.
+  // whole layout's, so a symbol stays with an off-screen neighbor. An exact match goes on its dot.
   const testPointPixels = useMemo(() => {
     const bounds = worldBounds(size, view);
     const casePixels = store.points.map(point => ({ caseId: point.caseId, ...viewPixels(point, view, size) }));
     const placed = new Map<number, IPosition>();
+    const clampToBounds = ({ x, y }: IPosition) => ({ x: Math.min(bounds.right, Math.max(bounds.left, x)),
+      y: Math.min(bounds.bottom, Math.max(bounds.top, y)) });
     store.testPhrasePoints.slice().sort((a, b) => a.slot - b.slot).forEach((point: TestPhrasePoint) => {
       const pixels = viewPixels(point, view, size);
       const neighbor = casePixels.find(({ caseId }) => caseId === point.neighborCaseId);
       if (!neighbor) {
-        placed.set(point.slot, { x: Math.min(bounds.right, Math.max(bounds.left, pixels.x)),
-          y: Math.min(bounds.bottom, Math.max(bounds.top, pixels.y)) });
+        placed.set(point.slot, clampToBounds(pixels));
+        return;
+      }
+      if (point.isExactMatch) {
+        placed.set(point.slot, clampToBounds(neighbor));
         return;
       }
       const others = [...casePixels.filter(({ caseId }) => caseId !== point.neighborCaseId), ...placed.values()];

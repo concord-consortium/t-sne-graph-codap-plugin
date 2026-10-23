@@ -57,6 +57,8 @@ export interface TestPhrasePoint extends IPosition {
   neighborCaseId: string;
   // Unit vector away from the neighbor
   direction: IDirection;
+  // The phrase is the neighbor's own text: drawn on it, under its dot
+  isExactMatch: boolean;
 }
 
 // No status: waiting for placement

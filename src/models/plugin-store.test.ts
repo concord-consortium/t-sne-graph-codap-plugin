@@ -91,7 +91,8 @@ describe("PluginStore", () => {
     store.setSelectedCaseIds(["1"]);
     store.setTestPhrase(0, "a cat");
     store.setTestPhrasePoints(
-      [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "1", direction: { dx: 1, dy: 0 } }], { 0: "placed" });
+      [{ slot: 0, x: 0.5, y: 0.5, neighborCaseId: "1", direction: { dx: 1, dy: 0 }, isExactMatch: false }],
+      { 0: "placed" });
     store.setEditingSlot(0);
     store.setSelectedSlots([0]);
     expect(getSnapshot(store)).toEqual({
@@ -452,7 +453,7 @@ describe("PluginStore plot data", () => {
 
 describe("PluginStore test phrases", () => {
   const point = (slot: number): TestPhrasePoint =>
-    ({ slot, x: 0.5, y: 0.5, neighborCaseId: "1", direction: { dx: 1, dy: 0 } });
+    ({ slot, x: 0.5, y: 0.5, neighborCaseId: "1", direction: { dx: 1, dy: 0 }, isExactMatch: false });
 
   // Slots 0 and 2 have phrases, both placed; slot 0 is selected
   const placedStore = () => {

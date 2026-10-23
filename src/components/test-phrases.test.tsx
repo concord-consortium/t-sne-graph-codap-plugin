@@ -15,7 +15,7 @@ const kCases: CaseInfo[] = [
 ];
 
 const point = (slot: number): TestPhrasePoint =>
-  ({ slot, x: 0.5, y: 0.5, neighborCaseId: "1", direction: { dx: 1, dy: 0 } });
+  ({ slot, x: 0.5, y: 0.5, neighborCaseId: "1", direction: { dx: 1, dy: 0 }, isExactMatch: false });
 
 const readyStore = () => {
   const store = PluginStore.create({ dataContextName: "Phrases", phraseAttributeName: "phrase", tsneSeed: 1 });
