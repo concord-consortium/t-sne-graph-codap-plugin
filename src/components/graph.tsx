@@ -5,7 +5,7 @@ import { observer } from "mobx-react-lite";
 import { PhraseSymbol, Point, TestPhrasePoint } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
-import { kTestPhraseColor, kTestPhraseTooltipFill } from "../tsne/labels";
+import { kTestPhraseColor, kTestPhraseTooltipFill, normalizePhrase } from "../tsne/labels";
 import {
   applyView, directionToPixels, gridLines, IHitCandidate, IPosition, ISize, IView, nearestPoint, offsetFromNeighbor,
   paddedBounds, panToInclude, toPixels, worldBounds
@@ -183,10 +183,10 @@ export const Graph = observer(() => {
   const testPoints = useMemo(
     () => store.testPhrasePoints.filter(point => store.placedSlots.has(point.slot)).sort((a, b) => a.slot - b.slot),
     [store.testPhrasePoints, store.placedSlots]);
-  // Drawn before the case points, so under their dots; the highest slot first, so the lowest is on top
+  // Both groups are drawn highest slot first, so the lowest slot is on top of a stack of identical phrases.
+  // Exact matches are drawn before the case points, so under their dots; the others after.
   const exactTestPoints = useMemo(() => testPoints.filter(point => point.isExactMatch).reverse(), [testPoints]);
-  // Drawn after the case points, in slot order
-  const besideTestPoints = useMemo(() => testPoints.filter(point => !point.isExactMatch), [testPoints]);
+  const besideTestPoints = useMemo(() => testPoints.filter(point => !point.isExactMatch).reverse(), [testPoints]);
   const keys = useMemo(
     () => [...points.map(point => caseKey(point.caseId)), ...testPoints.map(point => slotKey(point.slot))],
     [points, testPoints]);
@@ -408,14 +408,27 @@ export const Graph = observer(() => {
 
   // In slot order: each symbol keeps clear of every dot and of the lower slots' symbols. Includes the
   // hidden slot being edited, so the others don't move into its place meanwhile. The bounds are the
-  // whole layout's, so a symbol stays with an off-screen neighbor. An exact match goes on its dot.
+  // whole layout's, so a symbol stays with an off-screen neighbor. An exact match goes on its dot, and a phrase
+  // that a lower slot already has (normalized) goes on that slot's symbol.
+  // A string, since MobX State Tree changes the array in place. A field holds one line, so no phrase has "\n".
+  const committedPhrases = store.testPhrases.join("\n");
   const testPointPixels = useMemo(() => {
+    const slotPhrases = committedPhrases.split("\n").map(normalizePhrase);
     const bounds = worldBounds(size, view);
     const casePixels = store.points.map(point => ({ caseId: point.caseId, ...viewPixels(point, view, size) }));
     const placed = new Map<number, IPosition>();
+    const slotByPhrase = new Map<string, number>();
     const clampToBounds = ({ x, y }: IPosition) => ({ x: Math.min(bounds.right, Math.max(bounds.left, x)),
       y: Math.min(bounds.bottom, Math.max(bounds.top, y)) });
     store.testPhrasePoints.slice().sort((a, b) => a.slot - b.slot).forEach((point: TestPhrasePoint) => {
+      const phrase = slotPhrases[point.slot] ?? "";
+      const samePhraseSlot = slotByPhrase.get(phrase);
+      const samePhrasePixel = samePhraseSlot !== undefined ? placed.get(samePhraseSlot) : undefined;
+      if (samePhrasePixel) {
+        placed.set(point.slot, samePhrasePixel);
+        return;
+      }
+      slotByPhrase.set(phrase, point.slot);
       const pixels = viewPixels(point, view, size);
       const neighbor = casePixels.find(({ caseId }) => caseId === point.neighborCaseId);
       if (!neighbor) {
@@ -431,7 +444,7 @@ export const Graph = observer(() => {
         offsetFromNeighbor(neighbor, pixels, directionToPixels(point.direction, size), bounds, others));
     });
     return placed;
-  }, [store.points, store.testPhrasePoints, size, view]);
+  }, [store.points, store.testPhrasePoints, committedPhrases, size, view]);
 
   // In draw order, so a tie goes to the point on top
   const hitCandidates = () => {

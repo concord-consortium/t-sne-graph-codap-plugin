@@ -946,14 +946,67 @@ describe("Graph", () => {
     });
 
     describe("drawing", () => {
-      it("draws each placed slot's symbol after the case points, in slot order, named by symbol and phrase", () => {
-        renderGraph(store);
-        expect(pointNames()).toEqual([
-          "the cat sat, Similar", "a dog ran, Opposite", "the bird sang, Similar", "a fish swam, Unlabeled",
-          "Square test phrase: the cat", "Diamond test phrase: a bird", "Star test phrase: a fish"
-        ]);
-        expect(symbolPoints().map(element => element.getAttribute("data-symbol")))
-          .toEqual(["square", "diamond", "star"]);
+      it("draws each placed slot's symbol after the case points, highest slot first, named by symbol and phrase",
+        () => {
+          renderGraph(store);
+          // Highest first, so the lowest slot is on top of a stack of identical phrases
+          expect(pointNames()).toEqual([
+            "the cat sat, Similar", "a dog ran, Opposite", "the bird sang, Similar", "a fish swam, Unlabeled",
+            "Star test phrase: a fish", "Diamond test phrase: a bird", "Square test phrase: the cat"
+          ]);
+          expect(symbolPoints().map(element => element.getAttribute("data-symbol")))
+            .toEqual(["star", "diamond", "square"]);
+        });
+
+      describe("the same phrase in two slots, not in the table", () => {
+        // Slots 0 and 3 have the same phrase after normalizing, but the worker jittered them differently; slot 2
+        // has another phrase with the same neighbor
+        beforeEach(() => {
+          store.setTestPhrase(0, "the cat");
+          store.setTestPhrase(2, "a bird");
+          store.setTestPhrase(3, " The  CAT ");
+          store.setTestPhrasePoints([
+            testPoint(0, 0.5, 0.5, "3"),
+            testPoint(2, 0.5, 0.5, "3", -1, 0),
+            testPoint(3, 0.55, 0.45, "3", 0, 1)
+          ], { 0: "placed", 1: "empty", 2: "placed", 3: "placed", 4: "empty" });
+        });
+        const tooltipText = () => screen.queryByTestId("point-tooltip-text")?.textContent;
+
+        it("draws the later slot on the earlier one's symbol, with no ring search of its own", () => {
+          renderGraph(store);
+          const square = symbolCenter("Square test phrase: the cat");
+          expect(square).toEqual({ x: 168, y: 150 });
+          expect(symbolCenter("Plus test phrase: The CAT")).toEqual(square);
+        });
+
+        it("keeps a different phrase 18px from the stack", () => {
+          renderGraph(store);
+          const diamond = symbolCenter("Diamond test phrase: a bird");
+          expect(Math.hypot(diamond.x - 168, diamond.y - 150)).toBeGreaterThanOrEqual(18 - 1e-9);
+        });
+
+        it("draws the lower slot last, so it is on top and the pointer picks it", () => {
+          renderGraph(store);
+          const names = pointNames();
+          expect(names.indexOf("Plus test phrase: The CAT")).toBeLessThan(names.indexOf("Square test phrase: the cat"));
+          fireEvent.pointerMove(plot(), { pointerType: "mouse", clientX: 168, clientY: 150 });
+          expect(tooltipText()).toBe("the cat");
+          expect(screen.getByTestId("active-point")).toHaveAttribute("data-symbol", "square");
+        });
+
+        it("moves the later slot back to its own place when its phrase changes", () => {
+          renderGraph(store);
+          // The store drops the slot's point until the worker places the new phrase
+          act(() => {
+            store.setTestPhrase(3, "a fish");
+            store.setTestPhrasePoints([...store.testPhrasePoints, testPoint(3, 0.55, 0.45, "3", 0, 1)],
+              { 0: "placed", 1: "empty", 2: "placed", 3: "placed", 4: "empty" });
+          });
+          const plus = symbolCenter("Plus test phrase: a fish");
+          expect(plus).not.toEqual(symbolCenter("Square test phrase: the cat"));
+          expect(Math.hypot(plus.x - 168, plus.y - 150)).toBeGreaterThanOrEqual(18 - 1e-9);
+        });
       });
 
       it("fills each symbol with the test-phrase color, with an outline", () => {

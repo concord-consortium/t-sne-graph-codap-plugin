@@ -310,6 +310,24 @@ test("puts a test phrase that matches a dataset phrase under its dot, and reache
     await expect(tooltip).toHaveText(new RegExp(`^${kIsolatedDot}$`, "i"));
   });
 
+test("stacks the same phrase in two slots, when it isn't in the table, at the first slot's place", async ({ page }) => {
+  const plugin = await openFlatPlot(page);
+  const { text } = kTestPhrases[0];
+  await enterTestPhrase(plugin, 0, text);
+  await enterTestPhrase(plugin, 1, text.toUpperCase());
+  await expect(plugin.locator(".test-phrase-point")).toHaveCount(2);
+  const square = await transformOf(symbolPoint(plugin, 0));
+  await expect(symbolPoint(plugin, 1)).toHaveAttribute("transform", square ?? "");
+
+  // The first slot is drawn last, so on top: the pointer on the stack picks it
+  const order = await drawOrder(plugin);
+  expect(order.indexOf(`Triangle test phrase: ${text.toUpperCase()}`))
+    .toBeLessThan(order.indexOf(`Square test phrase: ${text}`));
+  const { x, y } = await onPage(plugin, await centerOf(symbolPoint(plugin, 0)));
+  await page.mouse.move(x, y);
+  await expect(plugin.getByTestId("point-tooltip")).toHaveText(text);
+});
+
 // Attached to the report; also saved to doc/design when SAVE_DESIGN_SCREENSHOTS is set
 const saveScreenshot = async (
   page: Page, testInfo: TestInfo, clip: { x: number, y: number, width: number, height: number }, name: string
