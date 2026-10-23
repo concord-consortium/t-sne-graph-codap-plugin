@@ -1,9 +1,11 @@
-import { expect, type FrameLocator } from "@playwright/test";
+import fs from "fs";
+import path from "path";
+import { expect, type FrameLocator, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 import { kPluginUrl, openDocument, resizeTileBy, tableCell, tableSelectionCount } from "./lib/codap";
 import {
-  clickPoint, emptySpot, enterTestPhrase, kSymbols, kTestPhrases, moveMouseOff, plot, pluginFrame, point,
+  clickPoint, emptySpot, enterTestPhrase, kSymbols, kTestPhrases, moveMouseOff, onPage, plot, pluginFrame, point,
   pressedPhrases, symbolPoint, testField
 } from "./lib/plugin";
 import { openFlatPlot } from "./lib/documents";
@@ -253,4 +255,87 @@ test("keeps the test phrases' borders, symbols and focus visible in forced-color
   });
   expect(focusRing.visibility).toBe("visible");
   expect(focusRing.stroke).toBe(focusRing.expected);
+});
+
+// A dot in the flat fixture far from every other dot, so its symbols are easy to see and hover
+const kIsolatedDot = "Every voice across the globe";
+const transformOf = (element: Locator) => element.getAttribute("transform");
+// A point's center in the plot, from its transform
+const centerOf = async (element: Locator) => {
+  const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(await transformOf(element) ?? "") ?? [];
+  return { x: Number(x), y: Number(y) };
+};
+// Each point's name, in drawing order
+const drawOrder = (plugin: FrameLocator) =>
+  plugin.locator(".graph-plot .point").evaluateAll(points => points.map(p => p.getAttribute("aria-label")));
+
+test("puts a test phrase that matches a dataset phrase under its dot, and reaches it at its visible part",
+  async ({ page }) => {
+    const plugin = await openFlatPlot(page);
+    // Matched after trimming, collapsing spaces and lowercasing
+    await enterTestPhrase(plugin, 0, kIsolatedDot);
+    await enterTestPhrase(plugin, 1, ` ${kIsolatedDot.toLowerCase()} `);
+    await enterTestPhrase(plugin, 4, kIsolatedDot);
+    await expect(plugin.locator(".test-phrase-point")).toHaveCount(3);
+
+    // One spot, the dot's, with the symbols drawn before it: the highest slot first
+    const dot = await transformOf(point(plugin, kIsolatedDot));
+    for (const slot of [0, 1, 4]) await expect(symbolPoint(plugin, slot)).toHaveAttribute("transform", dot ?? "");
+    const order = await drawOrder(plugin);
+    const dotIndex = order.findIndex(name => name?.startsWith(`${kIsolatedDot}, `));
+    const squareIndex = order.indexOf(`Square test phrase: ${kIsolatedDot}`);
+    expect(order.indexOf(`Star test phrase: ${kIsolatedDot}`)).toBeLessThan(squareIndex);
+    expect(squareIndex).toBeLessThan(dotIndex);
+
+    // The second slot's selection ring is drawn, around the dot
+    await symbolButton(plugin, 1).click();
+    await expect(symbolPoint(plugin, 1)).toHaveAttribute("aria-pressed", "true");
+    await expect(symbolPoint(plugin, 1).locator(".selection-ring")).toHaveCount(1);
+
+    // On the dot: the dot's tooltip, in its label's colors
+    const center = await centerOf(point(plugin, kIsolatedDot));
+    const move = async (dx: number, dy: number) => {
+      const { x, y } = await onPage(plugin, { x: center.x + dx, y: center.y + dy });
+      await page.mouse.move(x, y);
+    };
+    const tooltip = plugin.getByTestId("point-tooltip");
+    const tooltipFill = () => tooltip.evaluate(box => getComputedStyle(box).backgroundColor);
+    await move(0, 0);
+    await expect(tooltip).toHaveText(kIsolatedDot);
+    expect(await tooltipFill()).toBe("rgb(192, 207, 255)");
+    // Toward the star's right tip, outside the dot: a test phrase's purple tooltip. The hit test treats a symbol as
+    // a square, so the triangle above the star may take this spot; both have the phrase, as typed.
+    await move(8, -2.6);
+    await expect.poll(tooltipFill).toBe("rgb(203, 203, 255)");
+    await expect(tooltip).toHaveText(new RegExp(`^${kIsolatedDot}$`, "i"));
+  });
+
+// Attached to the report; also saved to doc/design when SAVE_DESIGN_SCREENSHOTS is set
+const saveScreenshot = async (
+  page: Page, testInfo: TestInfo, clip: { x: number, y: number, width: number, height: number }, name: string
+) => {
+  const image = await page.screenshot({ clip });
+  await testInfo.attach(name, { body: image, contentType: "image/png" });
+  if (process.env.SAVE_DESIGN_SCREENSHOTS) fs.writeFileSync(path.join(__dirname, "..", "doc", "design", name), image);
+};
+
+test.describe("at 2×", () => {
+  test.use({ deviceScaleFactor: 2 });
+
+  // For the team to decide whether the hidden square is acceptable (CODAP-1575 fixes plan §3.3 step 7)
+  test("shows a square under a dot, unselected and selected", async ({ page }, testInfo) => {
+    const plugin = await openFlatPlot(page);
+    await enterTestPhrase(plugin, 0, kIsolatedDot);
+    const dot = await transformOf(point(plugin, kIsolatedDot));
+    await expect(symbolPoint(plugin, 0)).toHaveAttribute("transform", dot ?? "");
+    await moveMouseOff(page);
+    const { x, y } = await onPage(plugin, await centerOf(point(plugin, kIsolatedDot)));
+    const clip = { x: x - 30, y: y - 30, width: 60, height: 60 };
+    const save = (name: string) => saveScreenshot(page, testInfo, clip, name);
+
+    await save("square-under-dot.png");
+    await symbolButton(plugin, 0).click();
+    await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-pressed", "true");
+    await save("square-under-dot-selected.png");
+  });
 });

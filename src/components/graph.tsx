@@ -2,7 +2,7 @@ import React, {
   KeyboardEvent, MouseEvent, PointerEvent, useEffect, useId, useLayoutEffect, useMemo, useRef, useState
 } from "react";
 import { observer } from "mobx-react-lite";
-import { Point, TestPhrasePoint } from "../models/plugin-store";
+import { PhraseSymbol, Point, TestPhrasePoint } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
 import { kTestPhraseColor, kTestPhraseTooltipFill } from "../tsne/labels";
@@ -83,6 +83,27 @@ const PointMarks = ({ color, selected }: IPointMarksProps) => (
   </>
 );
 
+interface ISymbolMarksProps {
+  symbol: PhraseSymbol;
+  selected: boolean;
+}
+
+const SymbolMarks = ({ symbol, selected }: ISymbolMarksProps) => {
+  const extent = kPlotSymbolExtents[symbol];
+  const path = symbolPath(symbol, extent);
+  return (
+    <>
+      {selected && <path className="selection-edge" data-testid="selection-edge" d={path}
+        style={{ strokeWidth: kSymbolEdgeWidth }} />}
+      {selected && <path className="selection-ring" data-testid="selection-ring" d={path}
+        style={{ strokeWidth: kSymbolRingWidth }} />}
+      <path className="dot-outline" data-testid="dot-outline" d={path} style={{ strokeWidth: kSymbolOutlineWidth }} />
+      <path className="symbol" data-testid="symbol" d={path} fill={kTestPhraseColor} />
+      <SymbolFocusRing symbol={symbol} extent={extent} />
+    </>
+  );
+};
+
 /** One Tab stop; arrow keys move through the case points, then the test phrases. */
 export const Graph = observer(() => {
   const store = useStore();
@@ -162,6 +183,10 @@ export const Graph = observer(() => {
   const testPoints = useMemo(
     () => store.testPhrasePoints.filter(point => store.placedSlots.has(point.slot)).sort((a, b) => a.slot - b.slot),
     [store.testPhrasePoints, store.placedSlots]);
+  // Drawn before the case points, so under their dots; the highest slot first, so the lowest is on top
+  const exactTestPoints = useMemo(() => testPoints.filter(point => point.isExactMatch).reverse(), [testPoints]);
+  // Drawn after the case points, in slot order
+  const besideTestPoints = useMemo(() => testPoints.filter(point => !point.isExactMatch), [testPoints]);
   const keys = useMemo(
     () => [...points.map(point => caseKey(point.caseId)), ...testPoints.map(point => slotKey(point.slot))],
     [points, testPoints]);
@@ -410,14 +435,17 @@ export const Graph = observer(() => {
 
   // In draw order, so a tie goes to the point on top
   const hitCandidates = () => {
-    const candidates: IHitCandidate[] = points.map(point => ({ key: caseKey(point.caseId),
-      center: viewPixels(point, view, size), halfExtent: kOutlineRadius, isRound: true }));
-    testPoints.forEach(point => {
+    const candidates: IHitCandidate[] = [];
+    const addSymbols = (symbolPoints: TestPhrasePoint[]) => symbolPoints.forEach(point => {
       const center = testPointPixels.get(point.slot);
       if (!center) return;
       candidates.push({ key: slotKey(point.slot), center,
         halfExtent: kPlotSymbolExtents[store.symbolForSlot(point.slot)] / 2, isRound: false });
     });
+    addSymbols(exactTestPoints);
+    points.forEach(point => candidates.push({ key: caseKey(point.caseId), center: viewPixels(point, view, size),
+      halfExtent: kOutlineRadius, isRound: true }));
+    addSymbols(besideTestPoints);
     return candidates;
   };
 
@@ -459,12 +487,11 @@ export const Graph = observer(() => {
     if (panned !== view) store.panTo(panned.centerX, panned.centerY);
   };
 
-  // A test phrase is drawn after the case points, so only a case point needs drawing again on top: the
-  // focused one, then the hovered one above it
-  const topCopies: { point: Point, reason: "focus" | "hover", pixels: IPosition }[] = [];
+  // Drawn again on top of everything: the focused point, then the hovered one above it
+  const topCopies: { key: string, reason: "focus" | "hover", pixels: IPosition }[] = [];
   const addTopCopy = (key: string | undefined, reason: "focus" | "hover") => {
-    const point = key !== undefined ? points.find(p => caseKey(p.caseId) === key) : undefined;
-    if (point) topCopies.push({ point, reason, pixels: viewPixels(point, view, size) });
+    const pixels = key !== undefined && keys.includes(key) ? drawnPixel(key) : undefined;
+    if (key !== undefined && pixels) topCopies.push({ key, reason, pixels });
   };
   const focusCopyKey = activeExists ? activeKey : undefined;
   addTopCopy(focusCopyKey, "focus");
@@ -494,6 +521,30 @@ export const Graph = observer(() => {
     return { key: tooltipKey, text: phrases.get(caseId) ?? "", color: store.colorForCase(caseId),
       fill: store.tooltipFillForCase(caseId), pixel, halfExtent: kPointRadius };
   })();
+  const renderTestPoint = (point: TestPhrasePoint) => {
+    const { x, y } = testPointPixels.get(point.slot) ?? { x: 0, y: 0 };
+    const symbol = store.symbolForSlot(point.slot);
+    const key = slotKey(point.slot);
+    return (
+      <g
+        key={key}
+        ref={pointRef(key)}
+        className="point test-phrase-point"
+        transform={`translate(${x} ${y})`}
+        role="button"
+        aria-label={`${symbolName(symbol)} test phrase: ${store.testPhrases[point.slot]}`}
+        aria-pressed={store.isSlotSelected(point.slot)}
+        tabIndex={key === activeKey ? 0 : -1}
+        data-symbol={symbol}
+        data-testid="test-phrase-point"
+        onClick={event => handlePointClick(event, key)}
+        onFocus={() => handlePointFocus(key)}
+        onBlur={() => handlePointBlur(key)}
+      >
+        <SymbolMarks symbol={symbol} selected={store.isSlotSelected(point.slot)} />
+      </g>
+    );
+  };
   const message = computeStatus === "too-few" ? kTooFewMessage : computeStatus === "error" ? kErrorMessage : "";
   const grid = gridLines(size, view);
 
@@ -540,6 +591,7 @@ export const Graph = observer(() => {
           {grid.y.map((y, i) =>
             <line key={`y${i}`} data-testid="grid-line" x1={0} x2={size.width} y1={y} y2={y} />)}
         </g>
+        {exactTestPoints.map(renderTestPoint)}
         {points.map(point => {
           const { x, y } = viewPixels(point, view, size);
           const selected = store.isSelected(point.caseId);
@@ -562,45 +614,19 @@ export const Graph = observer(() => {
             </g>
           );
         })}
-        {/* The focused and hovered points drawn again on top of their neighbors. Moving the points themselves
-            to the end would make React move a focused element, which drops its focus. */}
-        {topCopies.map(({ point, reason, pixels }) => (
-          <g key={reason} className="active-point" data-testid="active-point" data-reason={reason} aria-hidden="true"
-            transform={`translate(${pixels.x} ${pixels.y})`}>
-            <PointMarks color={store.colorForCase(point.caseId)} selected={store.isSelected(point.caseId)} />
-          </g>
-        ))}
-        {testPoints.map(point => {
-          const { x, y } = testPointPixels.get(point.slot) ?? { x: 0, y: 0 };
-          const selected = store.isSlotSelected(point.slot);
-          const symbol = store.symbolForSlot(point.slot);
-          const extent = kPlotSymbolExtents[symbol];
-          const path = symbolPath(symbol, extent);
-          const key = slotKey(point.slot);
+        {besideTestPoints.map(renderTestPoint)}
+        {/* The focused and hovered points drawn again on top. Moving the points themselves to the end would make
+            React move a focused element, which drops its focus. */}
+        {topCopies.map(({ key, reason, pixels }) => {
+          const slot = slotFromKey(key);
+          const symbol = slot !== undefined ? store.symbolForSlot(slot) : undefined;
+          const caseId = key.slice("case:".length);
           return (
-            <g
-              key={key}
-              ref={pointRef(key)}
-              className="point test-phrase-point"
-              transform={`translate(${x} ${y})`}
-              role="button"
-              aria-label={`${symbolName(symbol)} test phrase: ${store.testPhrases[point.slot]}`}
-              aria-pressed={selected}
-              tabIndex={key === activeKey ? 0 : -1}
-              data-symbol={symbol}
-              data-testid="test-phrase-point"
-              onClick={event => handlePointClick(event, key)}
-              onFocus={() => handlePointFocus(key)}
-              onBlur={() => handlePointBlur(key)}
-            >
-              {selected && <path className="selection-edge" data-testid="selection-edge" d={path}
-                style={{ strokeWidth: kSymbolEdgeWidth }} />}
-              {selected && <path className="selection-ring" data-testid="selection-ring" d={path}
-                style={{ strokeWidth: kSymbolRingWidth }} />}
-              <path className="dot-outline" data-testid="dot-outline" d={path}
-                style={{ strokeWidth: kSymbolOutlineWidth }} />
-              <path className="symbol" data-testid="symbol" d={path} fill={kTestPhraseColor} />
-              <SymbolFocusRing symbol={symbol} extent={extent} />
+            <g key={reason} className="active-point" data-testid="active-point" data-reason={reason}
+              data-symbol={symbol} aria-hidden="true" transform={`translate(${pixels.x} ${pixels.y})`}>
+              {slot !== undefined && symbol
+                ? <SymbolMarks symbol={symbol} selected={store.isSlotSelected(slot)} />
+                : <PointMarks color={store.colorForCase(caseId)} selected={store.isSelected(caseId)} />}
             </g>
           );
         })}

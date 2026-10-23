@@ -991,6 +991,97 @@ describe("Graph", () => {
           .toHaveAttribute("transform", point("a dog ran").getAttribute("transform"));
       });
 
+      describe("an exact match", () => {
+        // Slots 0 (square) and 4 (star) are "the bird sang", case 3 at (150, 150); slot 2 is beside it
+        beforeEach(() => {
+          store.setTestPhrase(0, "the bird sang");
+          store.setTestPhrase(4, "the bird sang");
+          store.setTestPhrasePoints([
+            { ...testPoint(0, 0.5, 0.5, "3"), isExactMatch: true },
+            testPoint(2, 0.25, 0.75, "3"),
+            { ...testPoint(4, 0.5, 0.5, "3"), isExactMatch: true }
+          ], { 0: "placed", 1: "empty", 2: "placed", 3: "empty", 4: "placed" });
+        });
+        const tooltipText = () => screen.queryByTestId("point-tooltip-text")?.textContent;
+        const hoverAt = (clientX: number, clientY: number) =>
+          fireEvent.pointerMove(plot(), { pointerType: "mouse", clientX, clientY });
+
+        it("goes under its dot, before the case points, highest slot first; others go after, in slot order", () => {
+          renderGraph(store);
+          // In document order, which is drawing order
+          expect(pointNames()).toEqual([
+            "Star test phrase: the bird sang", "Square test phrase: the bird sang",
+            "the cat sat, Similar", "a dog ran, Opposite", "the bird sang, Similar", "a fish swam, Unlabeled",
+            "Diamond test phrase: a bird"
+          ]);
+          expect(symbolCenter("Star test phrase: the bird sang")).toEqual({ x: 150, y: 150 });
+          expect(symbolCenter("Square test phrase: the bird sang")).toEqual({ x: 150, y: 150 });
+        });
+
+        it("keeps the ring search for a phrase that isn't an exact match", () => {
+          renderGraph(store);
+          const beside = symbolCenter("Diamond test phrase: a bird");
+          expect(Math.hypot(beside.x - 150, beside.y - 150)).toBeGreaterThanOrEqual(18 - 1e-9);
+        });
+
+        it("leaves the dot to a pointer on the dot, and gives the symbol a pointer on its visible part", () => {
+          renderGraph(store);
+          hoverAt(150, 150);
+          expect(tooltipText()).toBe("the bird sang");
+          expect(screen.getByTestId("active-point")).not.toHaveAttribute("data-symbol");
+          // Toward the star's right tip: outside the dot, inside the star. The square under the dot is smaller, so
+          // only the star is there.
+          hoverAt(158, 147.4);
+          expect(tooltipText()).toBe("the bird sang");
+          expect(screen.getByTestId("active-point")).toHaveAttribute("data-symbol", "star");
+          expect(plot()).toHaveAttribute("data-over-point", "true");
+        });
+
+        it("gives two identical symbols' shared spot to the lowest slot, on top of the stack", () => {
+          store.setTestPhrase(4, "the bird sang");
+          store.setTestPhrasePoints([
+            { ...testPoint(0, 0.5, 0.5, "3"), isExactMatch: true },
+            { ...testPoint(4, 0.5, 0.5, "3"), isExactMatch: true }
+          ], { 0: "placed", 1: "empty", 2: "empty", 3: "empty", 4: "placed" });
+          renderGraph(store);
+          // Inside both symbols, outside the dot
+          hoverAt(150, 156.6);
+          expect(screen.getByTestId("active-point")).toHaveAttribute("data-symbol", "square");
+        });
+
+        it("draws a focused symbol again on top, with its focus ring and its selection rings", async () => {
+          store.setSelectedSlots([4]);
+          const user = userEvent.setup();
+          renderGraph(store);
+          await tabToPlot(user);
+          await user.keyboard("{End}");
+          expect(symbolPoint("Star test phrase: the bird sang")).toHaveFocus();
+          const copy = screen.getByTestId("active-point");
+          expect(copy).toHaveAttribute("data-reason", "focus");
+          expect(copy).toHaveAttribute("data-symbol", "star");
+          expect(copy).toHaveAttribute("transform", "translate(150 150)");
+          expect(within(copy).getByTestId("focus-ring")).toBeInTheDocument();
+          expect(within(copy).getByTestId("selection-ring")).toBeInTheDocument();
+          // The last mark drawn, so above the dot
+          const marks = within(plot()).getAllByTestId(/^(dot|symbol)$/);
+          expect(marks[marks.length - 1]).toBe(within(copy).getByTestId("symbol"));
+        });
+
+        it("keeps the arrow keys' order: case points, then slots in order", async () => {
+          const user = userEvent.setup();
+          renderGraph(store);
+          await tabToPlot(user);
+          await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}");
+          expect(point("a fish swam")).toHaveFocus();
+          await user.keyboard("{ArrowRight}");
+          expect(symbolPoint("Square test phrase: the bird sang")).toHaveFocus();
+          await user.keyboard("{ArrowRight}");
+          expect(symbolPoint("Diamond test phrase: a bird")).toHaveFocus();
+          await user.keyboard("{ArrowRight}");
+          expect(symbolPoint("Star test phrase: the bird sang")).toHaveFocus();
+        });
+      });
+
       it("pushes a symbol on its neighbor's dot out to 18px, along its direction", () => {
         renderGraph(store);
         expect(symbolPoint("Square test phrase: the cat")).toHaveAttribute("transform", "translate(168 150)");

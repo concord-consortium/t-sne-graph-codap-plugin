@@ -74,11 +74,12 @@
     pointer-events: none;
   }
 
-  // Mitered rings would spike far past the triangle's and star's points
-  .test-phrase-point path {
+  // The symbols, and their copies on top
+  [data-symbol] path {
     stroke-linejoin: miter;
   }
-  .test-phrase-point:is([data-symbol="triangle"], [data-symbol="star"]) path {
+  // Mitered rings would spike far past the triangle's and star's points
+  :is([data-symbol="triangle"], [data-symbol="star"]) path {
     stroke-linejoin: round;
   }
 }
