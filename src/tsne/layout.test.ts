@@ -1,8 +1,8 @@
 import {
-  applyTransform, applyView, clampView, directionToPixels, fitLayout, gridLines, hoverBridge, IPosition, IView,
-  kFitView,
+  applyTransform, applyView, clampView, directionToPixels, fitLayout, gridLines, hoverBridge, IHitCandidate,
+  IPosition, IView, kFitView,
   kGraphPadding, kMaxZoomLevel, kMinNeighborOffsetPx, kMinZoomLevel, kOffsetCandidates, kTooltipMargin,
-  kTooltipMinWidth, kTooltipTipToBox, kZoomFactor, normalizeLayout, offsetFromNeighbor, paddedBounds,
+  kTooltipMinWidth, kTooltipTipToBox, kZoomFactor, nearestPoint, normalizeLayout, offsetFromNeighbor, paddedBounds,
   panToInclude, placeTooltip, pointerShapes, scaleForLevel, toPixels, tooltipMaxWidth, unitDirection, worldBounds
 } from "./layout";
 
@@ -315,6 +315,58 @@ describe("offsetFromNeighbor", () => {
       expect(distance(second, first)).toBeGreaterThanOrEqual(kMinNeighborOffsetPx - 1e-9);
       expect(distance(second, neighbor)).toBeCloseTo(kMinNeighborOffsetPx, 9);
     });
+  });
+});
+
+describe("nearestPoint", () => {
+  // A dot's drawn mark is its 6px radius plus a 0.5px outline
+  const dot = (key: string, x: number, y: number): IHitCandidate =>
+    ({ key, center: { x, y }, halfExtent: 6.5, isRound: true });
+  const symbol = (key: string, x: number, y: number, extent: number): IHitCandidate =>
+    ({ key, center: { x, y }, halfExtent: extent / 2, isRound: false });
+
+  it("picks the nearest center when two points are within the radius", () => {
+    const points = [dot("a", 100, 100), dot("b", 108, 100)];
+    expect(nearestPoint({ x: 102, y: 100 }, points)).toBe("a");
+    expect(nearestPoint({ x: 106, y: 100 }, points)).toBe("b");
+  });
+
+  it("picks nothing more than 12px from every center", () => {
+    const points = [dot("a", 100, 100)];
+    expect(nearestPoint({ x: 112, y: 100 }, points)).toBe("a");
+    expect(nearestPoint({ x: 112.1, y: 100 }, points)).toBeUndefined();
+    expect(nearestPoint({ x: 100, y: 100 }, [])).toBeUndefined();
+  });
+
+  it("gives a tie between two dots to the one drawn later", () => {
+    // Coincident, and the pointer halfway between two centers
+    expect(nearestPoint({ x: 100, y: 100 }, [dot("a", 100, 100), dot("b", 100, 100)])).toBe("b");
+    expect(nearestPoint({ x: 104, y: 100 }, [dot("a", 100, 100), dot("b", 108, 100)])).toBe("b");
+    // Halfway between them and outside both
+    expect(nearestPoint({ x: 100, y: 108 }, [dot("a", 92, 100), dot("b", 108, 100)])).toBe("b");
+  });
+
+  it("gives a tie between a dot and a larger symbol under it to the mark the pointer is on", () => {
+    // The symbol is drawn first, so it is under the dot
+    const points = [symbol("star", 100, 100, 18.7), dot("a", 100, 100)];
+    expect(nearestPoint({ x: 100, y: 100 }, points)).toBe("a");
+    expect(nearestPoint({ x: 106, y: 100 }, points)).toBe("a");
+    expect(nearestPoint({ x: 107, y: 100 }, points)).toBe("star");
+    // Inside the symbol's square, outside the dot's circle
+    expect(nearestPoint({ x: 105, y: 105 }, points)).toBe("star");
+    // Within the radius but outside both marks: the topmost
+    expect(nearestPoint({ x: 110, y: 100 }, points)).toBe("a");
+  });
+
+  it("counts a symbol's center the same as a dot's", () => {
+    const points = [symbol("star", 100, 100, 18.7), dot("a", 108, 100)];
+    expect(nearestPoint({ x: 102, y: 100 }, points)).toBe("star");
+    expect(nearestPoint({ x: 106, y: 100 }, points)).toBe("a");
+    expect(nearestPoint({ x: 100, y: 111 }, [symbol("star", 100, 100, 18.7)])).toBe("star");
+  });
+
+  it("uses the radius it is given", () => {
+    expect(nearestPoint({ x: 105, y: 100 }, [dot("a", 100, 100)], 4)).toBeUndefined();
   });
 });
 
