@@ -67,8 +67,8 @@ export const startGraphController = (store: IPluginStore) => {
         status[slot] = placement;
         return;
       }
-      const { x, y, neighborIndex, direction } = placement;
-      points.push({ slot, x, y, neighborCaseId: caseIds[neighborIndex], direction });
+      const { x, y, neighborIndex, direction, isExactMatch = false } = placement;
+      points.push({ slot, x, y, neighborCaseId: caseIds[neighborIndex], direction, isExactMatch });
       status[slot] = "placed";
     });
     store.setTestPhrasePoints(points, status);

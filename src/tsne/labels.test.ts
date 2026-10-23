@@ -1,5 +1,6 @@
 import {
-  groupLabels, kLabelColors, kTestPhraseColor, kUnlabeled, kUnlabeledColor, labelColor, normalizeLabel, tooltipFill
+  groupLabels, kLabelColors, kTestPhraseColor, kUnlabeled, kUnlabeledColor, labelColor, normalizeLabel, normalizePhrase,
+  tooltipFill
 } from "./labels";
 
 const contrastWithWhite = (hex: string) => {
@@ -25,6 +26,17 @@ describe("normalizeLabel", () => {
   it("gives an empty string for blank labels", () => {
     expect(normalizeLabel("")).toBe("");
     expect(normalizeLabel(" \t\n ")).toBe("");
+  });
+});
+
+describe("normalizePhrase", () => {
+  it("trims, collapses whitespace and lowercases", () => {
+    expect(normalizePhrase("  The   Cat\tsat\n")).toBe("the cat sat");
+  });
+
+  it("keeps punctuation", () => {
+    expect(normalizePhrase("The dog.")).toBe("the dog.");
+    expect(normalizePhrase("didn't, really!")).toBe("didn't, really!");
   });
 });
 

@@ -2,10 +2,10 @@ import { expect, type FrameLocator, type Page } from "@playwright/test";
 import { saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 import { kHierarchicalPhrases as kFixturePhrases } from "./fixtures/hierarchical-phrases";
-import { kPluginUrl, openDocument, resizeTileBy, tableCell } from "./lib/codap";
+import { kPluginUrl, openDocument, resizeTileBy, resizeTileTo, tableCell } from "./lib/codap";
 import {
-  choose, dropdown, emptySpot, expectPointsClearOfZoomButtons, optionsOf, plot, plotLayout, pluginFrame, point,
-  pressedPhrases, tabToPlot
+  choose, clickPoint, dropdown, emptySpot, expectPointsClearOfZoomButtons, optionsOf, plot, plotLayout, pluginFrame,
+  point, pressedPhrases, tabToPlot
 } from "./lib/plugin";
 import { documentWithPlugin } from "./lib/documents";
 import { axeViolations } from "./lib/accessibility";
@@ -166,7 +166,7 @@ test("mirrors the selection between the plot, the Key and CODAP's table", async 
   const plugin = await openPlot(page, "label");
 
   // A point → its row
-  await point(plugin, "a dog sprinted outside").click();
+  await clickPoint(point(plugin, "a dog sprinted outside"));
   await expect.poll(() => selectedInTable(page)).toEqual(["a dog sprinted outside"]);
   await expect.poll(() => pressedPhrases(plugin)).toEqual(["a dog sprinted outside"]);
 
@@ -177,8 +177,8 @@ test("mirrors the selection between the plot, the Key and CODAP's table", async 
 
   // As in CODAP's graph: a plain click on a selected point changes nothing, and a Shift-click removes
   // it. Had the plain click narrowed the selection, the Shift-click would leave nothing selected.
-  await point(plugin, "the cat sat on the mat").click();
-  await point(plugin, "the cat sat on the mat").click({ modifiers: ["Shift"] });
+  await clickPoint(point(plugin, "the cat sat on the mat"));
+  await clickPoint(point(plugin, "the cat sat on the mat"), { modifiers: ["Shift"] });
   await expect.poll(() => selectedInTable(page)).toEqual(["a cat rested on a rug", "the kitten lay on the carpet"]);
 
   // A parent row → all its points
@@ -378,4 +378,41 @@ test("keeps the plot square and centered when the tile is resized", async ({ pag
   await resizeTileBy(page, -200, 150);
   await expect.poll(async () => (await plotLayout(plugin)).top).toBeGreaterThan(50);
   expect((await expectSquareAndCentered()).left).toBe(0);
+});
+
+// The plugin content's size, in whole pixels
+const contentSize = async (plugin: FrameLocator) => {
+  const box = await plugin.locator(".app").boundingBox();
+  if (!box) throw new Error("The plugin is not visible");
+  return { width: Math.round(box.width), height: Math.round(box.height) };
+};
+
+test("keeps the plugin at its starting size, and scrolls, when the tile is made smaller", async ({ page }) => {
+  const plugin = await openPlot(page, "label");
+  const scrolls = () => plugin.locator("html").evaluate(html => ({
+    x: html.scrollWidth > html.clientWidth, y: html.scrollHeight > html.clientHeight
+  }));
+  const appSize = () => contentSize(plugin);
+
+  // At the starting size the plugin fits exactly
+  await expect.poll(scrolls).toEqual({ x: false, y: false });
+  const startingSize = await appSize();
+
+  // Smaller: the plugin keeps its starting size, so the CSS minimum equals kContentSize
+  await resizeTileTo(page, 500, 250);
+  await expect.poll(scrolls).toEqual({ x: true, y: true });
+  expect(await appSize()).toEqual(startingSize);
+  expect((await plotLayout(plugin)).plot).toEqual({ width: 300, height: 300 });
+
+  // Larger: the plot grows and stays square
+  await resizeTileTo(page, 900, 500);
+  await expect.poll(async () => (await plotLayout(plugin)).plot.width).toBeGreaterThan(300);
+  const { plot: square } = await plotLayout(plugin);
+  expect(square.width).toBe(square.height);
+  await expect.poll(scrolls).toEqual({ x: false, y: false });
+
+  // Back to the starting size: no scrollbars
+  await resizeTileTo(page, 680, 334);
+  await expect.poll(scrolls).toEqual({ x: false, y: false });
+  expect(await appSize()).toEqual(startingSize);
 });

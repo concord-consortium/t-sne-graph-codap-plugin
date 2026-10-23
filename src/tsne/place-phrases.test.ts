@@ -1,3 +1,4 @@
+import { normalizePhrase } from "./labels";
 import { applyTransform, fitLayout } from "./layout";
 import { IPlacementLayout, kJitterStandardDeviation, nearestRow, placePhrase, slotSeed } from "./place-phrases";
 import { fitTfidf, ITfidfModel } from "./tfidf";
@@ -9,10 +10,13 @@ const solution = [[-100, 0], [0, 100], [100, 0], [0, -100]];
 
 const makeLayout = (tablePhrases: string[], raw: number[][]): IPlacementLayout => {
   const { matrix, vocabulary, idf } = fitTfidf(tablePhrases);
-  return { model: { vocabulary, idf }, matrix, solution: raw, transform: fitLayout(raw).transform };
+  return { phrases: tablePhrases.map(normalizePhrase), model: { vocabulary, idf }, matrix, solution: raw,
+    transform: fitLayout(raw).transform };
 };
 
 const layout = makeLayout(phrases, solution);
+// Row 0's words and one not in the vocabulary: row 0's vector, but not row 0's text, so it is jittered
+const kNearRow0 = "the cat sat down";
 
 // Unit square back to raw t-SNE units
 const toRaw = ({ x, y }: { x: number, y: number }) => {
@@ -90,16 +94,16 @@ describe("placePhrase", () => {
   });
 
   it("gives different jitter to different slots and different seeds", () => {
-    const placements = [0, 1, 2, 3, 4].map(slot => placePhrase(layout, "the cat sat", 42, slot));
+    const placements = [0, 1, 2, 3, 4].map(slot => placePhrase(layout, kNearRow0, 42, slot));
     const keys = new Set(placements.map(placement => JSON.stringify(placement)));
     expect(keys.size).toBe(5);
-    expect(placePhrase(layout, "the cat sat", 43, 0)).not.toEqual(placements[0]);
+    expect(placePhrase(layout, kNearRow0, 43, 0)).not.toEqual(placements[0]);
   });
 
   it("jitters by about 0.2 raw units on each axis", () => {
     const offsets: number[] = [];
     for (let seed = 0; seed < 2000; seed++) {
-      const placement = placePhrase(layout, "the cat sat", seed, 0);
+      const placement = placePhrase(layout, kNearRow0, seed, 0);
       if (placement === "no-words") throw new Error("expected a placement");
       const [x, y] = toRaw(placement);
       offsets.push(x - solution[0][0], y - solution[0][1]);
@@ -111,7 +115,7 @@ describe("placePhrase", () => {
   });
 
   it("returns the jitter's unit direction", () => {
-    const placement = placePhrase(layout, "the cat sat", 42, 0);
+    const placement = placePhrase(layout, kNearRow0, 42, 0);
     if (placement === "no-words") throw new Error("expected a placement");
     const neighbor = applyTransform(layout.transform, solution[0]);
     const offset = { x: placement.x - neighbor.x, y: placement.y - neighbor.y };
@@ -121,11 +125,50 @@ describe("placePhrase", () => {
     expect(placement.direction.dy).toBeCloseTo(offset.y / length, 9);
   });
 
+  describe("for a phrase in the table", () => {
+    it("puts it exactly on its row, after normalizing, with no jitter", () => {
+      [" The  CAT sat ", "the cat sat"].forEach(phrase =>
+        expect(placePhrase(layout, phrase, 42, 0)).toEqual({ ...applyTransform(layout.transform, solution[0]),
+          neighborIndex: 0, direction: { dx: 1, dy: 0 }, isExactMatch: true }));
+    });
+
+    it("puts it in the same place for every slot and seed", () => {
+      const placements = [0, 1, 2, 3, 4].map(slot => placePhrase(layout, "red apples fall", 42, slot));
+      expect(new Set(placements.map(placement => JSON.stringify(placement))).size).toBe(1);
+      expect(placePhrase(layout, "red apples fall", 43, 0)).toEqual(placements[0]);
+    });
+
+    it("keeps punctuation: a phrase with a period doesn't match one without", () => {
+      const table = makeLayout(["the dog.", "a cat ran", "red apples", "blue sky"], solution);
+      expect(placePhrase(table, "the dog.", 42, 0)).toMatchObject({ neighborIndex: 0, isExactMatch: true });
+      const placement = placePhrase(table, "the dog", 42, 0);
+      expect(placement).toMatchObject({ neighborIndex: 0 });
+      expect(placement).not.toHaveProperty("isExactMatch");
+    });
+
+    it("chooses the lowest row of duplicates", () => {
+      const table = makeLayout(["blue sky", "green sea", "Blue  sky", "dark night"], solution);
+      expect(placePhrase(table, "blue sky", 42, 0)).toMatchObject({ neighborIndex: 0, isExactMatch: true });
+    });
+
+    it("places a phrase with no vocabulary word if it is in the table; one that isn't stays no-words", () => {
+      const table = makeLayout(["a b", "green tea", "lemon pie", "dark night"], solution);
+      expect(table.matrix[0].every(value => value === 0)).toBe(true);
+      expect(placePhrase(table, "A b", 42, 0)).toEqual({ ...applyTransform(table.transform, solution[0]),
+        neighborIndex: 0, direction: { dx: 1, dy: 0 }, isExactMatch: true });
+      expect(placePhrase(table, "a c", 42, 0)).toBe("no-words");
+    });
+  });
+
+  it("leaves isExactMatch out for a phrase not in the table", () => {
+    expect(placePhrase(layout, kNearRow0, 42, 0)).not.toHaveProperty("isExactMatch");
+  });
+
   it("maps a one-point layout to the center", () => {
     // One point: the transform maps everything to the center
     const model: ITfidfModel = { vocabulary: new Map([["cat", 0]]), idf: [1] };
     const single: IPlacementLayout =
-      { model, matrix: [[1]], solution: [[5, 5]], transform: fitLayout([[5, 5]]).transform };
+      { phrases: ["a cat"], model, matrix: [[1]], solution: [[5, 5]], transform: fitLayout([[5, 5]]).transform };
     expect(placePhrase(single, "cat", 42, 0)).toMatchObject({ x: 0.5, y: 0.5, neighborIndex: 0 });
   });
 });

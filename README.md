@@ -8,11 +8,13 @@ The plugin reads the chosen Phrase Column from a CODAP table and turns each phra
 
 Each label in the Label Column gets a color in the order it first appears in the table: the four colors from the design spec, then four placeholder colors, then a generated color for each further label, so labels get different colors (up to 424 labels; past that, colors can repeat). Labels that differ only in capitalization or spacing count as one label, and rows with an empty label (or no Label Column) are gray "Unlabeled". Clicking a point or a Key label selects the matching cases in CODAP, and selecting cases in CODAP selects their points.
 
-Students can add up to five phrases of their own in the Test Phrases fields, which can be used once the plot is drawn. When a field loses focus, or on Enter, the plugin turns the phrase into numbers with the same TF-IDF vocabulary as the table and finds the table phrase that is most like it. The phrase's symbol is drawn 18px from that phrase's dot, in a direction set by the saved seed, so it lands in the same place each time the document is opened; the rest of the plot doesn't change. If another dot, or an earlier test phrase's symbol, is in the way, the symbol moves around the dot to the nearest place that is at least 18px from everything else. A phrase that shares no words with the table gets no point; its field is highlighted, and says why to screen readers and in a tooltip. Test phrases are saved with the document but never added to the CODAP table, so selecting one selects only its point.
+Students can add up to five phrases of their own in the Test Phrases fields, which can be used once the plot is drawn. When a field loses focus, or on Enter, the plugin turns the phrase into numbers with the same TF-IDF vocabulary as the table and finds the table phrase that is most like it. The phrase's symbol is drawn 18px from that phrase's dot, in a direction set by the saved seed, so it lands in the same place each time the document is opened; the rest of the plot doesn't change. If another dot, or an earlier test phrase's symbol, is in the way, the symbol moves around the dot to the nearest place that is at least 18px from everything else. A phrase that is exactly a table phrase (ignoring capital letters and extra spaces, but not punctuation) goes instead right under that phrase's dot. The same phrase in several fields always stacks in one place, with the first field's symbol on top: under its dot if it is a table phrase, and otherwise where the first field's symbol is. Any other phrase that shares no words with the table gets no point; its field is highlighted, and says why to screen readers and in a tooltip. Test phrases are saved with the document but never added to the CODAP table, so selecting one selects only its point.
 
 The three buttons in the top-left corner of the graph area zoom in, zoom out and fit all. Each zoom step makes the picture 1.5 times larger or smaller around the center of the plot, from one step smaller than the whole plot up to about 26 times larger; the dots and symbols keep their size, and the grid moves with them. Dragging the plot's background moves the view (with a mouse or a finger), and when a point gets keyboard focus off the plot, the view moves just enough to show it. Fit all shows the whole plot again. The view is saved with the document, and it goes back to the whole plot when a different table or Phrase Column is chosen or a new layout replaces the one shown.
 
-Hovering over a point, giving it keyboard focus or tapping it shows a point tooltip with the point's phrase, in the point's label color, so students can read the phrase behind any point. Screen readers don't read the tooltip, because each point's name already includes its phrase.
+Hovering over a point, giving it keyboard focus or tapping it shows a point tooltip with the point's phrase, in the point's label color, so students can read the phrase behind any point. The mouse or finger picks the point whose center is nearest, so a dot partly covered by another can still be reached, and the hovered point is drawn on top. Screen readers don't read the tooltip, because each point's name already includes its phrase.
+
+The plugin's starting size, 680 × 300, is also its smallest size. When the tile is made smaller, the plugin keeps that size and the tile shows scrollbars, so the plot is never smaller than 300 × 300.
 
 The ⓘ button at the top right of the panel opens "Information: t-SNE Plots", a page that explains what a t-SNE plot is and how to read it. The page opens in a CODAP tile of its own, just right of the plugin, which can be moved, resized and closed like any other tile and is saved with the document. Clicking ⓘ again brings that tile to the front instead of opening another one. The text content is in `src/info.html`.
 
@@ -36,6 +38,7 @@ The build makes two pages, `index.html` (the plugin) and `info.html` (the inform
 ### Known limitations
 - A selected test phrase stays selected when the selection is cleared from another CODAP component, such as a graph. CODAP's selection notices don't say where a change came from, so the plugin can't tell that clear from its own. Clicking empty space in the plot, a Key label, a point that isn't selected, or a table row clears it.
 - In a crowded area, where no place 18px from the nearest phrase's dot is clear of every other dot, a test phrase's symbol goes to the place with the most room and can touch another dot.
+- Two points at exactly the same spot (the same phrase twice, say) can be reached with the mouse or a finger only at the one on top; the keyboard reaches both.
 - Changing a dropdown or a test phrase, zooming or panning doesn't mark the CODAP document as changed, so on its own it doesn't trigger CODAP's autosave or its unsaved-changes warning. The change is saved with the document's next save. The plugin tells CODAP when its state changes, but CODAP v3 doesn't act on that yet.
 
 ### Testing
@@ -81,6 +84,12 @@ The tests are split into one spec file per feature in `playwright/`. To run one 
 npx playwright test playwright/tooltips.spec.ts
 ```
 For `plot-and-key.spec.ts`, add `--no-deps`. That file holds the speed test, so without `--no-deps` Playwright runs all the other tests first, because the `performance` project depends on them.
+
+##### Design screenshots
+`test-phrases.spec.ts` takes 2× screenshots of a test phrase's square under a dot, unselected and selected, and attaches them to the test report. To also save them to `doc/design/` (`square-under-dot.png`, `square-under-dot-selected.png`):
+```
+SAVE_DESIGN_SCREENSHOTS=1 npx playwright test playwright/test-phrases.spec.ts -g "2×"
+```
 
 ##### Test fixtures
 The end-to-end tests use two CODAP v3 documents in `playwright/fixtures/`:

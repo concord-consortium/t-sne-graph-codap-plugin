@@ -1,4 +1,4 @@
-import { expect, type FrameLocator, type Page } from "@playwright/test";
+import { expect, type FrameLocator, type Locator, type Page } from "@playwright/test";
 import { tileTitled } from "./codap";
 
 // Scoped by tile, since the information tile adds a second web-view frame
@@ -33,6 +33,11 @@ export const tabToPlot = async (plugin: FrameLocator) => {
   await dropdown(plugin, "Data Table").press("Shift+Tab");
   await expect(plot(plugin)).toBeFocused();
 };
+// Clicks a point's center. The plot, not the point element, takes the pointer and picks the nearest point, so
+// Playwright's check that the element itself gets the click is skipped.
+export const clickPoint = (element: Locator, options: { modifiers?: "Shift"[] } = {}) =>
+  // eslint-disable-next-line playwright/no-force-option -- the point element takes no pointer events on purpose
+  element.click({ ...options, force: true });
 export const pressedPhrases = (plugin: FrameLocator) =>
   plugin.locator(".graph-plot .point[aria-pressed=true]").evaluateAll(points =>
     points.map(p => (p.getAttribute("aria-label") ?? "").replace(/, [^,]*$/, "")));

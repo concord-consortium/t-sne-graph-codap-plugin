@@ -1,9 +1,12 @@
 @use "../styles/variables" as *;
 
-// The tile content: the graph area flexes, the controls panel keeps its width
+// The tile content: the graph area flexes, the controls panel keeps its width. Below the minimum
+// size the page scrolls instead.
 .app {
   display: flex;
   height: 100vh;
+  min-height: $plugin-min-height;
+  min-width: $plugin-min-width;
 }
 
 .graph-area {

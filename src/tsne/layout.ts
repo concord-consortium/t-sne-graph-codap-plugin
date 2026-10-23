@@ -161,6 +161,42 @@ export const offsetFromNeighbor = (
   }, bounds);
 };
 
+/** A point the pointer can pick. `halfExtent`: half the drawn mark's size, a dot's outline radius or half a
+ * symbol's extent. A round mark is a circle of that radius; any other is a square of that half-size. */
+export interface IHitCandidate {
+  key: string;
+  center: IPosition;
+  halfExtent: number;
+  isRound: boolean;
+}
+
+const containsPointer = ({ center, halfExtent, isRound }: IHitCandidate, pointer: IPosition) => isRound
+  ? distance(center, pointer) <= halfExtent + kTolerance
+  : Math.max(Math.abs(center.x - pointer.x), Math.abs(center.y - pointer.y)) <= halfExtent + kTolerance;
+
+/** The key of the candidate whose center is nearest the pointer, within `radius`. `candidates` are in draw
+ * order, last on top. Tied centers go to the topmost whose drawn mark contains the pointer, or else the
+ * topmost. */
+export const nearestPoint = (
+  pointer: IPosition, candidates: readonly IHitCandidate[], radius = kHitRadius
+): string | undefined => {
+  let nearest = Infinity;
+  let tied: IHitCandidate[] = [];
+  candidates.forEach(candidate => {
+    const d = distance(candidate.center, pointer);
+    if (d > radius + kTolerance) return;
+    if (d < nearest - kTolerance) {
+      nearest = d;
+      tied = [candidate];
+    } else if (d <= nearest + kTolerance) {
+      tied.push(candidate);
+    }
+  });
+  const containing = tied.filter(candidate => containsPointer(candidate, pointer));
+  const winners = containing.length > 0 ? containing : tied;
+  return winners[winners.length - 1]?.key;
+};
+
 export const kZoomFactor = 1.5;
 export const kMinZoomLevel = -1;
 export const kMaxZoomLevel = 8;

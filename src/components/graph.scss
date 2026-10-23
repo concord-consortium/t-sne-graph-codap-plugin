@@ -22,12 +22,14 @@
     outline-offset: -2px;
   }
 
+  // The plot's hit test picks the point, so the plot shows the cursor for it
+  &[data-over-point] {
+    cursor: pointer;
+  }
+
+  // After the rule above, so a drag that starts beside a point keeps this cursor
   &[data-dragging] {
     cursor: grabbing;
-
-    .point {
-      cursor: grabbing;
-    }
   }
 
   .grid line {
@@ -35,14 +37,11 @@
     stroke-width: 1;
   }
 
+  // The plot takes every pointer event and picks the point itself; a click no pointer made, such as a
+  // screen reader's, still reaches a point
   .point {
-    cursor: pointer;
     outline: none;
-  }
-
-  // Transparent but painted, so it takes clicks
-  .hit-area {
-    fill: transparent;
+    pointer-events: none;
   }
 
   .dot-outline,
@@ -67,7 +66,7 @@
   }
 
   .point:focus-visible .focus-ring,
-  &:has(.point:focus-visible) .active-point .focus-ring {
+  &:has(.point:focus-visible) .active-point[data-reason="focus"] .focus-ring {
     visibility: visible;
   }
 
@@ -75,11 +74,12 @@
     pointer-events: none;
   }
 
-  // Mitered rings would spike far past the triangle's and star's points
-  .test-phrase-point path {
+  // The symbols, and their copies on top
+  [data-symbol] path {
     stroke-linejoin: miter;
   }
-  .test-phrase-point:is([data-symbol="triangle"], [data-symbol="star"]) path {
+  // Mitered rings would spike far past the triangle's and star's points
+  :is([data-symbol="triangle"], [data-symbol="star"]) path {
     stroke-linejoin: round;
   }
 }
