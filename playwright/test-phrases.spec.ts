@@ -3,8 +3,8 @@ import { saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 import { kPluginUrl, openDocument, resizeTileBy, tableCell, tableSelectionCount } from "./lib/codap";
 import {
-  emptySpot, enterTestPhrase, kSymbols, kTestPhrases, moveMouseOff, plot, pluginFrame, point, pressedPhrases,
-  symbolPoint, testField
+  clickPoint, emptySpot, enterTestPhrase, kSymbols, kTestPhrases, moveMouseOff, plot, pluginFrame, point,
+  pressedPhrases, symbolPoint, testField
 } from "./lib/plugin";
 import { openFlatPlot } from "./lib/documents";
 import { axeViolations } from "./lib/accessibility";
@@ -87,11 +87,12 @@ test("restores the test phrases and their points after the document is saved and
   for (const [slot, { text }] of kTestPhrases.entries()) await expect(testField(reopened, slot)).toHaveValue(text);
   expect(await transforms(reopened)).toEqual(placed);
 
-  // A smaller tile moves the points, but each symbol stays at least 18px from its neighbor. The
-  // plot is 300 × 300 at first; the panel keeps its 380px, and the tile loses 120 × 60.
-  await resizeTileBy(page, -120, -60);
-  await expect(plot(reopened)).toHaveAttribute("width", "180");
-  await expect(plot(reopened)).toHaveAttribute("height", "180");
+  // A larger tile moves the points, but each symbol stays at least 18px from its neighbor. The
+  // plot is 300 × 300 at first, which is also its smallest; the panel keeps its 380px, and the tile
+  // gains 120 × 60.
+  await resizeTileBy(page, 120, 60);
+  await expect(plot(reopened)).toHaveAttribute("width", "360");
+  await expect(plot(reopened)).toHaveAttribute("height", "360");
   const distances = await distancesToNeighbors(reopened);
   expect(distances).toHaveLength(5);
   distances.forEach(distance => expect(distance).toBeGreaterThanOrEqual(kMinNeighborOffset - 0.01));
@@ -110,22 +111,22 @@ test("selects test phrases with the symbol button and on the plot, together with
   await expect.poll(() => tableSelectionCount(page)).toBe(0);
 
   // A case point replaces it
-  await point(plugin, caseRow).click();
+  await clickPoint(point(plugin, caseRow));
   await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow]);
   await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-pressed", "false");
 
   // Shift-click adds the symbol to the case
-  await symbolPoint(plugin, 0).click({ modifiers: ["Shift"] });
+  await clickPoint(symbolPoint(plugin, 0), { modifiers: ["Shift"] });
   await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow, `Square test phrase: ${kTestPhrases[0].text}`]);
   await expect.poll(() => tableSelectionCount(page)).toBe(1);
 
   // Shift-click removes a selected case point and keeps the test phrase, through CODAP's notice
   const otherRow = "Nobody anywhere feels this way";
-  await point(plugin, otherRow).click({ modifiers: ["Shift"] });
+  await clickPoint(point(plugin, otherRow), { modifiers: ["Shift"] });
   await expect.poll(() => pressedPhrases(plugin))
     .toEqual([caseRow, otherRow, `Square test phrase: ${kTestPhrases[0].text}`]);
   await moveMouseOff(page);
-  await point(plugin, caseRow).click({ modifiers: ["Shift"] });
+  await clickPoint(point(plugin, caseRow), { modifiers: ["Shift"] });
   await expect.poll(() => pressedPhrases(plugin)).toEqual([otherRow, `Square test phrase: ${kTestPhrases[0].text}`]);
   await expect.poll(() => tableSelectionCount(page)).toBe(1);
 
@@ -135,13 +136,13 @@ test("selects test phrases with the symbol button and on the plot, together with
   await expect.poll(() => tableSelectionCount(page)).toBe(0);
 
   // A click on a table row unselects the symbol
-  await symbolPoint(plugin, 0).click();
+  await clickPoint(symbolPoint(plugin, 0));
   await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-pressed", "true");
   await tableCell(page, caseRow).click();
   await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow]);
 
   // A Shift-click on a table row keeps it
-  await symbolPoint(plugin, 0).click();
+  await clickPoint(symbolPoint(plugin, 0));
   await expect.poll(() => pressedPhrases(plugin)).toEqual([`Square test phrase: ${kTestPhrases[0].text}`]);
   await tableCell(page, caseRow).click({ modifiers: ["Shift"] });
   await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow, `Square test phrase: ${kTestPhrases[0].text}`]);

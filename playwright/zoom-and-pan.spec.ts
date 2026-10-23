@@ -2,7 +2,9 @@ import { expect, type FrameLocator } from "@playwright/test";
 import { saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 import { openDocument, tableSelectionCount } from "./lib/codap";
-import { choose, emptySpot, onPage, plot, pluginFrame, point, pressedPhrases, zoomButton } from "./lib/plugin";
+import {
+  choose, clickPoint, emptySpot, onPage, plot, pluginFrame, point, pressedPhrases, zoomButton
+} from "./lib/plugin";
 import { openFlatPlot } from "./lib/documents";
 import { axeViolations } from "./lib/accessibility";
 
@@ -51,7 +53,7 @@ test("zooms in about the center, fits all again, and stops at the largest zoom",
 test("pans with a mouse drag, which keeps CODAP's selection; a click still clears it", async ({ page }) => {
   const plugin = await openFlatPlot(page);
   const caseRow = "Everyone around the world shares this";
-  await point(plugin, caseRow).click();
+  await clickPoint(point(plugin, caseRow));
   await expect.poll(() => tableSelectionCount(page)).toBe(1);
   const before = await pointCenters(plugin);
 
@@ -82,7 +84,7 @@ test.describe("with a touch screen", () => {
   test("pans the full distance with a finger drag, and keeps the first finger's drag past a second finger",
     async ({ page }) => {
       const plugin = await openFlatPlot(page);
-      await point(plugin, "Everyone around the world shares this").click();
+      await clickPoint(point(plugin, "Everyone around the world shares this"));
       await expect.poll(() => tableSelectionCount(page)).toBe(1);
       const before = await pointCenters(plugin);
 

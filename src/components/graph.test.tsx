@@ -61,6 +61,12 @@ const point = (phrase: string) =>
 const tabToPlot = async (user: ReturnType<typeof userEvent.setup>) => {
   for (let i = 0; i < 4; i++) await user.tab();
 };
+// Where a point is drawn. jsdom puts the plot at (0, 0), so this is also the client position.
+const centerOf = (pointElement: Element) => {
+  const transform = pointElement.getAttribute("transform") ?? "";
+  const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(transform) ?? [];
+  return { clientX: Number(x), clientY: Number(y) };
+};
 const pointNames = () => within(plot()).queryAllByRole("button").map(button => button.getAttribute("aria-label"));
 const pointPhrases = () => pointNames().map(name => name?.split(", ")[0]);
 
@@ -117,7 +123,8 @@ describe("Graph", () => {
       expect(dots.map(dot => dot.getAttribute("r"))).toEqual(["6", "6", "6", "6"]);
       expect(dots.map(dot => dot.getAttribute("fill")))
         .toEqual([kLabelColors[0], kLabelColors[1], kLabelColors[0], kUnlabeledColor]);
-      expect(within(point("the cat sat")).getByTestId("hit-area")).toHaveAttribute("r", "12");
+      // The plot picks the point; a point element has no hit area of its own
+      expect(within(point("the cat sat")).queryByTestId("hit-area")).not.toBeInTheDocument();
     });
 
     it("gives every point a 1px outline just outside its dot", () => {
@@ -549,6 +556,161 @@ describe("Graph", () => {
     });
   });
 
+  describe("picking the nearest point", () => {
+    // "the cat sat" at (150, 150) and "a dog ran" 8px right of it, drawn later, so on top
+    const kOverlapping: Point[] = [
+      { caseId: "1", x: 0.5, y: 0.5 }, { caseId: "2", x: 0.5 + 8 / 276, y: 0.5 }, { caseId: "3", x: 0, y: 0 },
+      { caseId: "4", x: 1, y: 0 }
+    ];
+    const tooltipText = () => screen.queryByTestId("point-tooltip-text")?.textContent;
+    const topCopies = () => screen.queryAllByTestId("active-point").map(copy =>
+      [copy.getAttribute("data-reason"), copy.getAttribute("transform")]);
+    const moveTo = (clientX: number, clientY: number, pointerType = "mouse") =>
+      fireEvent.pointerMove(plot(), { pointerType, clientX, clientY });
+    const press = (clientX: number, clientY: number, pointerType = "mouse") =>
+      fireEvent.pointerDown(plot(), { pointerId: 1, button: 0, pointerType, clientX, clientY });
+    const clickAt = (clientX: number, clientY: number, pointerType = "mouse") => {
+      press(clientX, clientY, pointerType);
+      fireEvent.pointerUp(plot(), { pointerId: 1, pointerType, clientX, clientY });
+      fireEvent.click(plot(), { clientX, clientY });
+    };
+
+    beforeEach(() => {
+      store.setPoints(kOverlapping);
+    });
+
+    it("hovers the point whose center is nearest, and draws it on top", () => {
+      renderGraph(store);
+      moveTo(152, 150);
+      expect(tooltipText()).toBe("the cat sat");
+      expect(topCopies()).toEqual([["hover", "translate(150 150)"]]);
+      moveTo(156, 150);
+      expect(tooltipText()).toBe("a dog ran");
+      expect(topCopies()).toEqual([["hover", "translate(158 150)"]]);
+    });
+
+    it("selects the point whose center is nearest the click", () => {
+      renderGraph(store);
+      clickAt(152, 150);
+      expect(selectPoint).toHaveBeenLastCalledWith(store, "1", false);
+      expect(point("the cat sat")).toHaveFocus();
+      clickAt(156, 150);
+      expect(selectPoint).toHaveBeenLastCalledWith(store, "2", false);
+      expect(point("a dog ran")).toHaveFocus();
+      expect(clearCodapSelection).not.toHaveBeenCalled();
+    });
+
+    it("selects the pressed point even if the release drifted, and extends with Shift", () => {
+      renderGraph(store);
+      press(152, 150);
+      fireEvent.pointerUp(plot(), { pointerId: 1, clientX: 154, clientY: 150 });
+      fireEvent.click(plot(), { clientX: 154, clientY: 150, shiftKey: true });
+      expect(selectPoint).toHaveBeenCalledTimes(1);
+      expect(selectPoint).toHaveBeenCalledWith(store, "1", true);
+    });
+
+    it("pans from a press 20px from both points, and the pan clears the hover", () => {
+      renderGraph(store);
+      moveTo(152, 150);
+      expect(tooltipText()).toBe("the cat sat");
+      press(150, 172);
+      fireEvent.pointerMove(plot(), { pointerId: 1, buttons: 1, clientX: 160, clientY: 172 });
+      expect(plot()).toHaveAttribute("data-dragging", "true");
+      expect(store.isFitView).toBe(false);
+      expect(tooltipText()).toBeUndefined();
+    });
+
+    it("doesn't pan from a press on a point", () => {
+      renderGraph(store);
+      press(152, 150);
+      fireEvent.pointerMove(plot(), { pointerId: 1, buttons: 1, clientX: 200, clientY: 200 });
+      expect(plot()).not.toHaveAttribute("data-dragging");
+      expect(store.isFitView).toBe(true);
+    });
+
+    it.each(["pointerCancel", "lostPointerCapture"] as const)(
+      "forgets a pressed point on %s, so a later click on the background clears the selection", eventName => {
+        renderGraph(store);
+        press(152, 150);
+        fireEvent[eventName](plot(), { pointerId: 1 });
+        fireEvent.click(plot(), { clientX: 50, clientY: 50 });
+        expect(selectPoint).not.toHaveBeenCalled();
+        expect(clearCodapSelection).toHaveBeenCalledWith(store);
+      });
+
+    it("keeps a tapped point through the lost capture that ends every touch, before the click", () => {
+      renderGraph(store);
+      const touch = { pointerId: 1, pointerType: "touch", clientX: 152, clientY: 150 };
+      fireEvent.pointerDown(plot(), { ...touch, button: 0 });
+      fireEvent.pointerUp(plot(), touch);
+      fireEvent.lostPointerCapture(plot(), touch);
+      fireEvent.click(plot(), { clientX: 152, clientY: 150 });
+      expect(selectPoint).toHaveBeenCalledWith(store, "1", false);
+      expect(point("the cat sat")).toHaveFocus();
+    });
+
+    it("keeps a pressed point when another pointer is cancelled", () => {
+      renderGraph(store);
+      press(152, 150);
+      fireEvent.pointerCancel(plot(), { pointerId: 2 });
+      fireEvent.pointerUp(plot(), { pointerId: 1, clientX: 152, clientY: 150 });
+      fireEvent.click(plot(), { clientX: 152, clientY: 150 });
+      expect(selectPoint).toHaveBeenCalledWith(store, "1", false);
+    });
+
+    it("forgets a pressed point at the next press", () => {
+      renderGraph(store);
+      press(152, 150);
+      clickAt(50, 50);
+      expect(selectPoint).not.toHaveBeenCalled();
+      expect(clearCodapSelection).toHaveBeenCalledTimes(1);
+    });
+
+    it("handles a click on a point element, as from a screen reader, once, and not as a background click", () => {
+      renderGraph(store);
+      // A click event with no pointer events before it
+      fireEvent.click(point("the cat sat"));
+      expect(selectPoint).toHaveBeenCalledTimes(1);
+      expect(selectPoint).toHaveBeenCalledWith(store, "1", false);
+      expect(clearCodapSelection).not.toHaveBeenCalled();
+    });
+
+    it("draws the focused point, then the hovered point above it, with the focus copy marked", async () => {
+      const user = userEvent.setup();
+      renderGraph(store);
+      await tabToPlot(user);
+      await user.keyboard("{ArrowRight}");
+      expect(point("the cat sat")).toHaveFocus();
+      moveTo(158, 150);
+      // Only the focus copy shows the focus ring (graph.scss); the hover copy is above it
+      expect(topCopies()).toEqual([["focus", "translate(150 150)"], ["hover", "translate(158 150)"]]);
+      // The same point hovered and focused: one copy
+      moveTo(150, 150);
+      expect(topCopies()).toEqual([["focus", "translate(150 150)"]]);
+    });
+
+    it("marks the plot as over a point only while a point is hovered", () => {
+      renderGraph(store);
+      expect(plot()).not.toHaveAttribute("data-over-point");
+      moveTo(152, 150);
+      expect(plot()).toHaveAttribute("data-over-point", "true");
+      moveTo(150, 180);
+      expect(plot()).not.toHaveAttribute("data-over-point");
+      moveTo(152, 150);
+      fireEvent.pointerOut(plot(), { pointerType: "mouse", relatedTarget: document.body });
+      expect(plot()).not.toHaveAttribute("data-over-point");
+    });
+
+    it("doesn't hover on a touch move, and a tap focuses and shows the nearest point", () => {
+      renderGraph(store);
+      moveTo(152, 150, "touch");
+      expect(tooltipText()).toBeUndefined();
+      clickAt(156, 150, "touch");
+      expect(point("a dog ran")).toHaveFocus();
+      expect(tooltipText()).toBe("a dog ran");
+    });
+  });
+
   describe("keyboard", () => {
     it("is one Tab stop: the plot, until a point has been focused, then that point", async () => {
       const user = userEvent.setup();
@@ -793,7 +955,7 @@ describe("Graph", () => {
           .toEqual(["square", "diamond", "star"]);
       });
 
-      it("fills each symbol with the test-phrase color, with an outline and a 24px hit area", () => {
+      it("fills each symbol with the test-phrase color, with an outline", () => {
         renderGraph(store);
         const square = symbolPoint("Square test phrase: the cat");
         expect(within(square).getByTestId("symbol")).toHaveAttribute("fill", "#2e007f");
@@ -801,7 +963,6 @@ describe("Graph", () => {
         expect(within(square).getByTestId("symbol"))
           .toHaveAttribute("d", "M-6.65 -6.65L6.65 -6.65L6.65 6.65L-6.65 6.65Z");
         expect(within(square).getByTestId("dot-outline")).toHaveStyle({ strokeWidth: "2" });
-        expect(within(square).getByTestId("hit-area")).toHaveAttribute("r", "12");
       });
 
       it("pushes a symbol on its neighbor's dot out to 18px, along its direction", () => {
@@ -1033,12 +1194,15 @@ describe("Graph", () => {
       const style = screen.getByTestId("point-tooltip").style;
       return [style.getPropertyValue("--tooltip-color"), style.getPropertyValue("--tooltip-fill")];
     };
-    const hover = (element: HTMLElement, pointerType = "mouse") => fireEvent.pointerOver(element, { pointerType });
-    const unhover = (element: HTMLElement) => fireEvent.pointerOut(element, { pointerType: "mouse" });
+    // The plot takes the pointer events and picks the point at their position
+    const hover = (element: HTMLElement, pointerType = "mouse") =>
+      fireEvent.pointerMove(plot(), { pointerType, ...centerOf(element) });
+    const unhover = () => fireEvent.pointerOut(plot(), { pointerType: "mouse", relatedTarget: document.body });
     const tap = (element: HTMLElement) => {
-      fireEvent.pointerDown(element, { pointerId: 2, button: 0, pointerType: "touch" });
-      fireEvent.pointerUp(element, { pointerId: 2, button: 0, pointerType: "touch" });
-      fireEvent.click(element);
+      const at = centerOf(element);
+      fireEvent.pointerDown(plot(), { pointerId: 2, button: 0, pointerType: "touch", ...at });
+      fireEvent.pointerUp(plot(), { pointerId: 2, button: 0, pointerType: "touch", ...at });
+      fireEvent.click(plot(), at);
     };
     const pressBackground = (pointerType: string) =>
       fireEvent.pointerDown(plot(), { pointerId: 3, button: 0, pointerType, clientX: 100, clientY: 60 });
@@ -1057,7 +1221,7 @@ describe("Graph", () => {
       hover(point("the cat sat"));
       expect(tooltip()).toHaveTextContent("the cat sat");
       expect(tooltipColors()).toEqual([kLabelColors[0], "#c0cfff"]);
-      unhover(point("the cat sat"));
+      unhover();
       expect(tooltip()).not.toBeInTheDocument();
       hover(point("a fish swam"));
       expect(tooltipColors()).toEqual([kUnlabeledColor, "#d1d1d1"]);
@@ -1126,7 +1290,7 @@ describe("Graph", () => {
       renderGraph(store);
       await user.click(point("the cat sat"));
       expect(point("the cat sat")).toHaveFocus();
-      await user.unhover(point("the cat sat"));
+      unhover();
       expect(tooltip()).not.toBeInTheDocument();
     });
 
@@ -1134,7 +1298,7 @@ describe("Graph", () => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.click(point("the cat sat"));
-      await user.unhover(point("the cat sat"));
+      unhover();
       await user.click(document.body);
       await tabToPlot(user);
       expect(point("the cat sat")).toHaveFocus();
@@ -1150,7 +1314,7 @@ describe("Graph", () => {
       // Already focused, so no focus event comes
       await user.click(point("the cat sat"));
       expect(point("the cat sat")).toHaveFocus();
-      await user.unhover(point("the cat sat"));
+      unhover();
       expect(tooltip()).not.toBeInTheDocument();
     });
 
@@ -1158,7 +1322,7 @@ describe("Graph", () => {
       renderGraph(store);
       hover(point("a dog ran"));
       expect(tooltip()).toHaveTextContent("a dog ran");
-      tap(within(point("the cat sat")).getByTestId("dot"));
+      tap(point("the cat sat"));
       expect(tooltip()).toHaveTextContent("the cat sat");
       pressBackground("touch");
       expect(tooltip()).not.toBeInTheDocument();
@@ -1178,7 +1342,7 @@ describe("Graph", () => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.click(point("the cat sat"));
-      await user.unhover(point("the cat sat"));
+      unhover();
       expect(tooltip()).not.toBeInTheDocument();
       // The first point, so the key moves nowhere and no focus event comes
       await user.keyboard(key);
@@ -1190,7 +1354,7 @@ describe("Graph", () => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.click(point("the cat sat"));
-      await user.unhover(point("the cat sat"));
+      unhover();
       hover(point("a dog ran"));
       await user.keyboard("{Shift>}");
       expect(tooltip()).toHaveTextContent("a dog ran");
@@ -1203,11 +1367,12 @@ describe("Graph", () => {
       await tabToPlot(user);
       await user.keyboard("{ArrowRight}");
       expect(point("the cat sat")).toHaveFocus();
-      // A click with no mouse move, so no new pointer enter
-      fireEvent.pointerDown(point("the cat sat"), { pointerId: 1, button: 0, pointerType: "mouse" });
-      fireEvent.click(point("the cat sat"));
+      // A click with no mouse move
+      const at = centerOf(point("the cat sat"));
+      fireEvent.pointerDown(plot(), { pointerId: 1, button: 0, pointerType: "mouse", ...at });
+      fireEvent.click(plot(), at);
       expect(tooltip()).toHaveTextContent("the cat sat");
-      unhover(point("the cat sat"));
+      unhover();
       expect(tooltip()).not.toBeInTheDocument();
     });
 
@@ -1216,13 +1381,14 @@ describe("Graph", () => {
       hover(point("the cat sat"));
       const box = screen.getByTestId("point-tooltip");
       const bridge = screen.getByTestId("point-tooltip-bridge");
-      const dot = within(point("the cat sat")).getByTestId("dot");
-      fireEvent.pointerOut(point("the cat sat"), { pointerType: "mouse", relatedTarget: box });
+      const onDot = centerOf(point("the cat sat"));
+      fireEvent.pointerOut(plot(), { pointerType: "mouse", relatedTarget: box });
       expect(tooltip()).toHaveTextContent("the cat sat");
-      fireEvent.pointerOut(box, { pointerType: "mouse", relatedTarget: dot });
+      // Back on the plot, the pointer's position picks the point
+      fireEvent.pointerOut(box, { pointerType: "mouse", relatedTarget: plot(), ...onDot });
       expect(tooltip()).toHaveTextContent("the cat sat");
       // Across the bridge between them, too
-      fireEvent.pointerOut(point("the cat sat"), { pointerType: "mouse", relatedTarget: bridge });
+      fireEvent.pointerOut(plot(), { pointerType: "mouse", relatedTarget: bridge });
       expect(tooltip()).toHaveTextContent("the cat sat");
       fireEvent.pointerOut(bridge, { pointerType: "mouse", relatedTarget: plot() });
       expect(tooltip()).not.toBeInTheDocument();
@@ -1233,12 +1399,12 @@ describe("Graph", () => {
       renderGraph(store);
       hover(point("the cat sat"));
       expect(tooltip()).toHaveAttribute("data-hoverable");
-      unhover(point("the cat sat"));
+      unhover();
       await tabToPlot(user);
       await user.keyboard("{ArrowRight}");
       expect(tooltip()).toHaveTextContent("the cat sat");
       expect(tooltip()).not.toHaveAttribute("data-hoverable");
-      tap(within(point("a dog ran")).getByTestId("dot"));
+      tap(point("a dog ran"));
       expect(tooltip()).toHaveTextContent("a dog ran");
       expect(tooltip()).not.toHaveAttribute("data-hoverable");
     });
@@ -1254,7 +1420,7 @@ describe("Graph", () => {
       const user = userEvent.setup();
       renderGraph(store);
       await user.click(point("the cat sat"));
-      await user.unhover(point("the cat sat"));
+      unhover();
       await user.click(document.body);
       fireEvent.blur(window);
       act(() => point("the cat sat").focus());
@@ -1266,9 +1432,10 @@ describe("Graph", () => {
       hover(point("the cat sat"));
       fireEvent.keyDown(document, { key: "Escape" });
       expect(tooltip()).not.toBeInTheDocument();
-      // A click with no pointer move, so no new pointer enter
-      fireEvent.pointerDown(point("the cat sat"), { pointerId: 1, button: 0, pointerType: type });
-      fireEvent.click(point("the cat sat"));
+      // A click with no pointer move
+      const at = centerOf(point("the cat sat"));
+      fireEvent.pointerDown(plot(), { pointerId: 1, button: 0, pointerType: type, ...at });
+      fireEvent.click(plot(), at);
       expect(tooltip()).toHaveTextContent("the cat sat");
     });
 
@@ -1278,7 +1445,7 @@ describe("Graph", () => {
       hover(point("the cat sat"));
       await user.keyboard("{Escape}");
       expect(tooltip()).not.toBeInTheDocument();
-      unhover(point("the cat sat"));
+      unhover();
       hover(point("the cat sat"));
       expect(tooltip()).toHaveTextContent("the cat sat");
     });
@@ -1331,18 +1498,18 @@ describe("Graph", () => {
 
     it("focuses, selects and shows a tapped point, and moves to the next one tapped", () => {
       renderGraph(store);
-      tap(within(point("the cat sat")).getByTestId("dot"));
+      tap(point("the cat sat"));
       expect(point("the cat sat")).toHaveFocus();
       expect(selectPoint).toHaveBeenCalledWith(store, "1", false);
       expect(tooltip()).toHaveTextContent("the cat sat");
-      tap(within(point("a dog ran")).getByTestId("dot"));
+      tap(point("a dog ran"));
       expect(point("a dog ran")).toHaveFocus();
       expect(tooltip()).toHaveTextContent("a dog ran");
     });
 
     it.each(["touch", "mouse"])("focuses the plot on a %s press on the background, before the click", type => {
       renderGraph(store);
-      tap(within(point("the cat sat")).getByTestId("dot"));
+      tap(point("the cat sat"));
       expect(tooltip()).toBeInTheDocument();
       pressBackground(type);
       expect(plot()).toHaveFocus();
@@ -1387,7 +1554,8 @@ describe("Graph", () => {
 
       it.each(["mouse", "touch"])("doesn't pan to a point focused by a %s press", type => {
         renderGraph(store);
-        fireEvent.pointerDown(point("the cat sat"), { pointerId: 2, button: 0, pointerType: type });
+        const at = centerOf(point("the cat sat"));
+        fireEvent.pointerDown(plot(), { pointerId: 2, button: 0, pointerType: type, ...at });
         act(() => point("the cat sat").focus());
         expect(store.view).toEqual({ zoomLevel: 3, centerX: 0.5, centerY: 0.5 });
       });
@@ -1395,7 +1563,8 @@ describe("Graph", () => {
       it("pans to a point focused from the keyboard after a press", async () => {
         const user = userEvent.setup();
         renderGraph(store);
-        fireEvent.pointerDown(point("a dog ran"), { pointerId: 2, button: 0, pointerType: "mouse" });
+        const at = centerOf(point("a dog ran"));
+        fireEvent.pointerDown(plot(), { pointerId: 2, button: 0, pointerType: "mouse", ...at });
         await tabToPlot(user);
         await user.keyboard("{Home}");
         expect(point("the cat sat")).toHaveFocus();

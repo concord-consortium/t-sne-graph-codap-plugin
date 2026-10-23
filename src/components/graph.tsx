@@ -7,8 +7,8 @@ import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
 import { kTestPhraseColor, kTestPhraseTooltipFill } from "../tsne/labels";
 import {
-  applyView, directionToPixels, gridLines, IPosition, ISize, IView, kHitRadius, offsetFromNeighbor, paddedBounds,
-  panToInclude, toPixels, worldBounds
+  applyView, directionToPixels, gridLines, IHitCandidate, IPosition, ISize, IView, nearestPoint, offsetFromNeighbor,
+  paddedBounds, panToInclude, toPixels, worldBounds
 } from "../tsne/layout";
 import {
   kPlotSymbolExtents, kSymbolEdgeWidth, kSymbolOutlineWidth, kSymbolRingWidth, SymbolFocusRing, symbolName, symbolPath
@@ -106,6 +106,8 @@ export const Graph = observer(() => {
   const drag = useRef<IDrag | undefined>(undefined);
   // The click after a drag isn't a background click
   const ignoreClick = useRef(false);
+  // The point a press was on, for the click that follows. Cleared with the drag state.
+  const pressed = useRef<{ key: string, pointerId: number, isReleased: boolean } | undefined>(undefined);
   const [isDragging, setIsDragging] = useState(false);
   // The point under a mouse or pen, or whose tooltip it is on
   const [hoverKey, setHoverKey] = useState<string>();
@@ -253,7 +255,23 @@ export const Graph = observer(() => {
     event.preventDefault();
   };
 
-  const handleBackgroundClick = (event: MouseEvent<SVGSVGElement>) => {
+  // A mouse or pen click is on the point, even if keyboard focus ended its hover. Browsers don't reliably
+  // focus a tapped point.
+  const activatePoint = (key: string, extend: boolean) => {
+    moveTo(key);
+    const pointerType = lastPointerType.current;
+    if (pointerType === "mouse" || pointerType === "pen") setHoverKey(key);
+    select(key, extend);
+  };
+
+  // The point a press or click took from the pointer, not from the point elements
+  const handlePlotClick = (event: MouseEvent<SVGSVGElement>) => {
+    const pressedKey = pressed.current?.key;
+    pressed.current = undefined;
+    if (pressedKey !== undefined) {
+      if (keys.includes(pressedKey)) activatePoint(pressedKey, event.shiftKey);
+      return;
+    }
     if (ignoreClick.current) {
       ignoreClick.current = false;
       return;
@@ -264,7 +282,12 @@ export const Graph = observer(() => {
 
   // Only from the background: a press on a point is a click on it. An empty plot has no view to move.
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
-    if ((event.target as Element).closest(".point")) return;
+    pressed.current = undefined;
+    const hit = hitTest(event);
+    if (hit !== undefined) {
+      if (event.button === 0) pressed.current = { key: hit, pointerId: event.pointerId, isReleased: false };
+      return;
+    }
     // Not every browser blurs a point on a press here, which would leave a tapped point's tooltip
     const svg = svgRef.current;
     if (svg && document.activeElement !== svg && svg.contains(document.activeElement)) svg.focus();
@@ -281,7 +304,11 @@ export const Graph = observer(() => {
 
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
     const current = drag.current;
-    if (event.pointerId !== current?.pointerId) return;
+    if (!current) {
+      updateHover(event);
+      return;
+    }
+    if (event.pointerId !== current.pointerId) return;
     // No button down: the release never came, as when the window lost focus mid-drag
     if (event.buttons === 0) {
       endDrag(event, false);
@@ -305,8 +332,14 @@ export const Graph = observer(() => {
     current.lastY = clientY;
   };
 
-  // No click follows a cancel or a lost capture
+  // No click follows a cancel or a lost capture. A touch loses its implicit capture after every release,
+  // before the click, so only a capture lost before the release ends a press.
   const endDrag = (event: PointerEvent<SVGSVGElement>, isRelease: boolean) => {
+    const press = pressed.current;
+    if (press?.pointerId === event.pointerId) {
+      if (isRelease) press.isReleased = true;
+      else if (!(press.isReleased && event.type === "lostpointercapture")) pressed.current = undefined;
+    }
     const current = drag.current;
     if (event.pointerId !== current?.pointerId) return;
     if (isRelease && current.isDragging) ignoreClick.current = true;
@@ -314,28 +347,29 @@ export const Graph = observer(() => {
     setIsDragging(false);
   };
 
-  // Browsers don't reliably focus a tapped point. A mouse or pen click is on the point, even if keyboard
-  // focus ended its hover.
+  // Only a click no pointer made reaches a point element, such as a screen reader's. Stopped, so the plot's
+  // click handler doesn't handle it again.
   const handlePointClick = (event: MouseEvent<SVGGElement>, key: string) => {
     event.stopPropagation();
-    moveTo(key);
-    const pointerType = lastPointerType.current;
-    if (pointerType === "mouse" || pointerType === "pen") setHoverKey(key);
-    select(key, event.shiftKey);
+    activatePoint(key, event.shiftKey);
   };
 
   // A finger has no hover; a tap focuses instead
-  const handlePointerEnter = (event: PointerEvent<Element>, key: string) => {
-    if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
+  const isHoverPointer = (event: PointerEvent<Element>) => event.pointerType === "mouse" || event.pointerType === "pen";
+
+  // A tooltip shown by hover can be hovered too
+  const handleTooltipEnter = (event: PointerEvent<Element>, key: string) => {
+    if (!isHoverPointer(event)) return;
     setHoverKey(key);
     setIsDismissed(false);
   };
 
-  // Moving between a point and its tooltip keeps the hover, so the tooltip can be hovered
-  const handlePointerLeave = (event: PointerEvent<Element>, key: string) => {
+  // Moving between the plot and the tooltip keeps the hover; back on the plot, the pointer's position decides
+  const handlePointerLeave = (event: PointerEvent<Element>) => {
     const to = event.relatedTarget instanceof Element ? event.relatedTarget : null;
-    if (to?.closest(".point-tooltip") || (to && pointRefs.current.get(key)?.contains(to))) return;
-    setHoverKey(current => current === key ? undefined : current);
+    if (to?.closest(".point-tooltip")) return;
+    if (to && svgRef.current?.contains(to)) updateHover(event);
+    else setHoverKey(undefined);
   };
 
   const handlePointBlur = (key: string) => {
@@ -369,6 +403,35 @@ export const Graph = observer(() => {
     return placed;
   }, [store.points, store.testPhrasePoints, size, view]);
 
+  // In draw order, so a tie goes to the point on top
+  const hitCandidates = () => {
+    const candidates: IHitCandidate[] = points.map(point => ({ key: caseKey(point.caseId),
+      center: viewPixels(point, view, size), halfExtent: kOutlineRadius, isRound: true }));
+    testPoints.forEach(point => {
+      const center = testPointPixels.get(point.slot);
+      if (!center) return;
+      candidates.push({ key: slotKey(point.slot), center,
+        halfExtent: kPlotSymbolExtents[store.symbolForSlot(point.slot)] / 2, isRound: false });
+    });
+    return candidates;
+  };
+
+  // The point whose center is nearest the pointer. The point elements take no pointer events, so the browser,
+  // which picks the one drawn last, doesn't choose.
+  const hitTest = ({ clientX, clientY }: { clientX: number, clientY: number }) => {
+    const svg = svgRef.current;
+    if (!svg) return undefined;
+    const { left, top } = svg.getBoundingClientRect();
+    return nearestPoint({ x: clientX - left, y: clientY - top }, hitCandidates());
+  };
+
+  const updateHover = (event: PointerEvent<Element>) => {
+    if (!isHoverPointer(event)) return;
+    const hit = hitTest(event);
+    if (hit !== undefined && hit !== hoverKey) setIsDismissed(false);
+    setHoverKey(hit);
+  };
+
   // The ring search can put a symbol 18px from its dot
   const drawnPixel = (key: string) => {
     const slot = slotFromKey(key);
@@ -391,9 +454,16 @@ export const Graph = observer(() => {
     if (panned !== view) store.panTo(panned.centerX, panned.centerY);
   };
 
-  // A test phrase is drawn after the case points, so only a case point needs drawing again on top
-  const activePoint = activeExists ? points.find(point => caseKey(point.caseId) === activeKey) : undefined;
-  const activePixels = activePoint && viewPixels(activePoint, view, size);
+  // A test phrase is drawn after the case points, so only a case point needs drawing again on top: the
+  // focused one, then the hovered one above it
+  const topCopies: { point: Point, reason: "focus" | "hover", pixels: IPosition }[] = [];
+  const addTopCopy = (key: string | undefined, reason: "focus" | "hover") => {
+    const point = key !== undefined ? points.find(p => caseKey(p.caseId) === key) : undefined;
+    if (point) topCopies.push({ point, reason, pixels: viewPixels(point, view, size) });
+  };
+  const focusCopyKey = activeExists ? activeKey : undefined;
+  addTopCopy(focusCopyKey, "focus");
+  addTopCopy(hoverKey !== focusCopyKey ? hoverKey : undefined, "hover");
   const hasPoints = points.length > 0;
   const hasLabels = store.labelAttributeName !== undefined;
   const testPhraseCount = testPoints.length > 0 ? ` and ${plural(testPoints.length, "test phrase")}` : "";
@@ -438,10 +508,12 @@ export const Graph = observer(() => {
         // can still take focus.
         tabIndex={hasPoints && !activeExists ? 0 : -1}
         data-dragging={isDragging || undefined}
+        data-over-point={hoverKey !== undefined || undefined}
         onKeyDown={handleKeyDown}
-        onClick={handleBackgroundClick}
+        onClick={handlePlotClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
         onPointerUp={event => endDrag(event, true)}
         onPointerCancel={event => endDrag(event, false)}
         onLostPointerCapture={event => endDrag(event, false)}
@@ -480,23 +552,19 @@ export const Graph = observer(() => {
               onClick={event => handlePointClick(event, key)}
               onFocus={() => handlePointFocus(key)}
               onBlur={() => handlePointBlur(key)}
-              onPointerEnter={event => handlePointerEnter(event, key)}
-              onPointerLeave={event => handlePointerLeave(event, key)}
             >
-              <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
               <PointMarks color={store.colorForCase(point.caseId)} selected={selected} />
             </g>
           );
         })}
-        {/* The active point drawn again on top of its neighbors. Moving the point itself to the end
-            would make React move a focused element, which drops its focus. */}
-        {activePoint && activePixels && (
-          <g className="active-point" data-testid="active-point" aria-hidden="true"
-            transform={`translate(${activePixels.x} ${activePixels.y})`}>
-            <PointMarks color={store.colorForCase(activePoint.caseId)}
-              selected={store.isSelected(activePoint.caseId)} />
+        {/* The focused and hovered points drawn again on top of their neighbors. Moving the points themselves
+            to the end would make React move a focused element, which drops its focus. */}
+        {topCopies.map(({ point, reason, pixels }) => (
+          <g key={reason} className="active-point" data-testid="active-point" data-reason={reason} aria-hidden="true"
+            transform={`translate(${pixels.x} ${pixels.y})`}>
+            <PointMarks color={store.colorForCase(point.caseId)} selected={store.isSelected(point.caseId)} />
           </g>
-        )}
+        ))}
         {testPoints.map(point => {
           const { x, y } = testPointPixels.get(point.slot) ?? { x: 0, y: 0 };
           const selected = store.isSlotSelected(point.slot);
@@ -519,10 +587,7 @@ export const Graph = observer(() => {
               onClick={event => handlePointClick(event, key)}
               onFocus={() => handlePointFocus(key)}
               onBlur={() => handlePointBlur(key)}
-              onPointerEnter={event => handlePointerEnter(event, key)}
-              onPointerLeave={event => handlePointerLeave(event, key)}
             >
-              <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
               {selected && <path className="selection-edge" data-testid="selection-edge" d={path}
                 style={{ strokeWidth: kSymbolEdgeWidth }} />}
               {selected && <path className="selection-ring" data-testid="selection-ring" d={path}
@@ -539,8 +604,8 @@ export const Graph = observer(() => {
         <PointTooltip text={tooltip.text} color={tooltip.color} fill={tooltip.fill} halfExtent={tooltip.halfExtent}
           anchor={{ x: tooltip.pixel.x + offset.left, y: tooltip.pixel.y + offset.top }} area={area}
           isHoverable={tooltip.key === hoverKey}
-          onPointerEnter={event => handlePointerEnter(event, tooltip.key)}
-          onPointerLeave={event => handlePointerLeave(event, tooltip.key)} />
+          onPointerEnter={event => handleTooltipEnter(event, tooltip.key)}
+          onPointerLeave={handlePointerLeave} />
       )}
       <p className="visually-hidden" id={helpId}>{kKeyboardHelp}</p>
       <p className="graph-status" role="status" aria-live="polite">{message}</p>

@@ -4,8 +4,8 @@ import { test } from "./fixtures";
 import { kHierarchicalPhrases as kFixturePhrases } from "./fixtures/hierarchical-phrases";
 import { kPluginUrl, openDocument, resizeTileBy, resizeTileTo, tableCell } from "./lib/codap";
 import {
-  choose, dropdown, emptySpot, expectPointsClearOfZoomButtons, optionsOf, plot, plotLayout, pluginFrame, point,
-  pressedPhrases, tabToPlot
+  choose, clickPoint, dropdown, emptySpot, expectPointsClearOfZoomButtons, optionsOf, plot, plotLayout, pluginFrame,
+  point, pressedPhrases, tabToPlot
 } from "./lib/plugin";
 import { documentWithPlugin } from "./lib/documents";
 import { axeViolations } from "./lib/accessibility";
@@ -166,7 +166,7 @@ test("mirrors the selection between the plot, the Key and CODAP's table", async 
   const plugin = await openPlot(page, "label");
 
   // A point → its row
-  await point(plugin, "a dog sprinted outside").click();
+  await clickPoint(point(plugin, "a dog sprinted outside"));
   await expect.poll(() => selectedInTable(page)).toEqual(["a dog sprinted outside"]);
   await expect.poll(() => pressedPhrases(plugin)).toEqual(["a dog sprinted outside"]);
 
@@ -177,8 +177,8 @@ test("mirrors the selection between the plot, the Key and CODAP's table", async 
 
   // As in CODAP's graph: a plain click on a selected point changes nothing, and a Shift-click removes
   // it. Had the plain click narrowed the selection, the Shift-click would leave nothing selected.
-  await point(plugin, "the cat sat on the mat").click();
-  await point(plugin, "the cat sat on the mat").click({ modifiers: ["Shift"] });
+  await clickPoint(point(plugin, "the cat sat on the mat"));
+  await clickPoint(point(plugin, "the cat sat on the mat"), { modifiers: ["Shift"] });
   await expect.poll(() => selectedInTable(page)).toEqual(["a cat rested on a rug", "the kitten lay on the carpet"]);
 
   // A parent row → all its points
