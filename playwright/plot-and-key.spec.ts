@@ -2,7 +2,7 @@ import { expect, type FrameLocator, type Page } from "@playwright/test";
 import { saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 import { kHierarchicalPhrases as kFixturePhrases } from "./fixtures/hierarchical-phrases";
-import { kPluginUrl, openDocument, resizeTileBy, tableCell } from "./lib/codap";
+import { kPluginUrl, openDocument, resizeTileBy, resizeTileTo, tableCell } from "./lib/codap";
 import {
   choose, dropdown, emptySpot, expectPointsClearOfZoomButtons, optionsOf, plot, plotLayout, pluginFrame, point,
   pressedPhrases, tabToPlot
@@ -378,4 +378,41 @@ test("keeps the plot square and centered when the tile is resized", async ({ pag
   await resizeTileBy(page, -200, 150);
   await expect.poll(async () => (await plotLayout(plugin)).top).toBeGreaterThan(50);
   expect((await expectSquareAndCentered()).left).toBe(0);
+});
+
+// The plugin content's size, in whole pixels
+const contentSize = async (plugin: FrameLocator) => {
+  const box = await plugin.locator(".app").boundingBox();
+  if (!box) throw new Error("The plugin is not visible");
+  return { width: Math.round(box.width), height: Math.round(box.height) };
+};
+
+test("keeps the plugin at its starting size, and scrolls, when the tile is made smaller", async ({ page }) => {
+  const plugin = await openPlot(page, "label");
+  const scrolls = () => plugin.locator("html").evaluate(html => ({
+    x: html.scrollWidth > html.clientWidth, y: html.scrollHeight > html.clientHeight
+  }));
+  const appSize = () => contentSize(plugin);
+
+  // At the starting size the plugin fits exactly
+  await expect.poll(scrolls).toEqual({ x: false, y: false });
+  const startingSize = await appSize();
+
+  // Smaller: the plugin keeps its starting size, so the CSS minimum equals kContentSize
+  await resizeTileTo(page, 500, 250);
+  await expect.poll(scrolls).toEqual({ x: true, y: true });
+  expect(await appSize()).toEqual(startingSize);
+  expect((await plotLayout(plugin)).plot).toEqual({ width: 300, height: 300 });
+
+  // Larger: the plot grows and stays square
+  await resizeTileTo(page, 900, 500);
+  await expect.poll(async () => (await plotLayout(plugin)).plot.width).toBeGreaterThan(300);
+  const { plot: square } = await plotLayout(plugin);
+  expect(square.width).toBe(square.height);
+  await expect.poll(scrolls).toEqual({ x: false, y: false });
+
+  // Back to the starting size: no scrollbars
+  await resizeTileTo(page, 680, 334);
+  await expect.poll(scrolls).toEqual({ x: false, y: false });
+  expect(await appSize()).toEqual(startingSize);
 });

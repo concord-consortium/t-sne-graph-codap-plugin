@@ -27,5 +27,14 @@ export const resizeTileBy = async (page: Page, dx: number, dy: number) => {
   await page.mouse.move(box.x + box.width - 4 + dx, box.y + box.height - 4 + dy, { steps: 10 });
   await page.mouse.up();
 };
+
+// Drags the plugin tile's bottom-right corner until the whole tile, title bar included, has this size
+export const resizeTileTo = async (page: Page, width: number, height: number) => {
+  const tile = page.locator(".codap-component").filter({ has: page.locator(".codap-web-view-iframe") });
+  const box = await tile.boundingBox();
+  if (!box) throw new Error("The plugin tile is not visible");
+  await resizeTileBy(page, width - box.width, height - box.height);
+};
+
 export const tableSelectionCount = (page: Page) =>
   page.locator(".codap-case-table [role=row][aria-selected=true]").count();
