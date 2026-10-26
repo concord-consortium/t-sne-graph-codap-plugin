@@ -127,8 +127,8 @@ export const Graph = observer(() => {
   const drag = useRef<IDrag | undefined>(undefined);
   // The click after a drag isn't a background click
   const ignoreClick = useRef(false);
-  // The point a press was on, for the click that follows. Cleared with the drag state, and by a move as far as a
-  // drag's.
+  // The point a press was on, until its click. The next press, a cancel, a capture lost before the release, or a
+  // move as far as a drag's forgets it.
   const pressed = useRef<
     { key: string, pointerId: number, startX: number, startY: number, isReleased: boolean } | undefined
   >(undefined);
@@ -324,7 +324,7 @@ export const Graph = observer(() => {
     const svg = svgRef.current;
     if (svg && document.activeElement !== svg && svg.contains(document.activeElement)) svg.focus();
     if (!store.hasGraph || event.button !== 0) return;
-    // A second finger doesn't take over a drag
+    // A press from another input doesn't take over a drag
     if (drag.current) return;
     // In case the last drag's click never came
     ignoreClick.current = false;

@@ -59,7 +59,6 @@
 
   .focus-ring {
     fill: none;
-    pointer-events: none;
     stroke: $focus-color;
     stroke-width: 2;
     visibility: hidden;
@@ -70,6 +69,9 @@
     visibility: visible;
   }
 
+  // A copy can be replaced between a press and its release (the press moves focus, which swaps the focus copy for a
+  // hover copy), and Chromium sends no click when the pressed element is gone. Taking no pointer events, a copy
+  // leaves the press and the release to the plot itself.
   .active-point {
     pointer-events: none;
   }
