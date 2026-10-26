@@ -17,10 +17,12 @@ jest.mock("../models/selection-sync",
 class TestPointerEvent extends MouseEvent {
   pointerId: number;
   pointerType: string;
+  isPrimary: boolean;
   constructor(type: string, init: PointerEventInit = {}) {
     super(type, init);
     this.pointerId = init.pointerId ?? 0;
     this.pointerType = init.pointerType ?? "mouse";
+    this.isPrimary = init.isPrimary ?? true;
   }
 }
 if (typeof window.PointerEvent === "undefined") {
@@ -345,7 +347,7 @@ describe("Graph", () => {
       const touch = { pointerType: "touch" };
       press(100, 100, touch);
       move(110, 100, touch);
-      press(200, 200, { ...touch, pointerId: 2 });
+      press(200, 200, { ...touch, pointerId: 2, isPrimary: false });
       // The second finger's moves change nothing
       move(300, 300, { ...touch, pointerId: 2 });
       expect(store.view.centerX).toBeCloseTo(0.5 - 10 / kInner, 12);
@@ -679,6 +681,41 @@ describe("Graph", () => {
       fireEvent.pointerUp(plot(), { pointerId: 1, clientX: 152, clientY: 150 });
       fireEvent.click(plot(), { clientX: 152, clientY: 150 });
       expect(selectPoint).toHaveBeenCalledWith(store, "1", false);
+    });
+
+    describe("with a second finger", () => {
+      const finger = (pointerId: number, clientX: number, clientY: number) =>
+        ({ pointerId, pointerType: "touch", isPrimary: pointerId === 1, clientX, clientY });
+
+      it("keeps the first finger's point when a second finger touches another point", () => {
+        renderGraph(store);
+        fireEvent.pointerDown(plot(), { ...finger(1, 152, 150), button: 0 });
+        // Nearer "a dog ran"
+        fireEvent.pointerDown(plot(), { ...finger(2, 156, 150), button: 0 });
+        fireEvent.pointerUp(plot(), finger(2, 156, 150));
+        fireEvent.pointerUp(plot(), finger(1, 152, 150));
+        fireEvent.click(plot(), { clientX: 152, clientY: 150 });
+        expect(selectPoint).toHaveBeenCalledTimes(1);
+        expect(selectPoint).toHaveBeenCalledWith(store, "1", false);
+      });
+
+      it("selects nothing when a second finger touches a point during a pan, and the next click still counts", () => {
+        renderGraph(store);
+        // 30px from both points; a 20px pan moves them 20px right, "a dog ran" to (178, 150)
+        fireEvent.pointerDown(plot(), { ...finger(1, 150, 180), button: 0 });
+        fireEvent.pointerMove(plot(), { ...finger(1, 170, 180), buttons: 1 });
+        expect(plot()).toHaveAttribute("data-dragging", "true");
+        fireEvent.pointerDown(plot(), { ...finger(2, 178, 150), button: 0 });
+        fireEvent.pointerUp(plot(), finger(2, 178, 150));
+        fireEvent.pointerUp(plot(), finger(1, 170, 180));
+        // The pan's own click
+        fireEvent.click(plot(), { clientX: 170, clientY: 180 });
+        expect(selectPoint).not.toHaveBeenCalled();
+        expect(clearCodapSelection).not.toHaveBeenCalled();
+        // The next background click is not swallowed
+        fireEvent.click(plot(), { clientX: 50, clientY: 50 });
+        expect(clearCodapSelection).toHaveBeenCalledWith(store);
+      });
     });
 
     it("forgets a pressed point at the next press", () => {

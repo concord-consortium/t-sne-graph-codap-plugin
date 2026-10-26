@@ -310,6 +310,7 @@ export const Graph = observer(() => {
 
   // Only from the background: a press on a point is a click on it. An empty plot has no view to move.
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
+    if (event.isPrimary === false) return;
     pressed.current = undefined;
     const hit = hitTest(event);
     if (hit !== undefined) {
