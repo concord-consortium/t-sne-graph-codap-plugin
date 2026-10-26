@@ -27,6 +27,13 @@ export const plot = (plugin: FrameLocator) => plugin.getByRole("group", { name: 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const point = (plugin: FrameLocator, phrase: string) =>
   plugin.getByRole("button", { name: new RegExp(`^${escapeRegExp(phrase)}(, [^,]*)?$`) });
+// A point's center in the plot, from its transform
+export const centerOf = async (element: Locator) => {
+  const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(await element.getAttribute("transform") ?? "") ?? [];
+  return { x: Number(x), y: Number(y) };
+};
+// A dot in the flat fixture far from every other dot, so its tooltip and symbols are easy to see and hover
+export const kIsolatedDot = "Every voice across the globe";
 // Shift+Tab from the first dropdown reaches the plot by keyboard, which shows :focus-visible styles
 export const tabToPlot = async (plugin: FrameLocator) => {
   await dropdown(plugin, "Data Table").focus();

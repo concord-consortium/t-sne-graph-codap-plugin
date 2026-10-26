@@ -3,8 +3,8 @@ import { saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 import { kPluginUrl, openDocument, resizeTileBy, tableCell, tableSelectionCount } from "./lib/codap";
 import {
-  clickPoint, emptySpot, enterTestPhrase, kSymbols, kTestPhrases, moveMouseOff, onPage, plot, pluginFrame, point,
-  pressedPhrases, symbolPoint, testField
+  centerOf, clickPoint, emptySpot, enterTestPhrase, kIsolatedDot, kSymbols, kTestPhrases, moveMouseOff, onPage, plot,
+  pluginFrame, point, pressedPhrases, symbolPoint, testField
 } from "./lib/plugin";
 import { openFlatPlot } from "./lib/documents";
 import { axeViolations } from "./lib/accessibility";
@@ -255,14 +255,7 @@ test("keeps the test phrases' borders, symbols and focus visible in forced-color
   expect(focusRing.stroke).toBe(focusRing.expected);
 });
 
-// A dot in the flat fixture far from every other dot, so its symbols are easy to see and hover
-const kIsolatedDot = "Every voice across the globe";
 const transformOf = (element: Locator) => element.getAttribute("transform");
-// A point's center in the plot, from its transform
-const centerOf = async (element: Locator) => {
-  const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(await transformOf(element) ?? "") ?? [];
-  return { x: Number(x), y: Number(y) };
-};
 // Each point's name, in drawing order
 const drawOrder = (plugin: FrameLocator) =>
   plugin.locator(".graph-plot .point").evaluateAll(points => points.map(p => p.getAttribute("aria-label")));

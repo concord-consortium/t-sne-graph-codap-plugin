@@ -2,14 +2,13 @@ import { expect, type FrameLocator, type Locator, type Page } from "@playwright/
 import { test } from "./fixtures";
 import { resizeTileBy } from "./lib/codap";
 import {
-  clickPoint, emptySpot, enterTestPhrase, kTestPhrases, moveMouseOff, onPage, plot, plotLayout, point, pressedPhrases,
-  symbolPoint, tabToPlot, zoomButton
+  centerOf, clickPoint, emptySpot, enterTestPhrase, kIsolatedDot, kTestPhrases, moveMouseOff, onPage, plot,
+  plotLayout, point, pressedPhrases, symbolPoint, tabToPlot, zoomButton
 } from "./lib/plugin";
 import { openFlatPlot } from "./lib/documents";
 import { axeViolations } from "./lib/accessibility";
 
-// Dots in the flat fixture that no other dot's 24px target covers
-const kIsolatedDot = "Every voice across the globe";
+// The flat fixture's one dot with no label
 const kUnlabeledDot = "People I have never met";
 // Under the isolated dot's tooltip
 const kCoveredDot = "No one lives in isolation";
@@ -18,11 +17,6 @@ const kRightEdgeDot = "None of us are by ourselves";
 const kMiddleDot = "Everyone around the world shares this";
 
 const tooltip = (plugin: FrameLocator) => plugin.getByTestId("point-tooltip");
-// A point's center in the plot, from its transform
-const centerOf = async (element: Locator) => {
-  const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(await element.getAttribute("transform") ?? "") ?? [];
-  return { x: Number(x), y: Number(y) };
-};
 // Moves the mouse onto a point's center, without Playwright's check that nothing covers it
 const hoverPoint = async (page: Page, plugin: FrameLocator, element: Locator) => {
   const { x, y } = await onPage(plugin, await centerOf(element));
@@ -297,7 +291,8 @@ test("reaches both of two overlapping dots: the pointer picks the nearer center"
   // Dots are 13px across with their outlines
   expect(pair.distance).toBeLessThan(13);
   const { lower, upper } = pair;
-  // Between the centers, a third of the way from each: inside the upper dot's old 24px target both times
+  // Between the centers, a third of the way from each: both within each dot's 12px pick radius, so only the nearer
+  // center decides
   const nearLower = { x: lower.x + (upper.x - lower.x) / 3, y: lower.y + (upper.y - lower.y) / 3 };
   const nearUpper = { x: upper.x + (lower.x - upper.x) / 3, y: upper.y + (lower.y - upper.y) / 3 };
 
