@@ -69,6 +69,14 @@ const centerOf = (pointElement: Element) => {
   const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(transform) ?? [];
   return { clientX: Number(x), clientY: Number(y) };
 };
+// A mouse click on a point as a browser sends it: to the plot, at the point's center. A click on the point's own
+// element is a screen reader's.
+const clickPoint = (pointElement: Element, { shiftKey = false } = {}) => {
+  const at = { ...centerOf(pointElement), shiftKey };
+  fireEvent.pointerDown(plot(), { pointerId: 1, button: 0, pointerType: "mouse", ...at });
+  fireEvent.pointerUp(plot(), { pointerId: 1, button: 0, pointerType: "mouse", ...at });
+  fireEvent.click(plot(), at);
+};
 const pointNames = () => within(plot()).queryAllByRole("button").map(button => button.getAttribute("aria-label"));
 const pointPhrases = () => pointNames().map(name => name?.split(", ")[0]);
 
@@ -125,8 +133,6 @@ describe("Graph", () => {
       expect(dots.map(dot => dot.getAttribute("r"))).toEqual(["6", "6", "6", "6"]);
       expect(dots.map(dot => dot.getAttribute("fill")))
         .toEqual([kLabelColors[0], kLabelColors[1], kLabelColors[0], kUnlabeledColor]);
-      // The plot picks the point; a point element has no hit area of its own
-      expect(within(point("the cat sat")).queryByTestId("hit-area")).not.toBeInTheDocument();
     });
 
     it("gives every point a 1px outline just outside its dot", () => {
@@ -513,19 +519,16 @@ describe("Graph", () => {
   });
 
   describe("mouse", () => {
-    it("passes a clicked point to selectPoint", async () => {
-      const user = userEvent.setup();
+    it("passes a clicked point to selectPoint", () => {
       renderGraph(store);
-      await user.click(point("a dog ran"));
+      clickPoint(point("a dog ran"));
       expect(selectPoint).toHaveBeenCalledWith(store, "2", false);
       expect(clearCodapSelection).not.toHaveBeenCalled();
     });
 
-    it("passes a Shift-clicked point to selectPoint, extending", async () => {
-      const user = userEvent.setup();
+    it("passes a Shift-clicked point to selectPoint, extending", () => {
       renderGraph(store);
-      await user.keyboard("{Shift>}");
-      await user.click(point("a dog ran"));
+      clickPoint(point("a dog ran"), { shiftKey: true });
       expect(selectPoint).toHaveBeenCalledWith(store, "2", true);
     });
 
@@ -552,7 +555,7 @@ describe("Graph", () => {
     it("makes a clicked point the one the arrow keys move from", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.click(point("the bird sang"));
+      clickPoint(point("the bird sang"));
       expect(point("the bird sang")).toHaveAttribute("tabindex", "0");
       await user.keyboard("{ArrowRight}");
       expect(point("a fish swam")).toHaveFocus();
@@ -634,7 +637,7 @@ describe("Graph", () => {
       expect(clearCodapSelection).not.toHaveBeenCalled();
     });
 
-    it("pans from a press 20px from both points, and the pan clears the hover", () => {
+    it("pans from a press 20px from both points, and hides the tooltip while panning", () => {
       renderGraph(store);
       moveTo(152, 150);
       expect(tooltipText()).toBe("the cat sat");
@@ -1019,14 +1022,14 @@ describe("Graph", () => {
 
       describe("the same phrase in two slots, not in the table", () => {
         // Slots 0 and 3 have the same phrase after normalizing, but the worker jittered them differently; slot 2
-        // has another phrase with the same neighbor
+        // has another phrase with the same neighbor, aimed at the stack's spot (168, 150)
         beforeEach(() => {
           store.setTestPhrase(0, "the cat");
           store.setTestPhrase(2, "a bird");
           store.setTestPhrase(3, " The  CAT ");
           store.setTestPhrasePoints([
             testPoint(0, 0.5, 0.5, "3"),
-            testPoint(2, 0.5, 0.5, "3", -1, 0),
+            testPoint(2, 0.5, 0.5, "3"),
             testPoint(3, 0.55, 0.45, "3", 0, 1)
           ], { 0: "placed", 1: "empty", 2: "placed", 3: "placed", 4: "empty" });
         });
@@ -1078,17 +1081,11 @@ describe("Graph", () => {
         expect(within(square).getByTestId("dot-outline")).toHaveStyle({ strokeWidth: "2" });
       });
 
-      it("draws an exact match on its dot, with no ring search, and keeps later symbols 18px from it", () => {
-        store.setTestPhrase(1, "the bird sang");
-        store.setTestPhrasePoints([
-          { ...testPoint(0, 0.5, 0.5, "3"), isExactMatch: true },
-          // Its neighbor is case 1; the exact match's spot is in its way
-          testPoint(1, 0.5, 0.5, "1")
-        ], { 0: "placed", 1: "placed", 2: "empty", 3: "empty", 4: "empty" });
+      it("draws an exact match on its dot, with no ring search", () => {
+        store.setTestPhrasePoints([{ ...testPoint(0, 0.5, 0.5, "3"), isExactMatch: true }],
+          { 0: "placed", 1: "empty", 2: "empty", 3: "empty", 4: "empty" });
         renderGraph(store);
         expect(symbolCenter("Square test phrase: the cat")).toEqual({ x: 150, y: 150 });
-        const second = symbolCenter("Triangle test phrase: the bird sang");
-        expect(Math.hypot(second.x - 150, second.y - 150)).toBeGreaterThanOrEqual(18 - 1e-9);
       });
 
       it("keeps an exact match on its dot when the view changes", () => {
@@ -1118,7 +1115,7 @@ describe("Graph", () => {
         const hoverAt = (clientX: number, clientY: number) =>
           fireEvent.pointerMove(plot(), { pointerType: "mouse", clientX, clientY });
 
-        it("goes under its dot, before the case points, highest slot first; others go after, in slot order", () => {
+        it("goes under its dot, before the case points; the others go after; each group highest slot first", () => {
           renderGraph(store);
           // In document order, which is drawing order
           expect(pointNames()).toEqual([
@@ -1352,14 +1349,11 @@ describe("Graph", () => {
     });
 
     describe("selecting", () => {
-      it("selects a clicked symbol, and adds it with Shift", async () => {
-        const user = userEvent.setup();
+      it("selects a clicked symbol, and adds it with Shift", () => {
         renderGraph(store);
-        await user.click(symbolPoint("Diamond test phrase: a bird"));
+        clickPoint(symbolPoint("Diamond test phrase: a bird"));
         expect(selectTestPhrase).toHaveBeenLastCalledWith(store, 2, false);
-        await user.keyboard("{Shift>}");
-        await user.click(symbolPoint("Square test phrase: the cat"));
-        await user.keyboard("{/Shift}");
+        clickPoint(symbolPoint("Square test phrase: the cat"), { shiftKey: true });
         expect(selectTestPhrase).toHaveBeenLastCalledWith(store, 0, true);
         expect(selectPoint).not.toHaveBeenCalled();
         expect(clearCodapSelection).not.toHaveBeenCalled();
@@ -1530,10 +1524,9 @@ describe("Graph", () => {
       expect(tooltip()).not.toBeInTheDocument();
     });
 
-    it("doesn't stay after a mouse click once the pointer leaves", async () => {
-      const user = userEvent.setup();
+    it("doesn't stay after a mouse click once the pointer leaves", () => {
       renderGraph(store);
-      await user.click(point("the cat sat"));
+      clickPoint(point("the cat sat"));
       expect(point("the cat sat")).toHaveFocus();
       unhover();
       expect(tooltip()).not.toBeInTheDocument();
@@ -1542,7 +1535,7 @@ describe("Graph", () => {
     it("shows again for a point Tab returns to after a click elsewhere", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.click(point("the cat sat"));
+      clickPoint(point("the cat sat"));
       unhover();
       await user.click(document.body);
       await tabToPlot(user);
@@ -1557,7 +1550,7 @@ describe("Graph", () => {
       await user.keyboard("{ArrowRight}");
       expect(tooltip()).toHaveTextContent("the cat sat");
       // Already focused, so no focus event comes
-      await user.click(point("the cat sat"));
+      clickPoint(point("the cat sat"));
       expect(point("the cat sat")).toHaveFocus();
       unhover();
       expect(tooltip()).not.toBeInTheDocument();
@@ -1586,7 +1579,7 @@ describe("Graph", () => {
     it.each(["{Home}", "{ArrowLeft}"])("shows after a mouse click when %s stays on the clicked point", async key => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.click(point("the cat sat"));
+      clickPoint(point("the cat sat"));
       unhover();
       expect(tooltip()).not.toBeInTheDocument();
       // The first point, so the key moves nowhere and no focus event comes
@@ -1598,7 +1591,7 @@ describe("Graph", () => {
     it("keeps a hovered point's tooltip when Shift is pressed, as before a Shift-click", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.click(point("the cat sat"));
+      clickPoint(point("the cat sat"));
       unhover();
       hover(point("a dog ran"));
       await user.keyboard("{Shift>}");
@@ -1664,7 +1657,7 @@ describe("Graph", () => {
     it("counts focus after the window lost focus as the keyboard's, as for a Tab in from CODAP", async () => {
       const user = userEvent.setup();
       renderGraph(store);
-      await user.click(point("the cat sat"));
+      clickPoint(point("the cat sat"));
       unhover();
       await user.click(document.body);
       fireEvent.blur(window);

@@ -117,6 +117,12 @@ describe("computeLayout's retained layout", () => {
     layout.solution.forEach((point, i) => expect(applyTransform(layout.transform, point)).toEqual(positions?.[i]));
   });
 
+  it("keeps each row's phrase normalized, for exact matches", () => {
+    const phrases = ["  The Cat   sat on the MAT ", ...kPhrases.slice(1)];
+    const layout = computeLayout({ ...layoutRequest, phrases }, () => undefined);
+    expect(layout?.phrases).toEqual(["the cat sat on the mat", ...kPhrases.slice(1)]);
+  });
+
   it("returns nothing when there are too few phrases or an error", () => {
     expect(computeLayout({ ...layoutRequest, phrases: kPhrases.slice(0, 3) }, () => undefined)).toBeUndefined();
     expect(computeLayout({ ...layoutRequest, phrases: undefined as unknown as string[] }, () => undefined))
