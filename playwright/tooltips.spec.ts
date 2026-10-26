@@ -171,9 +171,9 @@ test("shows a test phrase in the test-phrase colors, and cuts a long one short a
     await expect(tooltip(plugin)).toHaveText(kTestPhrases[0].text);
     expect(await tooltipColors(plugin))
       .toEqual({ fill: "rgb(203, 203, 255)", border: "rgb(46, 0, 127)", pointer: "rgb(46, 0, 127)" });
-    // The square's half extent is 6.65px: 0.65px further out than a dot's
+    // The square's half extent is 7.75px: 1.75px further out than a dot's
     const square = await tooltipFit(symbolPoint(plugin, 0));
-    expect(Math.abs(square.tipX)).toBeCloseTo(1.65, 1);
+    expect(Math.abs(square.tipX)).toBeCloseTo(2.75, 1);
     expect(square.tipY).toBeCloseTo(0, 1);
 
     const long = `${"people in every country ".repeat(11)}agree`.slice(0, 255);

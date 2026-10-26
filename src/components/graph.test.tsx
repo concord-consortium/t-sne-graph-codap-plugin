@@ -1013,9 +1013,9 @@ describe("Graph", () => {
         renderGraph(store);
         const square = symbolPoint("Square test phrase: the cat");
         expect(within(square).getByTestId("symbol")).toHaveAttribute("fill", "#2e007f");
-        // The spec's 13.3px plot square
+        // The 15.5px plot square
         expect(within(square).getByTestId("symbol"))
-          .toHaveAttribute("d", "M-6.65 -6.65L6.65 -6.65L6.65 6.65L-6.65 6.65Z");
+          .toHaveAttribute("d", "M-7.75 -7.75L7.75 -7.75L7.75 7.75L-7.75 7.75Z");
         expect(within(square).getByTestId("dot-outline")).toHaveStyle({ strokeWidth: "2" });
       });
 
