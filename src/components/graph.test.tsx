@@ -610,6 +610,28 @@ describe("Graph", () => {
       expect(selectPoint).toHaveBeenCalledWith(store, "1", true);
     });
 
+    it("treats a press that moves off the point as a background click", () => {
+      renderGraph(store);
+      press(152, 150);
+      // As far as a drag must move
+      fireEvent.pointerMove(plot(), { pointerId: 1, buttons: 1, pointerType: "mouse", clientX: 155, clientY: 150 });
+      fireEvent.pointerMove(plot(), { pointerId: 1, buttons: 1, pointerType: "mouse", clientX: 200, clientY: 200 });
+      fireEvent.pointerUp(plot(), { pointerId: 1, clientX: 200, clientY: 200 });
+      fireEvent.click(plot(), { clientX: 200, clientY: 200 });
+      expect(selectPoint).not.toHaveBeenCalled();
+      expect(clearCodapSelection).toHaveBeenCalledWith(store);
+    });
+
+    it("keeps a press that moves less than a drag's 3px", () => {
+      renderGraph(store);
+      press(152, 150);
+      fireEvent.pointerMove(plot(), { pointerId: 1, buttons: 1, pointerType: "mouse", clientX: 154.5, clientY: 150 });
+      fireEvent.pointerUp(plot(), { pointerId: 1, clientX: 154.5, clientY: 150 });
+      fireEvent.click(plot(), { clientX: 154.5, clientY: 150 });
+      expect(selectPoint).toHaveBeenCalledWith(store, "1", false);
+      expect(clearCodapSelection).not.toHaveBeenCalled();
+    });
+
     it("pans from a press 20px from both points, and the pan clears the hover", () => {
       renderGraph(store);
       moveTo(152, 150);
@@ -1118,6 +1140,21 @@ describe("Graph", () => {
           // The last mark drawn, so above the dot
           const marks = within(plot()).getAllByTestId(/^(dot|symbol)$/);
           expect(marks[marks.length - 1]).toBe(within(copy).getByTestId("symbol"));
+        });
+
+        it("stops drawing a symbol over its dot once focus leaves it", async () => {
+          const user = userEvent.setup();
+          renderGraph(store);
+          await tabToPlot(user);
+          await user.keyboard("{End}");
+          expect(screen.getByTestId("active-point")).toHaveAttribute("data-symbol", "star");
+          // Out of the plot: the symbol is still the plot's Tab stop, but no longer focused
+          await user.tab();
+          expect(symbolPoint("Star test phrase: the bird sang")).toHaveAttribute("tabindex", "0");
+          expect(screen.queryByTestId("active-point")).not.toBeInTheDocument();
+          // Back in: drawn on top again
+          await user.tab({ shift: true });
+          expect(screen.getByTestId("active-point")).toHaveAttribute("data-symbol", "star");
         });
 
         it("keeps the arrow keys' order: case points, then slots in order", async () => {

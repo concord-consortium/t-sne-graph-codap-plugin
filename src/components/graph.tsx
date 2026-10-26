@@ -127,8 +127,11 @@ export const Graph = observer(() => {
   const drag = useRef<IDrag | undefined>(undefined);
   // The click after a drag isn't a background click
   const ignoreClick = useRef(false);
-  // The point a press was on, for the click that follows. Cleared with the drag state.
-  const pressed = useRef<{ key: string, pointerId: number, isReleased: boolean } | undefined>(undefined);
+  // The point a press was on, for the click that follows. Cleared with the drag state, and by a move as far as a
+  // drag's.
+  const pressed = useRef<
+    { key: string, pointerId: number, startX: number, startY: number, isReleased: boolean } | undefined
+  >(undefined);
   const [isDragging, setIsDragging] = useState(false);
   // The point under a mouse or pen, or whose tooltip it is on
   const [hoverKey, setHoverKey] = useState<string>();
@@ -310,7 +313,10 @@ export const Graph = observer(() => {
     pressed.current = undefined;
     const hit = hitTest(event);
     if (hit !== undefined) {
-      if (event.button === 0) pressed.current = { key: hit, pointerId: event.pointerId, isReleased: false };
+      if (event.button === 0) {
+        pressed.current = { key: hit, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+          isReleased: false };
+      }
       return;
     }
     // Not every browser blurs a point on a press here, which would leave a tapped point's tooltip
@@ -328,6 +334,12 @@ export const Graph = observer(() => {
   };
 
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
+    // Moved off the point, as far as a drag: its click is then a background click, not a click on the point
+    const press = pressed.current;
+    if (press?.pointerId === event.pointerId && !press.isReleased &&
+      Math.hypot(event.clientX - press.startX, event.clientY - press.startY) >= kDragThresholdPx) {
+      pressed.current = undefined;
+    }
     const current = drag.current;
     if (!current) {
       updateHover(event);
@@ -506,7 +518,8 @@ export const Graph = observer(() => {
     const pixels = key !== undefined && keys.includes(key) ? drawnPixel(key) : undefined;
     if (key !== undefined && pixels) topCopies.push({ key, reason, pixels });
   };
-  const focusCopyKey = activeExists ? activeKey : undefined;
+  // The point with DOM focus, not `activeKey`, which outlives it: a symbol's copy would stay over its dot
+  const focusCopyKey = focused !== undefined && keys.includes(focused.key) ? focused.key : undefined;
   addTopCopy(focusCopyKey, "focus");
   addTopCopy(hoverKey !== focusCopyKey ? hoverKey : undefined, "hover");
   const hasPoints = points.length > 0;
