@@ -1,6 +1,4 @@
-import fs from "fs";
-import path from "path";
-import { expect, type FrameLocator, type Locator, type Page, type TestInfo } from "@playwright/test";
+import { expect, type FrameLocator, type Locator } from "@playwright/test";
 import { saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 import { kPluginUrl, openDocument, resizeTileBy, tableCell, tableSelectionCount } from "./lib/codap";
@@ -326,34 +324,4 @@ test("stacks the same phrase in two slots, when it isn't in the table, at the fi
   const { x, y } = await onPage(plugin, await centerOf(symbolPoint(plugin, 0)));
   await page.mouse.move(x, y);
   await expect(plugin.getByTestId("point-tooltip")).toHaveText(text);
-});
-
-// Attached to the report; also saved to doc/design when SAVE_DESIGN_SCREENSHOTS is set
-const saveScreenshot = async (
-  page: Page, testInfo: TestInfo, clip: { x: number, y: number, width: number, height: number }, name: string
-) => {
-  const image = await page.screenshot({ clip });
-  await testInfo.attach(name, { body: image, contentType: "image/png" });
-  if (process.env.SAVE_DESIGN_SCREENSHOTS) fs.writeFileSync(path.join(__dirname, "..", "doc", "design", name), image);
-};
-
-test.describe("at 2×", () => {
-  test.use({ deviceScaleFactor: 2 });
-
-  // For the team to decide whether the hidden square is acceptable (CODAP-1575 fixes plan §3.3 step 7)
-  test("shows a square under a dot, unselected and selected", async ({ page }, testInfo) => {
-    const plugin = await openFlatPlot(page);
-    await enterTestPhrase(plugin, 0, kIsolatedDot);
-    const dot = await transformOf(point(plugin, kIsolatedDot));
-    await expect(symbolPoint(plugin, 0)).toHaveAttribute("transform", dot ?? "");
-    await moveMouseOff(page);
-    const { x, y } = await onPage(plugin, await centerOf(point(plugin, kIsolatedDot)));
-    const clip = { x: x - 30, y: y - 30, width: 60, height: 60 };
-    const save = (name: string) => saveScreenshot(page, testInfo, clip, name);
-
-    await save("square-under-dot.png");
-    await symbolButton(plugin, 0).click();
-    await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-pressed", "true");
-    await save("square-under-dot-selected.png");
-  });
 });

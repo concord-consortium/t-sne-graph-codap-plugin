@@ -85,12 +85,6 @@ npx playwright test playwright/tooltips.spec.ts
 ```
 For `plot-and-key.spec.ts`, add `--no-deps`. That file holds the speed test, so without `--no-deps` Playwright runs all the other tests first, because the `performance` project depends on them.
 
-##### Design screenshots
-`test-phrases.spec.ts` takes 2× screenshots of a test phrase's square under a dot, unselected and selected, and attaches them to the test report. To also save them to `doc/design/` (`square-under-dot.png`, `square-under-dot-selected.png`):
-```
-SAVE_DESIGN_SCREENSHOTS=1 npx playwright test playwright/test-phrases.spec.ts -g "2×"
-```
-
 ##### Test fixtures
 The end-to-end tests use two CODAP v3 documents in `playwright/fixtures/`:
 - `hierarchical.codap`: a two-level table (Labels > Phrases) with 9 phrases in 3 labels.
