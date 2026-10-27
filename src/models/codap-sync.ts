@@ -14,7 +14,9 @@ import {
 import { kPluginName, kPluginVersion } from "../plugin-identity";
 import { AttributeInfo, CaseInfo, DataContextInfo, IPluginStore } from "./plugin-store";
 
-// CODAP v3 applies the dimensions to the whole tile, including its 34px title bar
+// CODAP v3 applies the dimensions to the whole tile, including its 34px title bar. The starting
+// size is also the minimum size, so it must equal $plugin-min-width × $plugin-min-height in
+// _variables.scss.
 const kContentSize = { width: 680, height: 300 };
 const kTitleBarHeight = 34;
 

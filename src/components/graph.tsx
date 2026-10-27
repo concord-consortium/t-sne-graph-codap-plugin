@@ -2,13 +2,13 @@ import React, {
   KeyboardEvent, MouseEvent, PointerEvent, useEffect, useId, useLayoutEffect, useMemo, useRef, useState
 } from "react";
 import { observer } from "mobx-react-lite";
-import { Point, TestPhrasePoint } from "../models/plugin-store";
+import { PhraseSymbol, Point, TestPhrasePoint } from "../models/plugin-store";
 import { useStore } from "../models/store-context";
 import { clearCodapSelection, selectPoint, selectTestPhrase } from "../models/selection-sync";
-import { kTestPhraseColor, kTestPhraseTooltipFill } from "../tsne/labels";
+import { kTestPhraseColor, kTestPhraseTooltipFill, normalizePhrase } from "../tsne/labels";
 import {
-  applyView, directionToPixels, gridLines, IPosition, ISize, IView, kHitRadius, offsetFromNeighbor, paddedBounds,
-  panToInclude, toPixels, worldBounds
+  applyView, directionToPixels, gridLines, IHitCandidate, IPosition, ISize, IView, nearestPoint, offsetFromNeighbor,
+  paddedBounds, panToInclude, toPixels, worldBounds
 } from "../tsne/layout";
 import {
   kPlotSymbolExtents, kSymbolEdgeWidth, kSymbolOutlineWidth, kSymbolRingWidth, SymbolFocusRing, symbolName, symbolPath
@@ -83,6 +83,27 @@ const PointMarks = ({ color, selected }: IPointMarksProps) => (
   </>
 );
 
+interface ISymbolMarksProps {
+  symbol: PhraseSymbol;
+  selected: boolean;
+}
+
+const SymbolMarks = ({ symbol, selected }: ISymbolMarksProps) => {
+  const extent = kPlotSymbolExtents[symbol];
+  const path = symbolPath(symbol, extent);
+  return (
+    <>
+      {selected && <path className="selection-edge" data-testid="selection-edge" d={path}
+        style={{ strokeWidth: kSymbolEdgeWidth }} />}
+      {selected && <path className="selection-ring" data-testid="selection-ring" d={path}
+        style={{ strokeWidth: kSymbolRingWidth }} />}
+      <path className="dot-outline" data-testid="dot-outline" d={path} style={{ strokeWidth: kSymbolOutlineWidth }} />
+      <path className="symbol" data-testid="symbol" d={path} fill={kTestPhraseColor} />
+      <SymbolFocusRing symbol={symbol} extent={extent} />
+    </>
+  );
+};
+
 /** One Tab stop; arrow keys move through the case points, then the test phrases. */
 export const Graph = observer(() => {
   const store = useStore();
@@ -106,6 +127,11 @@ export const Graph = observer(() => {
   const drag = useRef<IDrag | undefined>(undefined);
   // The click after a drag isn't a background click
   const ignoreClick = useRef(false);
+  // The point a press was on, until its click. The next press, a cancel, a capture lost before the release, or a
+  // move as far as a drag's forgets it.
+  const pressed = useRef<
+    { key: string, pointerId: number, startX: number, startY: number, isReleased: boolean } | undefined
+  >(undefined);
   const [isDragging, setIsDragging] = useState(false);
   // The point under a mouse or pen, or whose tooltip it is on
   const [hoverKey, setHoverKey] = useState<string>();
@@ -160,6 +186,10 @@ export const Graph = observer(() => {
   const testPoints = useMemo(
     () => store.testPhrasePoints.filter(point => store.placedSlots.has(point.slot)).sort((a, b) => a.slot - b.slot),
     [store.testPhrasePoints, store.placedSlots]);
+  // Both groups are drawn highest slot first, so the lowest slot is on top of a stack of identical phrases.
+  // Exact matches are drawn before the case points, so under their dots; the others after.
+  const exactTestPoints = useMemo(() => testPoints.filter(point => point.isExactMatch).reverse(), [testPoints]);
+  const besideTestPoints = useMemo(() => testPoints.filter(point => !point.isExactMatch).reverse(), [testPoints]);
   const keys = useMemo(
     () => [...points.map(point => caseKey(point.caseId)), ...testPoints.map(point => slotKey(point.slot))],
     [points, testPoints]);
@@ -253,7 +283,23 @@ export const Graph = observer(() => {
     event.preventDefault();
   };
 
-  const handleBackgroundClick = (event: MouseEvent<SVGSVGElement>) => {
+  // A mouse or pen click is on the point, even if keyboard focus ended its hover. Browsers don't reliably
+  // focus a tapped point.
+  const activatePoint = (key: string, extend: boolean) => {
+    moveTo(key);
+    const pointerType = lastPointerType.current;
+    if (pointerType === "mouse" || pointerType === "pen") setHoverKey(key);
+    select(key, extend);
+  };
+
+  // The point a press or click took from the pointer, not from the point elements
+  const handlePlotClick = (event: MouseEvent<SVGSVGElement>) => {
+    const pressedKey = pressed.current?.key;
+    pressed.current = undefined;
+    if (pressedKey !== undefined) {
+      if (keys.includes(pressedKey)) activatePoint(pressedKey, event.shiftKey);
+      return;
+    }
     if (ignoreClick.current) {
       ignoreClick.current = false;
       return;
@@ -264,12 +310,21 @@ export const Graph = observer(() => {
 
   // Only from the background: a press on a point is a click on it. An empty plot has no view to move.
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
-    if ((event.target as Element).closest(".point")) return;
+    if (event.isPrimary === false) return;
+    pressed.current = undefined;
+    const hit = hitTest(event);
+    if (hit !== undefined) {
+      if (event.button === 0) {
+        pressed.current = { key: hit, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+          isReleased: false };
+      }
+      return;
+    }
     // Not every browser blurs a point on a press here, which would leave a tapped point's tooltip
     const svg = svgRef.current;
     if (svg && document.activeElement !== svg && svg.contains(document.activeElement)) svg.focus();
     if (!store.hasGraph || event.button !== 0) return;
-    // A second finger doesn't take over a drag
+    // A press from another input doesn't take over a drag
     if (drag.current) return;
     // In case the last drag's click never came
     ignoreClick.current = false;
@@ -280,8 +335,18 @@ export const Graph = observer(() => {
   };
 
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
+    // Moved off the point, as far as a drag: its click is then a background click, not a click on the point
+    const press = pressed.current;
+    if (press?.pointerId === event.pointerId && !press.isReleased &&
+      Math.hypot(event.clientX - press.startX, event.clientY - press.startY) >= kDragThresholdPx) {
+      pressed.current = undefined;
+    }
     const current = drag.current;
-    if (event.pointerId !== current?.pointerId) return;
+    if (!current) {
+      updateHover(event);
+      return;
+    }
+    if (event.pointerId !== current.pointerId) return;
     // No button down: the release never came, as when the window lost focus mid-drag
     if (event.buttons === 0) {
       endDrag(event, false);
@@ -305,8 +370,14 @@ export const Graph = observer(() => {
     current.lastY = clientY;
   };
 
-  // No click follows a cancel or a lost capture
+  // No click follows a cancel or a lost capture. A touch loses its implicit capture after every release,
+  // before the click, so only a capture lost before the release ends a press.
   const endDrag = (event: PointerEvent<SVGSVGElement>, isRelease: boolean) => {
+    const press = pressed.current;
+    if (press?.pointerId === event.pointerId) {
+      if (isRelease) press.isReleased = true;
+      else if (!(press.isReleased && event.type === "lostpointercapture")) pressed.current = undefined;
+    }
     const current = drag.current;
     if (event.pointerId !== current?.pointerId) return;
     if (isRelease && current.isDragging) ignoreClick.current = true;
@@ -314,28 +385,29 @@ export const Graph = observer(() => {
     setIsDragging(false);
   };
 
-  // Browsers don't reliably focus a tapped point. A mouse or pen click is on the point, even if keyboard
-  // focus ended its hover.
+  // Only a click no pointer made reaches a point element, such as a screen reader's. Stopped, so the plot's
+  // click handler doesn't handle it again.
   const handlePointClick = (event: MouseEvent<SVGGElement>, key: string) => {
     event.stopPropagation();
-    moveTo(key);
-    const pointerType = lastPointerType.current;
-    if (pointerType === "mouse" || pointerType === "pen") setHoverKey(key);
-    select(key, event.shiftKey);
+    activatePoint(key, event.shiftKey);
   };
 
   // A finger has no hover; a tap focuses instead
-  const handlePointerEnter = (event: PointerEvent<Element>, key: string) => {
-    if (event.pointerType !== "mouse" && event.pointerType !== "pen") return;
+  const isHoverPointer = (event: PointerEvent<Element>) => event.pointerType === "mouse" || event.pointerType === "pen";
+
+  // A tooltip shown by hover can be hovered too
+  const handleTooltipEnter = (event: PointerEvent<Element>, key: string) => {
+    if (!isHoverPointer(event)) return;
     setHoverKey(key);
     setIsDismissed(false);
   };
 
-  // Moving between a point and its tooltip keeps the hover, so the tooltip can be hovered
-  const handlePointerLeave = (event: PointerEvent<Element>, key: string) => {
+  // Moving between the plot and the tooltip keeps the hover; back on the plot, the pointer's position decides
+  const handlePointerLeave = (event: PointerEvent<Element>) => {
     const to = event.relatedTarget instanceof Element ? event.relatedTarget : null;
-    if (to?.closest(".point-tooltip") || (to && pointRefs.current.get(key)?.contains(to))) return;
-    setHoverKey(current => current === key ? undefined : current);
+    if (to?.closest(".point-tooltip")) return;
+    if (to && svgRef.current?.contains(to)) updateHover(event);
+    else setHoverKey(undefined);
   };
 
   const handlePointBlur = (key: string) => {
@@ -349,17 +421,35 @@ export const Graph = observer(() => {
 
   // In slot order: each symbol keeps clear of every dot and of the lower slots' symbols. Includes the
   // hidden slot being edited, so the others don't move into its place meanwhile. The bounds are the
-  // whole layout's, so a symbol stays with an off-screen neighbor.
+  // whole layout's, so a symbol stays with an off-screen neighbor. An exact match goes on its dot, and a phrase
+  // that a lower slot already has (normalized) goes on that slot's symbol.
+  // A string, since MobX State Tree changes the array in place. A field holds one line, so no phrase has "\n".
+  const committedPhrases = store.testPhrases.join("\n");
   const testPointPixels = useMemo(() => {
+    const slotPhrases = committedPhrases.split("\n").map(normalizePhrase);
     const bounds = worldBounds(size, view);
     const casePixels = store.points.map(point => ({ caseId: point.caseId, ...viewPixels(point, view, size) }));
     const placed = new Map<number, IPosition>();
+    const slotByPhrase = new Map<string, number>();
+    const clampToBounds = ({ x, y }: IPosition) => ({ x: Math.min(bounds.right, Math.max(bounds.left, x)),
+      y: Math.min(bounds.bottom, Math.max(bounds.top, y)) });
     store.testPhrasePoints.slice().sort((a, b) => a.slot - b.slot).forEach((point: TestPhrasePoint) => {
+      const phrase = slotPhrases[point.slot] ?? "";
+      const samePhraseSlot = slotByPhrase.get(phrase);
+      const samePhrasePixel = samePhraseSlot !== undefined ? placed.get(samePhraseSlot) : undefined;
+      if (samePhrasePixel) {
+        placed.set(point.slot, samePhrasePixel);
+        return;
+      }
+      slotByPhrase.set(phrase, point.slot);
       const pixels = viewPixels(point, view, size);
       const neighbor = casePixels.find(({ caseId }) => caseId === point.neighborCaseId);
       if (!neighbor) {
-        placed.set(point.slot, { x: Math.min(bounds.right, Math.max(bounds.left, pixels.x)),
-          y: Math.min(bounds.bottom, Math.max(bounds.top, pixels.y)) });
+        placed.set(point.slot, clampToBounds(pixels));
+        return;
+      }
+      if (point.isExactMatch) {
+        placed.set(point.slot, clampToBounds(neighbor));
         return;
       }
       const others = [...casePixels.filter(({ caseId }) => caseId !== point.neighborCaseId), ...placed.values()];
@@ -367,7 +457,39 @@ export const Graph = observer(() => {
         offsetFromNeighbor(neighbor, pixels, directionToPixels(point.direction, size), bounds, others));
     });
     return placed;
-  }, [store.points, store.testPhrasePoints, size, view]);
+  }, [store.points, store.testPhrasePoints, committedPhrases, size, view]);
+
+  // In draw order, so a tie goes to the point on top
+  const hitCandidates = () => {
+    const candidates: IHitCandidate[] = [];
+    const addSymbols = (symbolPoints: TestPhrasePoint[]) => symbolPoints.forEach(point => {
+      const center = testPointPixels.get(point.slot);
+      if (!center) return;
+      candidates.push({ key: slotKey(point.slot), center,
+        halfExtent: kPlotSymbolExtents[store.symbolForSlot(point.slot)] / 2, isRound: false });
+    });
+    addSymbols(exactTestPoints);
+    points.forEach(point => candidates.push({ key: caseKey(point.caseId), center: viewPixels(point, view, size),
+      halfExtent: kOutlineRadius, isRound: true }));
+    addSymbols(besideTestPoints);
+    return candidates;
+  };
+
+  // The point whose center is nearest the pointer. The point elements take no pointer events, so the browser,
+  // which picks the one drawn last, doesn't choose.
+  const hitTest = ({ clientX, clientY }: { clientX: number, clientY: number }) => {
+    const svg = svgRef.current;
+    if (!svg) return undefined;
+    const { left, top } = svg.getBoundingClientRect();
+    return nearestPoint({ x: clientX - left, y: clientY - top }, hitCandidates());
+  };
+
+  const updateHover = (event: PointerEvent<Element>) => {
+    if (!isHoverPointer(event)) return;
+    const hit = hitTest(event);
+    if (hit !== undefined && hit !== hoverKey) setIsDismissed(false);
+    setHoverKey(hit);
+  };
 
   // The ring search can put a symbol 18px from its dot
   const drawnPixel = (key: string) => {
@@ -391,9 +513,16 @@ export const Graph = observer(() => {
     if (panned !== view) store.panTo(panned.centerX, panned.centerY);
   };
 
-  // A test phrase is drawn after the case points, so only a case point needs drawing again on top
-  const activePoint = activeExists ? points.find(point => caseKey(point.caseId) === activeKey) : undefined;
-  const activePixels = activePoint && viewPixels(activePoint, view, size);
+  // Drawn again on top of everything: the focused point, then the hovered one above it
+  const topCopies: { key: string, reason: "focus" | "hover", pixels: IPosition }[] = [];
+  const addTopCopy = (key: string | undefined, reason: "focus" | "hover") => {
+    const pixels = key !== undefined && keys.includes(key) ? drawnPixel(key) : undefined;
+    if (key !== undefined && pixels) topCopies.push({ key, reason, pixels });
+  };
+  // The point with DOM focus, not `activeKey`, which outlives it: a symbol's copy would stay over its dot
+  const focusCopyKey = focused !== undefined && keys.includes(focused.key) ? focused.key : undefined;
+  addTopCopy(focusCopyKey, "focus");
+  addTopCopy(hoverKey !== focusCopyKey ? hoverKey : undefined, "hover");
   const hasPoints = points.length > 0;
   const hasLabels = store.labelAttributeName !== undefined;
   const testPhraseCount = testPoints.length > 0 ? ` and ${plural(testPoints.length, "test phrase")}` : "";
@@ -419,6 +548,30 @@ export const Graph = observer(() => {
     return { key: tooltipKey, text: phrases.get(caseId) ?? "", color: store.colorForCase(caseId),
       fill: store.tooltipFillForCase(caseId), pixel, halfExtent: kPointRadius };
   })();
+  const renderTestPoint = (point: TestPhrasePoint) => {
+    const { x, y } = testPointPixels.get(point.slot) ?? { x: 0, y: 0 };
+    const symbol = store.symbolForSlot(point.slot);
+    const key = slotKey(point.slot);
+    return (
+      <g
+        key={key}
+        ref={pointRef(key)}
+        className="point test-phrase-point"
+        transform={`translate(${x} ${y})`}
+        role="button"
+        aria-label={`${symbolName(symbol)} test phrase: ${store.testPhrases[point.slot]}`}
+        aria-pressed={store.isSlotSelected(point.slot)}
+        tabIndex={key === activeKey ? 0 : -1}
+        data-symbol={symbol}
+        data-testid="test-phrase-point"
+        onClick={event => handlePointClick(event, key)}
+        onFocus={() => handlePointFocus(key)}
+        onBlur={() => handlePointBlur(key)}
+      >
+        <SymbolMarks symbol={symbol} selected={store.isSlotSelected(point.slot)} />
+      </g>
+    );
+  };
   const message = computeStatus === "too-few" ? kTooFewMessage : computeStatus === "error" ? kErrorMessage : "";
   const grid = gridLines(size, view);
 
@@ -438,10 +591,12 @@ export const Graph = observer(() => {
         // can still take focus.
         tabIndex={hasPoints && !activeExists ? 0 : -1}
         data-dragging={isDragging || undefined}
+        data-over-point={hoverKey !== undefined || undefined}
         onKeyDown={handleKeyDown}
-        onClick={handleBackgroundClick}
+        onClick={handlePlotClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
+        onPointerLeave={handlePointerLeave}
         onPointerUp={event => endDrag(event, true)}
         onPointerCancel={event => endDrag(event, false)}
         onLostPointerCapture={event => endDrag(event, false)}
@@ -463,6 +618,7 @@ export const Graph = observer(() => {
           {grid.y.map((y, i) =>
             <line key={`y${i}`} data-testid="grid-line" x1={0} x2={size.width} y1={y} y2={y} />)}
         </g>
+        {exactTestPoints.map(renderTestPoint)}
         {points.map(point => {
           const { x, y } = viewPixels(point, view, size);
           const selected = store.isSelected(point.caseId);
@@ -480,57 +636,24 @@ export const Graph = observer(() => {
               onClick={event => handlePointClick(event, key)}
               onFocus={() => handlePointFocus(key)}
               onBlur={() => handlePointBlur(key)}
-              onPointerEnter={event => handlePointerEnter(event, key)}
-              onPointerLeave={event => handlePointerLeave(event, key)}
             >
-              <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
               <PointMarks color={store.colorForCase(point.caseId)} selected={selected} />
             </g>
           );
         })}
-        {/* The active point drawn again on top of its neighbors. Moving the point itself to the end
-            would make React move a focused element, which drops its focus. */}
-        {activePoint && activePixels && (
-          <g className="active-point" data-testid="active-point" aria-hidden="true"
-            transform={`translate(${activePixels.x} ${activePixels.y})`}>
-            <PointMarks color={store.colorForCase(activePoint.caseId)}
-              selected={store.isSelected(activePoint.caseId)} />
-          </g>
-        )}
-        {testPoints.map(point => {
-          const { x, y } = testPointPixels.get(point.slot) ?? { x: 0, y: 0 };
-          const selected = store.isSlotSelected(point.slot);
-          const symbol = store.symbolForSlot(point.slot);
-          const extent = kPlotSymbolExtents[symbol];
-          const path = symbolPath(symbol, extent);
-          const key = slotKey(point.slot);
+        {besideTestPoints.map(renderTestPoint)}
+        {/* The focused and hovered points drawn again on top. Moving the points themselves to the end would make
+            React move a focused element, which drops its focus. */}
+        {topCopies.map(({ key, reason, pixels }) => {
+          const slot = slotFromKey(key);
+          const symbol = slot !== undefined ? store.symbolForSlot(slot) : undefined;
+          const caseId = key.slice("case:".length);
           return (
-            <g
-              key={key}
-              ref={pointRef(key)}
-              className="point test-phrase-point"
-              transform={`translate(${x} ${y})`}
-              role="button"
-              aria-label={`${symbolName(symbol)} test phrase: ${store.testPhrases[point.slot]}`}
-              aria-pressed={selected}
-              tabIndex={key === activeKey ? 0 : -1}
-              data-symbol={symbol}
-              data-testid="test-phrase-point"
-              onClick={event => handlePointClick(event, key)}
-              onFocus={() => handlePointFocus(key)}
-              onBlur={() => handlePointBlur(key)}
-              onPointerEnter={event => handlePointerEnter(event, key)}
-              onPointerLeave={event => handlePointerLeave(event, key)}
-            >
-              <circle className="hit-area" data-testid="hit-area" r={kHitRadius} />
-              {selected && <path className="selection-edge" data-testid="selection-edge" d={path}
-                style={{ strokeWidth: kSymbolEdgeWidth }} />}
-              {selected && <path className="selection-ring" data-testid="selection-ring" d={path}
-                style={{ strokeWidth: kSymbolRingWidth }} />}
-              <path className="dot-outline" data-testid="dot-outline" d={path}
-                style={{ strokeWidth: kSymbolOutlineWidth }} />
-              <path className="symbol" data-testid="symbol" d={path} fill={kTestPhraseColor} />
-              <SymbolFocusRing symbol={symbol} extent={extent} />
+            <g key={reason} className="active-point" data-testid="active-point" data-reason={reason}
+              data-symbol={symbol} aria-hidden="true" transform={`translate(${pixels.x} ${pixels.y})`}>
+              {slot !== undefined && symbol
+                ? <SymbolMarks symbol={symbol} selected={store.isSlotSelected(slot)} />
+                : <PointMarks color={store.colorForCase(caseId)} selected={store.isSelected(caseId)} />}
             </g>
           );
         })}
@@ -539,8 +662,8 @@ export const Graph = observer(() => {
         <PointTooltip text={tooltip.text} color={tooltip.color} fill={tooltip.fill} halfExtent={tooltip.halfExtent}
           anchor={{ x: tooltip.pixel.x + offset.left, y: tooltip.pixel.y + offset.top }} area={area}
           isHoverable={tooltip.key === hoverKey}
-          onPointerEnter={event => handlePointerEnter(event, tooltip.key)}
-          onPointerLeave={event => handlePointerLeave(event, tooltip.key)} />
+          onPointerEnter={event => handleTooltipEnter(event, tooltip.key)}
+          onPointerLeave={handlePointerLeave} />
       )}
       <p className="visually-hidden" id={helpId}>{kKeyboardHelp}</p>
       <p className="graph-status" role="status" aria-live="polite">{message}</p>

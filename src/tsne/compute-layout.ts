@@ -1,4 +1,5 @@
 // Separate from the worker so it can be tested without one.
+import { normalizePhrase } from "./labels";
 import { fitLayout, IPosition, normalizeLayout } from "./layout";
 import { IPhrasePlacement, IPlacementLayout, placePhrase } from "./place-phrases";
 import { mulberry32 } from "./random";
@@ -82,7 +83,9 @@ export const computeLayout = (
     const solution = tsne.solution.map(row => row.slice());
     const { positions, transform } = fitLayout(solution);
     post({ type: "done", requestId, positions });
-    return { requestId, seed, model: { vocabulary, idf }, matrix, solution, transform };
+    return {
+      requestId, seed, phrases: phrases.map(normalizePhrase), model: { vocabulary, idf }, matrix, solution, transform
+    };
   } catch (error) {
     post({ type: "error", requestId, message: error instanceof Error ? error.message : String(error) });
     return undefined;

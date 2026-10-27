@@ -1,4 +1,4 @@
-import { expect, type FrameLocator, type Page } from "@playwright/test";
+import { expect, type FrameLocator, type Locator, type Page } from "@playwright/test";
 import { tileTitled } from "./codap";
 
 // Scoped by tile, since the information tile adds a second web-view frame
@@ -27,12 +27,24 @@ export const plot = (plugin: FrameLocator) => plugin.getByRole("group", { name: 
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export const point = (plugin: FrameLocator, phrase: string) =>
   plugin.getByRole("button", { name: new RegExp(`^${escapeRegExp(phrase)}(, [^,]*)?$`) });
+// A point's center in the plot, from its transform
+export const centerOf = async (element: Locator) => {
+  const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(await element.getAttribute("transform") ?? "") ?? [];
+  return { x: Number(x), y: Number(y) };
+};
+// A dot in the flat fixture far from every other dot, so its tooltip and symbols are easy to see and hover
+export const kIsolatedDot = "Every voice across the globe";
 // Shift+Tab from the first dropdown reaches the plot by keyboard, which shows :focus-visible styles
 export const tabToPlot = async (plugin: FrameLocator) => {
   await dropdown(plugin, "Data Table").focus();
   await dropdown(plugin, "Data Table").press("Shift+Tab");
   await expect(plot(plugin)).toBeFocused();
 };
+// Clicks a point's center. The plot, not the point element, takes the pointer and picks the nearest point, so
+// Playwright's check that the element itself gets the click is skipped.
+export const clickPoint = (element: Locator, options: { modifiers?: "Shift"[] } = {}) =>
+  // eslint-disable-next-line playwright/no-force-option -- the point element takes no pointer events on purpose
+  element.click({ ...options, force: true });
 export const pressedPhrases = (plugin: FrameLocator) =>
   plugin.locator(".graph-plot .point[aria-pressed=true]").evaluateAll(points =>
     points.map(p => (p.getAttribute("aria-label") ?? "").replace(/, [^,]*$/, "")));

@@ -7,8 +7,11 @@ export const kButtonSymbolBox = 16;
 export const kButtonSymbolExtents: Record<PhraseSymbol, number> = {
   square: 10.6, triangle: 16.2, diamond: 15, plus: 14.3, star: 17.58
 };
+// About 10% over the spec's sizes (the square 16%), so a symbol under a dot shows around it. Each reaches at
+// most 11px from its center, so one 18px from a dot (kMinNeighborOffsetPx) still clears that dot's 6px radius,
+// and two symbols 18px apart overlap by at most 4px.
 export const kPlotSymbolExtents: Record<PhraseSymbol, number> = {
-  square: 13.3, triangle: 17.3, diamond: 18.8, plus: 17.8, star: 18.7
+  square: 15.5, triangle: 19, diamond: 20.7, plus: 19.6, star: 20.6
 };
 
 // Symbol rings are its path stroked; half of each width lands outside. Set inline on the plot, or the

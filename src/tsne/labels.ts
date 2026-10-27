@@ -60,6 +60,10 @@ const collapseWhitespace = (text: string) => text.trim().replace(/\s+/g, " ");
 /** Trimmed, whitespace collapsed, lowercased. "" means unlabeled. */
 export const normalizeLabel = (label: string) => collapseWhitespace(label).toLowerCase();
 
+/** As `normalizeLabel`: a test phrase exactly matches a dataset phrase when these are equal. Punctuation is
+ * kept. */
+export const normalizePhrase = (phrase: string) => collapseWhitespace(phrase).toLowerCase();
+
 export interface ILabelEntry {
   // "" for Unlabeled
   key: string;

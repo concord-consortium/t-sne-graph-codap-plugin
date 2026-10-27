@@ -1,10 +1,10 @@
-import { expect, type FrameLocator } from "@playwright/test";
+import { expect, type FrameLocator, type Locator } from "@playwright/test";
 import { saveCodapDocument } from "./codap-document";
 import { test } from "./fixtures";
 import { kPluginUrl, openDocument, resizeTileBy, tableCell, tableSelectionCount } from "./lib/codap";
 import {
-  emptySpot, enterTestPhrase, kSymbols, kTestPhrases, moveMouseOff, plot, pluginFrame, point, pressedPhrases,
-  symbolPoint, testField
+  centerOf, clickPoint, emptySpot, enterTestPhrase, kIsolatedDot, kSymbols, kTestPhrases, moveMouseOff, onPage, plot,
+  pluginFrame, point, pressedPhrases, symbolPoint, testField
 } from "./lib/plugin";
 import { openFlatPlot } from "./lib/documents";
 import { axeViolations } from "./lib/accessibility";
@@ -87,11 +87,12 @@ test("restores the test phrases and their points after the document is saved and
   for (const [slot, { text }] of kTestPhrases.entries()) await expect(testField(reopened, slot)).toHaveValue(text);
   expect(await transforms(reopened)).toEqual(placed);
 
-  // A smaller tile moves the points, but each symbol stays at least 18px from its neighbor. The
-  // plot is 300 × 300 at first; the panel keeps its 380px, and the tile loses 120 × 60.
-  await resizeTileBy(page, -120, -60);
-  await expect(plot(reopened)).toHaveAttribute("width", "180");
-  await expect(plot(reopened)).toHaveAttribute("height", "180");
+  // A larger tile moves the points, but each symbol stays at least 18px from its neighbor. The
+  // plot is 300 × 300 at first, which is also its smallest; the panel keeps its 380px, and the tile
+  // gains 120 × 60.
+  await resizeTileBy(page, 120, 60);
+  await expect(plot(reopened)).toHaveAttribute("width", "360");
+  await expect(plot(reopened)).toHaveAttribute("height", "360");
   const distances = await distancesToNeighbors(reopened);
   expect(distances).toHaveLength(5);
   distances.forEach(distance => expect(distance).toBeGreaterThanOrEqual(kMinNeighborOffset - 0.01));
@@ -110,22 +111,22 @@ test("selects test phrases with the symbol button and on the plot, together with
   await expect.poll(() => tableSelectionCount(page)).toBe(0);
 
   // A case point replaces it
-  await point(plugin, caseRow).click();
+  await clickPoint(point(plugin, caseRow));
   await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow]);
   await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-pressed", "false");
 
   // Shift-click adds the symbol to the case
-  await symbolPoint(plugin, 0).click({ modifiers: ["Shift"] });
+  await clickPoint(symbolPoint(plugin, 0), { modifiers: ["Shift"] });
   await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow, `Square test phrase: ${kTestPhrases[0].text}`]);
   await expect.poll(() => tableSelectionCount(page)).toBe(1);
 
   // Shift-click removes a selected case point and keeps the test phrase, through CODAP's notice
   const otherRow = "Nobody anywhere feels this way";
-  await point(plugin, otherRow).click({ modifiers: ["Shift"] });
+  await clickPoint(point(plugin, otherRow), { modifiers: ["Shift"] });
   await expect.poll(() => pressedPhrases(plugin))
     .toEqual([caseRow, otherRow, `Square test phrase: ${kTestPhrases[0].text}`]);
   await moveMouseOff(page);
-  await point(plugin, caseRow).click({ modifiers: ["Shift"] });
+  await clickPoint(point(plugin, caseRow), { modifiers: ["Shift"] });
   await expect.poll(() => pressedPhrases(plugin)).toEqual([otherRow, `Square test phrase: ${kTestPhrases[0].text}`]);
   await expect.poll(() => tableSelectionCount(page)).toBe(1);
 
@@ -135,13 +136,13 @@ test("selects test phrases with the symbol button and on the plot, together with
   await expect.poll(() => tableSelectionCount(page)).toBe(0);
 
   // A click on a table row unselects the symbol
-  await symbolPoint(plugin, 0).click();
+  await clickPoint(symbolPoint(plugin, 0));
   await expect(symbolPoint(plugin, 0)).toHaveAttribute("aria-pressed", "true");
   await tableCell(page, caseRow).click();
   await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow]);
 
   // A Shift-click on a table row keeps it
-  await symbolPoint(plugin, 0).click();
+  await clickPoint(symbolPoint(plugin, 0));
   await expect.poll(() => pressedPhrases(plugin)).toEqual([`Square test phrase: ${kTestPhrases[0].text}`]);
   await tableCell(page, caseRow).click({ modifiers: ["Shift"] });
   await expect.poll(() => pressedPhrases(plugin)).toEqual([caseRow, `Square test phrase: ${kTestPhrases[0].text}`]);
@@ -252,4 +253,68 @@ test("keeps the test phrases' borders, symbols and focus visible in forced-color
   });
   expect(focusRing.visibility).toBe("visible");
   expect(focusRing.stroke).toBe(focusRing.expected);
+});
+
+const transformOf = (element: Locator) => element.getAttribute("transform");
+// Each point's name, in drawing order
+const drawOrder = (plugin: FrameLocator) =>
+  plugin.locator(".graph-plot .point").evaluateAll(points => points.map(p => p.getAttribute("aria-label")));
+
+test("puts a test phrase that matches a dataset phrase under its dot, and reaches it at its visible part",
+  async ({ page }) => {
+    const plugin = await openFlatPlot(page);
+    // Matched after trimming, collapsing spaces and lowercasing
+    await enterTestPhrase(plugin, 0, kIsolatedDot);
+    await enterTestPhrase(plugin, 1, ` ${kIsolatedDot.toLowerCase()} `);
+    await enterTestPhrase(plugin, 4, kIsolatedDot);
+    await expect(plugin.locator(".test-phrase-point")).toHaveCount(3);
+
+    // One spot, the dot's, with the symbols drawn before it: the highest slot first
+    const dot = await transformOf(point(plugin, kIsolatedDot));
+    for (const slot of [0, 1, 4]) await expect(symbolPoint(plugin, slot)).toHaveAttribute("transform", dot ?? "");
+    const order = await drawOrder(plugin);
+    const dotIndex = order.findIndex(name => name?.startsWith(`${kIsolatedDot}, `));
+    const squareIndex = order.indexOf(`Square test phrase: ${kIsolatedDot}`);
+    expect(order.indexOf(`Star test phrase: ${kIsolatedDot}`)).toBeLessThan(squareIndex);
+    expect(squareIndex).toBeLessThan(dotIndex);
+
+    // The second slot's selection ring is drawn, around the dot
+    await symbolButton(plugin, 1).click();
+    await expect(symbolPoint(plugin, 1)).toHaveAttribute("aria-pressed", "true");
+    await expect(symbolPoint(plugin, 1).locator(".selection-ring")).toHaveCount(1);
+
+    // On the dot: the dot's tooltip, in its label's colors
+    const center = await centerOf(point(plugin, kIsolatedDot));
+    const move = async (dx: number, dy: number) => {
+      const { x, y } = await onPage(plugin, { x: center.x + dx, y: center.y + dy });
+      await page.mouse.move(x, y);
+    };
+    const tooltip = plugin.getByTestId("point-tooltip");
+    const tooltipFill = () => tooltip.evaluate(box => getComputedStyle(box).backgroundColor);
+    await move(0, 0);
+    await expect(tooltip).toHaveText(kIsolatedDot);
+    expect(await tooltipFill()).toBe("rgb(192, 207, 255)");
+    // Toward the star's right tip, outside the dot: a test phrase's purple tooltip. The hit test treats a symbol as
+    // a square, so the triangle above the star may take this spot; both have the phrase, as typed.
+    await move(8, -2.6);
+    await expect.poll(tooltipFill).toBe("rgb(203, 203, 255)");
+    await expect(tooltip).toHaveText(new RegExp(`^${kIsolatedDot}$`, "i"));
+  });
+
+test("stacks the same phrase in two slots, when it isn't in the table, at the first slot's place", async ({ page }) => {
+  const plugin = await openFlatPlot(page);
+  const { text } = kTestPhrases[0];
+  await enterTestPhrase(plugin, 0, text);
+  await enterTestPhrase(plugin, 1, text.toUpperCase());
+  await expect(plugin.locator(".test-phrase-point")).toHaveCount(2);
+  const square = await transformOf(symbolPoint(plugin, 0));
+  await expect(symbolPoint(plugin, 1)).toHaveAttribute("transform", square ?? "");
+
+  // The first slot is drawn last, so on top: the pointer on the stack picks it
+  const order = await drawOrder(plugin);
+  expect(order.indexOf(`Triangle test phrase: ${text.toUpperCase()}`))
+    .toBeLessThan(order.indexOf(`Square test phrase: ${text}`));
+  const { x, y } = await onPage(plugin, await centerOf(symbolPoint(plugin, 0)));
+  await page.mouse.move(x, y);
+  await expect(plugin.getByTestId("point-tooltip")).toHaveText(text);
 });

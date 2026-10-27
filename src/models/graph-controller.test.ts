@@ -507,9 +507,20 @@ describe("startGraphController test-phrase placement", () => {
     lastWorker().replyPlaced(lastWorker().lastPlaceRequest,
       [placement(3), "empty", "no-words", "empty", "empty"]);
     expect(store.testPhrasePoints).toEqual([
-      { slot: 0, x: 0.25, y: 0.5, neighborCaseId: "1", direction: kDirection }
+      { slot: 0, x: 0.25, y: 0.5, neighborCaseId: "1", direction: kDirection, isExactMatch: false }
     ]);
     expect(store.placementStatus).toEqual({ 0: "placed", 1: "empty", 2: "no-words", 3: "empty", 4: "empty" });
+  });
+
+  it("keeps an exact match's isExactMatch in its point; a placement without it gives false", () => {
+    store.setTestPhrase(0, "the cat sat");
+    store.setTestPhrase(1, "the cat");
+    stop = startGraphController(store);
+    finishLayout();
+    lastWorker().replyPlaced(lastWorker().lastPlaceRequest,
+      [{ x: 0.25, y: 0.5, neighborIndex: 3, direction: kDirection, isExactMatch: true }, placement(3), "empty",
+        "empty", "empty"]);
+    expect(store.testPhrasePoints.map(point => [point.slot, point.isExactMatch])).toEqual([[0, true], [1, false]]);
   });
 
   it("gives no status to a slot answered no-layout", () => {
@@ -550,7 +561,7 @@ describe("startGraphController test-phrase placement", () => {
     expect(store.testPhrasePoints).toEqual([]);
     lastWorker().replyPlaced(lastWorker().lastPlaceRequest, [placement(0, 0.75), "empty", "empty", "empty", "empty"]);
     expect(store.testPhrasePoints).toEqual([
-      { slot: 0, x: 0.75, y: 0.5, neighborCaseId: "2", direction: kDirection }
+      { slot: 0, x: 0.75, y: 0.5, neighborCaseId: "2", direction: kDirection, isExactMatch: false }
     ]);
   });
 
@@ -592,12 +603,12 @@ describe("startGraphController test-phrase placement", () => {
 
     lastWorker().replyPlaced(third, [placement(3, 0.3), "empty", "empty", "empty", "empty"]);
     expect(store.testPhrasePoints).toEqual([
-      { slot: 0, x: 0.3, y: 0.5, neighborCaseId: "1", direction: kDirection }
+      { slot: 0, x: 0.3, y: 0.5, neighborCaseId: "1", direction: kDirection, isExactMatch: false }
     ]);
     lastWorker().replyPlaced(first, [placement(0, 0.1), "empty", "empty", "empty", "empty"]);
     lastWorker().replyPlaced(second, [placement(1, 0.2), "empty", "empty", "empty", "empty"]);
     expect(store.testPhrasePoints).toEqual([
-      { slot: 0, x: 0.3, y: 0.5, neighborCaseId: "1", direction: kDirection }
+      { slot: 0, x: 0.3, y: 0.5, neighborCaseId: "1", direction: kDirection, isExactMatch: false }
     ]);
   });
 

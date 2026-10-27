@@ -2,14 +2,13 @@ import { expect, type FrameLocator, type Locator, type Page } from "@playwright/
 import { test } from "./fixtures";
 import { resizeTileBy } from "./lib/codap";
 import {
-  emptySpot, enterTestPhrase, kTestPhrases, moveMouseOff, onPage, plot, plotLayout, point, pressedPhrases, symbolPoint,
-  tabToPlot, zoomButton
+  centerOf, clickPoint, emptySpot, enterTestPhrase, kIsolatedDot, kTestPhrases, moveMouseOff, onPage, plot,
+  plotLayout, point, pressedPhrases, symbolPoint, tabToPlot, zoomButton
 } from "./lib/plugin";
 import { openFlatPlot } from "./lib/documents";
 import { axeViolations } from "./lib/accessibility";
 
-// Dots in the flat fixture that no other dot's 24px target covers
-const kIsolatedDot = "Every voice across the globe";
+// The flat fixture's one dot with no label
 const kUnlabeledDot = "People I have never met";
 // Under the isolated dot's tooltip
 const kCoveredDot = "No one lives in isolation";
@@ -18,11 +17,6 @@ const kRightEdgeDot = "None of us are by ourselves";
 const kMiddleDot = "Everyone around the world shares this";
 
 const tooltip = (plugin: FrameLocator) => plugin.getByTestId("point-tooltip");
-// A point's center in the plot, from its transform
-const centerOf = async (element: Locator) => {
-  const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(await element.getAttribute("transform") ?? "") ?? [];
-  return { x: Number(x), y: Number(y) };
-};
 // Moves the mouse onto a point's center, without Playwright's check that nothing covers it
 const hoverPoint = async (page: Page, plugin: FrameLocator, element: Locator) => {
   const { x, y } = await onPage(plugin, await centerOf(element));
@@ -91,7 +85,7 @@ test("keeps the tooltip while the mouse is on it, and hides it on Escape until t
   async ({ page }) => {
     const plugin = await openFlatPlot(page);
     // A click gives the plugin keyboard focus; the mouse stays on the dot
-    await point(plugin, kIsolatedDot).click();
+    await clickPoint(point(plugin, kIsolatedDot));
     await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
     const box = await boxCenter(tooltip(plugin));
     await page.mouse.move(box.x, box.y, { steps: 5 });
@@ -171,9 +165,9 @@ test("shows a test phrase in the test-phrase colors, and cuts a long one short a
     await expect(tooltip(plugin)).toHaveText(kTestPhrases[0].text);
     expect(await tooltipColors(plugin))
       .toEqual({ fill: "rgb(203, 203, 255)", border: "rgb(46, 0, 127)", pointer: "rgb(46, 0, 127)" });
-    // The square's half extent is 6.65px: 0.65px further out than a dot's
+    // The square's half extent is 7.75px: 1.75px further out than a dot's
     const square = await tooltipFit(symbolPoint(plugin, 0));
-    expect(Math.abs(square.tipX)).toBeCloseTo(1.65, 1);
+    expect(Math.abs(square.tipX)).toBeCloseTo(2.75, 1);
     expect(square.tipY).toBeCloseTo(0, 1);
 
     const long = `${"people in every country ".repeat(11)}agree`.slice(0, 255);
@@ -272,33 +266,51 @@ test.describe("tooltips with a touch screen", () => {
   });
 });
 
-test("keeps the tooltip inside a narrow graph area", async ({ page }) => {
-  const plugin = await openFlatPlot(page);
-  await resizeTileBy(page, -120, 0);
-  await expect.poll(async () => (await plotLayout(plugin)).area.width).toBeLessThan(200);
-  const { area } = await plotLayout(plugin);
-
-  // Near the right edge: narrowed to fit on the left
-  await hoverPoint(page, plugin, point(plugin, kRightEdgeDot));
-  await expect(tooltip(plugin)).toHaveText(kRightEdgeDot);
-  const edge = await tooltipFit(point(plugin, kRightEdgeDot));
-  expect(edge.inside).toBe(true);
-  expect(edge.width).toBeLessThan(area.width - 8);
-  expectTipOnDot(edge);
-
-  await moveMouseOff(page);
-  // Near the middle, under 80px each side: clamped, so the tip falls short
-  await hoverPoint(page, plugin, point(plugin, kMiddleDot));
-  await expect(tooltip(plugin)).toHaveText(kMiddleDot);
-  const middle = await tooltipFit(point(plugin, kMiddleDot));
-  expect(middle.inside).toBe(true);
-  expect(Math.abs(middle.tipX)).toBeGreaterThan(5);
-  expect(middle.tipY).toBeCloseTo(0, 1);
-});
-
 test("has no accessibility violations with a tooltip showing", async ({ page }) => {
   const plugin = await openFlatPlot(page);
   await hoverPoint(page, plugin, point(plugin, kIsolatedDot));
   await expect(tooltip(plugin)).toHaveText(kIsolatedDot);
   expect(await axeViolations(page)).toEqual([]);
+});
+
+test("reaches both of two overlapping dots: the pointer picks the nearer center", async ({ page }) => {
+  const plugin = await openFlatPlot(page);
+  // Zoomed out, the closest two dots overlap
+  await zoomButton(plugin, "Zoom out").click();
+  const centers = await plugin.locator(".graph-plot .point:not(.test-phrase-point)").evaluateAll(points =>
+    points.map(p => {
+      const [, x, y] = /translate\((-?[\d.e-]+) (-?[\d.e-]+)\)/.exec(p.getAttribute("transform") ?? "") ?? [];
+      return { phrase: (p.getAttribute("aria-label") ?? "").replace(/, [^,]*$/, ""), x: Number(x), y: Number(y) };
+    }));
+  // In draw order, so `lower` is under `upper`
+  let pair = { lower: centers[0], upper: centers[1], distance: Infinity };
+  centers.forEach((first, i) => centers.slice(i + 1).forEach(second => {
+    const distance = Math.hypot(second.x - first.x, second.y - first.y);
+    if (distance < pair.distance) pair = { lower: first, upper: second, distance };
+  }));
+  // Dots are 13px across with their outlines
+  expect(pair.distance).toBeLessThan(13);
+  const { lower, upper } = pair;
+  // Between the centers, a third of the way from each: both within each dot's 12px pick radius, so only the nearer
+  // center decides
+  const nearLower = { x: lower.x + (upper.x - lower.x) / 3, y: lower.y + (upper.y - lower.y) / 3 };
+  const nearUpper = { x: upper.x + (lower.x - upper.x) / 3, y: upper.y + (lower.y - upper.y) / 3 };
+
+  const move = async (at: { x: number, y: number }) => {
+    const { x, y } = await onPage(plugin, at);
+    await page.mouse.move(x, y);
+  };
+  await move(nearLower);
+  await expect(tooltip(plugin)).toHaveText(lower.phrase);
+  await move(nearUpper);
+  await expect(tooltip(plugin)).toHaveText(upper.phrase);
+
+  const click = async (at: { x: number, y: number }) => {
+    const { x, y } = await onPage(plugin, at);
+    await page.mouse.click(x, y);
+  };
+  await click(nearLower);
+  await expect.poll(() => pressedPhrases(plugin)).toEqual([lower.phrase]);
+  await click(nearUpper);
+  await expect.poll(() => pressedPhrases(plugin)).toEqual([upper.phrase]);
 });

@@ -112,8 +112,15 @@ describe("computeLayout's retained layout", () => {
     expect(layout.matrix).toHaveLength(kPhrases.length);
     expect(layout.model.vocabulary.get("cat")).toEqual(expect.any(Number));
     expect(layout.solution).toHaveLength(kPhrases.length);
+    expect(layout.phrases).toEqual(kPhrases);
     const positions = finalPositions(responses);
     layout.solution.forEach((point, i) => expect(applyTransform(layout.transform, point)).toEqual(positions?.[i]));
+  });
+
+  it("keeps each row's phrase normalized, for exact matches", () => {
+    const phrases = ["  The Cat   sat on the MAT ", ...kPhrases.slice(1)];
+    const layout = computeLayout({ ...layoutRequest, phrases }, () => undefined);
+    expect(layout?.phrases).toEqual(["the cat sat on the mat", ...kPhrases.slice(1)]);
   });
 
   it("returns nothing when there are too few phrases or an error", () => {
@@ -151,6 +158,14 @@ describe("answerPlaceRequest", () => {
     expect(slots[2]).toEqual(placePhrase(layout, "the dog ran", 42, 2));
     expect(slots[4]).toEqual(placePhrase(layout, "the dog ran", 42, 4));
     expect(slots[2]).not.toEqual(slots[4]);
+  });
+
+  it("places a phrase in the table exactly on its row, matching by normalized text", () => {
+    if (!layout) throw new Error("expected a layout");
+    const { slots } = answerPlaceRequest(placeRequest({ phrases: [null, "The Kitten lay on the carpet", null, null,
+      null] }), layout);
+    expect(slots[1]).toEqual({ ...applyTransform(layout.transform, layout.solution[2]), neighborIndex: 2,
+      direction: { dx: 1, dy: 0 }, isExactMatch: true });
   });
 
   it("answers no-layout for a different layout's id, but still empty for empty slots", () => {

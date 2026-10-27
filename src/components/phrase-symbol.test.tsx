@@ -88,8 +88,8 @@ describe("plot symbols", () => {
     });
   });
 
-  it("reach at most 10px, so two 18px apart overlap by at most 2px", () => {
-    kPhraseSymbols.forEach(symbol => expect(symbolReach(symbol, kPlotSymbolExtents[symbol])).toBeLessThanOrEqual(10));
+  it("reach at most 11px, so two 18px apart overlap by at most 4px", () => {
+    kPhraseSymbols.forEach(symbol => expect(symbolReach(symbol, kPlotSymbolExtents[symbol])).toBeLessThanOrEqual(11));
     // An equilateral triangle centered on its centroid reaches side / √3
     expect(symbolReach("triangle", 17.3)).toBeCloseTo(17.3 / Math.sqrt(3), 2);
   });
