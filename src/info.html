@@ -13,7 +13,7 @@
         A t-SNE plot is a scatterplot that represents high-dimensional data in two or three
         dimensions. It is a method for visualizing patterns of similarity among data points.
       </p>
-      <h2>How does the interactive convert the phrases in the dataset into points?</h2>
+      <h2>How does the plugin convert the phrases in the dataset into points?</h2>
       <p>
         First, this plugin uses a process called Term Frequency–Inverse Document Frequency (TF-IDF)
         to convert text into numbers. It identifies which words are present in the dataset,
@@ -54,9 +54,9 @@
       <h2>How do I use the Test Phrases section?</h2>
       <p>
         After you have created your t-SNE plot, you can add new phrases and see where they land in
-        the graph. Simply type your phrase into an open slot, and press enter. If your phrase shares
-        any recognized words with the original dataset, it will appear on the graph with the dark
-        purple icon. You can change the phrase for each icon as many times as you wish.
+        the graph. Simply type your phrase into an open slot, and press Enter. If your phrase shares
+        any recognized words with the original dataset, it will appear on the graph using the icon
+        next to your phrase. You can change the phrase for each icon as many times as you wish.
       </p>
       <h2>How does the plugin decide where to place my test phrases?</h2>
       <p>
@@ -66,6 +66,27 @@
         that one. If your phrase has no overlapping recognized words with the original dataset, the
         plugin will not plot your phrase. When this occurs, the box containing your phrase will
         change colors.
+      </p>
+      <h2>How can I inspect the t-SNE plot?</h2>
+      <p>
+        The plugin offers several ways for you to examine your data. If you place your cursor over
+        a dot, hovertext will appear showing you the beginning of your phrase. If you click on a dot,
+        the corresponding table will scroll to that row with highlighting for you to read. If you
+        click on one of the Key labels, all the data points that correspond with that label will be
+        highlighted both on the plot and in the table. Similarly, clicking on the icon next to your
+        test phrase will cause that icon to be highlighted in the plot. Clicking on any row in your
+        data table will highlight that point in the plot. You can use the + and - buttons to adjust
+        the scaling of your plot, and then click and drag the blank spaces to move your focus. You
+        can click on the
+        <svg class="inline-icon" role="img" aria-label="fit all" viewBox="0 0 24 24">
+          <path fill="currentColor" d="M6 14.5V18h3.5v2H4v-5.5h2Z
+            m12 0h2V20h-5.5v-2H18v-3.5Z
+            M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z
+            m0 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z
+            M4 4h5.5v2H6v3.5H4V4Z
+            m16 0v5.5h-2V6h-3.5V4H20Z"/>
+        </svg>
+        button to refit the scaling to show the full plot.
       </p>
     </main>
   </body>
