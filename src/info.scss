@@ -12,6 +12,12 @@ body {
   @include visually-hidden;
 }
 
+.inline-icon {
+  height: 1.15em;
+  vertical-align: -0.2em;
+  width: 1.15em;
+}
+
 main {
   padding: $info-page-padding-top $info-page-padding-side $info-page-padding-bottom;
 }
